@@ -17,11 +17,20 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
-#include "app_threadx.h"
 #include "main.h"
+#include "fdcan.h"
+#include "quadspi.h"
+#include "spi.h"
+#include "tim.h"
+#include "usb.h"
+#include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+
+#include "stdbool.h"
+#include "SEGGER_RTT.h"
+#include "align-utils.h"
 
 /* USER CODE END Includes */
 
@@ -41,14 +50,6 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-FDCAN_HandleTypeDef hfdcan1;
-
-QSPI_HandleTypeDef hqspi1;
-
-SPI_HandleTypeDef hspi1;
-SPI_HandleTypeDef hspi2;
-
-PCD_HandleTypeDef hpcd_USB_FS;
 
 /* USER CODE BEGIN PV */
 
@@ -56,18 +57,17 @@ PCD_HandleTypeDef hpcd_USB_FS;
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-static void MX_GPIO_Init(void);
-static void MX_FDCAN1_Init(void);
-static void MX_QUADSPI1_Init(void);
-static void MX_SPI1_Init(void);
-static void MX_SPI2_Init(void);
-static void MX_USB_PCD_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+// Simple delay function that takes microseconds 
+// Configured around TIM2 with a 1MHz signal, with a overflow reset every 1000 million cycles
+// Max delay is therefore 1000 seconds
+
 
 /* USER CODE END 0 */
 
@@ -79,6 +79,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
+  SEGGER_RTT_Init();
 
   /* USER CODE END 1 */
 
@@ -105,13 +106,16 @@ int main(void)
   MX_SPI1_Init();
   MX_SPI2_Init();
   MX_USB_PCD_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
+  uint8_t spiData = 0;
+
+  bool pinStatus = false;
+
+  HAL_TIM_Base_Start(&htim2);
+
   /* USER CODE END 2 */
-
-  MX_ThreadX_Init();
-
-  /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -120,6 +124,10 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+
+
+
+
   }
   /* USER CODE END 3 */
 }
@@ -145,7 +153,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV5;
+  RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV3;
   RCC_OscInitStruct.PLL.PLLN = 85;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
@@ -168,255 +176,6 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-}
-
-/**
-  * @brief FDCAN1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_FDCAN1_Init(void)
-{
-
-  /* USER CODE BEGIN FDCAN1_Init 0 */
-
-  /* USER CODE END FDCAN1_Init 0 */
-
-  /* USER CODE BEGIN FDCAN1_Init 1 */
-
-  /* USER CODE END FDCAN1_Init 1 */
-  hfdcan1.Instance = FDCAN1;
-  hfdcan1.Init.ClockDivider = FDCAN_CLOCK_DIV1;
-  hfdcan1.Init.FrameFormat = FDCAN_FRAME_CLASSIC;
-  hfdcan1.Init.Mode = FDCAN_MODE_NORMAL;
-  hfdcan1.Init.AutoRetransmission = DISABLE;
-  hfdcan1.Init.TransmitPause = DISABLE;
-  hfdcan1.Init.ProtocolException = DISABLE;
-  hfdcan1.Init.NominalPrescaler = 17;
-  hfdcan1.Init.NominalSyncJumpWidth = 1;
-  hfdcan1.Init.NominalTimeSeg1 = 3;
-  hfdcan1.Init.NominalTimeSeg2 = 6;
-  hfdcan1.Init.DataPrescaler = 10;
-  hfdcan1.Init.DataSyncJumpWidth = 1;
-  hfdcan1.Init.DataTimeSeg1 = 14;
-  hfdcan1.Init.DataTimeSeg2 = 2;
-  hfdcan1.Init.StdFiltersNbr = 0;
-  hfdcan1.Init.ExtFiltersNbr = 0;
-  hfdcan1.Init.TxFifoQueueMode = FDCAN_TX_FIFO_OPERATION;
-  if (HAL_FDCAN_Init(&hfdcan1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN FDCAN1_Init 2 */
-
-  /* USER CODE END FDCAN1_Init 2 */
-
-}
-
-/**
-  * @brief QUADSPI1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_QUADSPI1_Init(void)
-{
-
-  /* USER CODE BEGIN QUADSPI1_Init 0 */
-
-  /* USER CODE END QUADSPI1_Init 0 */
-
-  /* USER CODE BEGIN QUADSPI1_Init 1 */
-
-  /* USER CODE END QUADSPI1_Init 1 */
-  /* QUADSPI1 parameter configuration*/
-  hqspi1.Instance = QUADSPI;
-  hqspi1.Init.ClockPrescaler = 255;
-  hqspi1.Init.FifoThreshold = 1;
-  hqspi1.Init.SampleShifting = QSPI_SAMPLE_SHIFTING_NONE;
-  hqspi1.Init.FlashSize = 1;
-  hqspi1.Init.ChipSelectHighTime = QSPI_CS_HIGH_TIME_1_CYCLE;
-  hqspi1.Init.ClockMode = QSPI_CLOCK_MODE_0;
-  hqspi1.Init.FlashID = QSPI_FLASH_ID_1;
-  hqspi1.Init.DualFlash = QSPI_DUALFLASH_DISABLE;
-  if (HAL_QSPI_Init(&hqspi1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN QUADSPI1_Init 2 */
-
-  /* USER CODE END QUADSPI1_Init 2 */
-
-}
-
-/**
-  * @brief SPI1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI1_Init(void)
-{
-
-  /* USER CODE BEGIN SPI1_Init 0 */
-
-  /* USER CODE END SPI1_Init 0 */
-
-  /* USER CODE BEGIN SPI1_Init 1 */
-
-  /* USER CODE END SPI1_Init 1 */
-  /* SPI1 parameter configuration*/
-  hspi1.Instance = SPI1;
-  hspi1.Init.Mode = SPI_MODE_MASTER;
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_4BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
-  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi1.Init.CRCPolynomial = 7;
-  hspi1.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
-  hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
-  if (HAL_SPI_Init(&hspi1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI1_Init 2 */
-
-  /* USER CODE END SPI1_Init 2 */
-
-}
-
-/**
-  * @brief SPI2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI2_Init(void)
-{
-
-  /* USER CODE BEGIN SPI2_Init 0 */
-
-  /* USER CODE END SPI2_Init 0 */
-
-  /* USER CODE BEGIN SPI2_Init 1 */
-
-  /* USER CODE END SPI2_Init 1 */
-  /* SPI2 parameter configuration*/
-  hspi2.Instance = SPI2;
-  hspi2.Init.Mode = SPI_MODE_MASTER;
-  hspi2.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi2.Init.DataSize = SPI_DATASIZE_4BIT;
-  hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
-  hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi2.Init.CRCPolynomial = 7;
-  hspi2.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
-  hspi2.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
-  if (HAL_SPI_Init(&hspi2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI2_Init 2 */
-
-  /* USER CODE END SPI2_Init 2 */
-
-}
-
-/**
-  * @brief USB Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_USB_PCD_Init(void)
-{
-
-  /* USER CODE BEGIN USB_Init 0 */
-
-  /* USER CODE END USB_Init 0 */
-
-  /* USER CODE BEGIN USB_Init 1 */
-
-  /* USER CODE END USB_Init 1 */
-  hpcd_USB_FS.Instance = USB;
-  hpcd_USB_FS.Init.dev_endpoints = 8;
-  hpcd_USB_FS.Init.speed = PCD_SPEED_FULL;
-  hpcd_USB_FS.Init.phy_itface = PCD_PHY_EMBEDDED;
-  hpcd_USB_FS.Init.Sof_enable = DISABLE;
-  hpcd_USB_FS.Init.low_power_enable = DISABLE;
-  hpcd_USB_FS.Init.lpm_enable = DISABLE;
-  hpcd_USB_FS.Init.battery_charging_enable = DISABLE;
-  if (HAL_PCD_Init(&hpcd_USB_FS) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN USB_Init 2 */
-
-  /* USER CODE END USB_Init 2 */
-
-}
-
-/**
-  * @brief GPIO Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_GPIO_Init(void)
-{
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-/* USER CODE BEGIN MX_GPIO_Init_1 */
-/* USER CODE END MX_GPIO_Init_1 */
-
-  /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOF_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(Co_MCU_CS_GPIO_Port, Co_MCU_CS_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(SPI2_CS_GPIO_Port, SPI2_CS_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pins : Low_Current_Sensor_Pin High_Current_Sensor_Pin */
-  GPIO_InitStruct.Pin = Low_Current_Sensor_Pin|High_Current_Sensor_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : Slave_Alive_Sig_Pin nFault_Pin */
-  GPIO_InitStruct.Pin = Slave_Alive_Sig_Pin|nFault_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : Co_MCU_CS_Pin */
-  GPIO_InitStruct.Pin = Co_MCU_CS_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(Co_MCU_CS_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : SPIRDY_Pin */
-  GPIO_InitStruct.Pin = SPIRDY_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(SPIRDY_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : SPI2_CS_Pin */
-  GPIO_InitStruct.Pin = SPI2_CS_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(SPI2_CS_GPIO_Port, &GPIO_InitStruct);
-
-/* USER CODE BEGIN MX_GPIO_Init_2 */
-/* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */

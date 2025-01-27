@@ -7,7 +7,6 @@ add_library(stm32cubemx INTERFACE)
 enable_language(C ASM)
 
 target_compile_definitions(stm32cubemx INTERFACE 
-	TX_INCLUDE_USER_DEFINE_FILE 
 	USE_HAL_DRIVER 
 	STM32G473xx
     $<$<CONFIG:Debug>:DEBUG>
@@ -15,22 +14,23 @@ target_compile_definitions(stm32cubemx INTERFACE
 
 target_include_directories(stm32cubemx INTERFACE
     ../../Core/Inc
-    ../../AZURE_RTOS/App
     ../../Drivers/STM32G4xx_HAL_Driver/Inc
     ../../Drivers/STM32G4xx_HAL_Driver/Inc/Legacy
     ../../Drivers/CMSIS/Device/ST/STM32G4xx/Include
     ../../Drivers/CMSIS/Include
-    ../../Middlewares/ST/threadx/common/inc/
-    ../../Middlewares/ST/threadx/ports/cortex_m4/gnu/inc/
 )
 
 target_sources(stm32cubemx INTERFACE
     ../../Core/Src/main.c
-    ../../Core/Src/app_threadx.c
+    ../../Core/Src/gpio.c
+    ../../Core/Src/fdcan.c
+    ../../Core/Src/quadspi.c
+    ../../Core/Src/spi.c
+    ../../Core/Src/tim.c
+    ../../Core/Src/usb.c
     ../../Core/Src/stm32g4xx_it.c
     ../../Core/Src/stm32g4xx_hal_msp.c
     ../../Core/Src/stm32g4xx_hal_timebase_tim.c
-    ../../AZURE_RTOS/App/app_azure_rtos.c
     ../../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_tim.c
     ../../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_tim_ex.c
     ../../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_fdcan.c
@@ -54,175 +54,9 @@ target_sources(stm32cubemx INTERFACE
     ../../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_pcd_ex.c
     ../../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_ll_usb.c
     ../../Core/Src/system_stm32g4xx.c
-    ../../Middlewares/ST/threadx/common/src/tx_initialize_high_level.c
-    ../../Middlewares/ST/threadx/common/src/tx_initialize_kernel_enter.c
-    ../../Middlewares/ST/threadx/common/src/tx_initialize_kernel_setup.c
-    ../../Middlewares/ST/threadx/common/src/tx_block_allocate.c
-    ../../Middlewares/ST/threadx/common/src/tx_block_pool_cleanup.c
-    ../../Middlewares/ST/threadx/common/src/tx_block_pool_create.c
-    ../../Middlewares/ST/threadx/common/src/tx_block_pool_delete.c
-    ../../Middlewares/ST/threadx/common/src/tx_block_pool_info_get.c
-    ../../Middlewares/ST/threadx/common/src/tx_block_pool_initialize.c
-    ../../Middlewares/ST/threadx/common/src/tx_block_pool_prioritize.c
-    ../../Middlewares/ST/threadx/common/src/tx_block_release.c
-    ../../Middlewares/ST/threadx/common/src/tx_byte_allocate.c
-    ../../Middlewares/ST/threadx/common/src/tx_byte_pool_cleanup.c
-    ../../Middlewares/ST/threadx/common/src/tx_byte_pool_create.c
-    ../../Middlewares/ST/threadx/common/src/tx_byte_pool_delete.c
-    ../../Middlewares/ST/threadx/common/src/tx_byte_pool_info_get.c
-    ../../Middlewares/ST/threadx/common/src/tx_byte_pool_initialize.c
-    ../../Middlewares/ST/threadx/common/src/tx_byte_pool_prioritize.c
-    ../../Middlewares/ST/threadx/common/src/tx_byte_pool_search.c
-    ../../Middlewares/ST/threadx/common/src/tx_byte_release.c
-    ../../Middlewares/ST/threadx/common/src/tx_event_flags_cleanup.c
-    ../../Middlewares/ST/threadx/common/src/tx_event_flags_create.c
-    ../../Middlewares/ST/threadx/common/src/tx_event_flags_delete.c
-    ../../Middlewares/ST/threadx/common/src/tx_event_flags_get.c
-    ../../Middlewares/ST/threadx/common/src/tx_event_flags_info_get.c
-    ../../Middlewares/ST/threadx/common/src/tx_event_flags_initialize.c
-    ../../Middlewares/ST/threadx/common/src/tx_event_flags_set.c
-    ../../Middlewares/ST/threadx/common/src/tx_event_flags_set_notify.c
-    ../../Middlewares/ST/threadx/common/src/tx_mutex_cleanup.c
-    ../../Middlewares/ST/threadx/common/src/tx_mutex_create.c
-    ../../Middlewares/ST/threadx/common/src/tx_mutex_delete.c
-    ../../Middlewares/ST/threadx/common/src/tx_mutex_get.c
-    ../../Middlewares/ST/threadx/common/src/tx_mutex_info_get.c
-    ../../Middlewares/ST/threadx/common/src/tx_mutex_initialize.c
-    ../../Middlewares/ST/threadx/common/src/tx_mutex_prioritize.c
-    ../../Middlewares/ST/threadx/common/src/tx_mutex_priority_change.c
-    ../../Middlewares/ST/threadx/common/src/tx_mutex_put.c
-    ../../Middlewares/ST/threadx/common/src/tx_queue_cleanup.c
-    ../../Middlewares/ST/threadx/common/src/tx_queue_create.c
-    ../../Middlewares/ST/threadx/common/src/tx_queue_delete.c
-    ../../Middlewares/ST/threadx/common/src/tx_queue_flush.c
-    ../../Middlewares/ST/threadx/common/src/tx_queue_front_send.c
-    ../../Middlewares/ST/threadx/common/src/tx_queue_info_get.c
-    ../../Middlewares/ST/threadx/common/src/tx_queue_initialize.c
-    ../../Middlewares/ST/threadx/common/src/tx_queue_prioritize.c
-    ../../Middlewares/ST/threadx/common/src/tx_queue_receive.c
-    ../../Middlewares/ST/threadx/common/src/tx_queue_send.c
-    ../../Middlewares/ST/threadx/common/src/tx_queue_send_notify.c
-    ../../Middlewares/ST/threadx/common/src/tx_semaphore_ceiling_put.c
-    ../../Middlewares/ST/threadx/common/src/tx_semaphore_cleanup.c
-    ../../Middlewares/ST/threadx/common/src/tx_semaphore_create.c
-    ../../Middlewares/ST/threadx/common/src/tx_semaphore_delete.c
-    ../../Middlewares/ST/threadx/common/src/tx_semaphore_get.c
-    ../../Middlewares/ST/threadx/common/src/tx_semaphore_info_get.c
-    ../../Middlewares/ST/threadx/common/src/tx_semaphore_initialize.c
-    ../../Middlewares/ST/threadx/common/src/tx_semaphore_prioritize.c
-    ../../Middlewares/ST/threadx/common/src/tx_semaphore_put.c
-    ../../Middlewares/ST/threadx/common/src/tx_semaphore_put_notify.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_create.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_delete.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_entry_exit_notify.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_identify.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_info_get.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_initialize.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_preemption_change.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_priority_change.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_relinquish.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_reset.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_resume.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_shell_entry.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_sleep.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_stack_analyze.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_stack_error_handler.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_stack_error_notify.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_suspend.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_system_preempt_check.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_system_resume.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_system_suspend.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_terminate.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_time_slice.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_time_slice_change.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_timeout.c
-    ../../Middlewares/ST/threadx/common/src/tx_thread_wait_abort.c
-    ../../Middlewares/ST/threadx/common/src/tx_time_get.c
-    ../../Middlewares/ST/threadx/common/src/tx_time_set.c
-    ../../Middlewares/ST/threadx/common/src/txe_block_allocate.c
-    ../../Middlewares/ST/threadx/common/src/txe_block_pool_create.c
-    ../../Middlewares/ST/threadx/common/src/txe_block_pool_delete.c
-    ../../Middlewares/ST/threadx/common/src/txe_block_pool_info_get.c
-    ../../Middlewares/ST/threadx/common/src/txe_block_pool_prioritize.c
-    ../../Middlewares/ST/threadx/common/src/txe_block_release.c
-    ../../Middlewares/ST/threadx/common/src/txe_byte_allocate.c
-    ../../Middlewares/ST/threadx/common/src/txe_byte_pool_create.c
-    ../../Middlewares/ST/threadx/common/src/txe_byte_pool_delete.c
-    ../../Middlewares/ST/threadx/common/src/txe_byte_pool_info_get.c
-    ../../Middlewares/ST/threadx/common/src/txe_byte_pool_prioritize.c
-    ../../Middlewares/ST/threadx/common/src/txe_byte_release.c
-    ../../Middlewares/ST/threadx/common/src/txe_event_flags_create.c
-    ../../Middlewares/ST/threadx/common/src/txe_event_flags_delete.c
-    ../../Middlewares/ST/threadx/common/src/txe_event_flags_get.c
-    ../../Middlewares/ST/threadx/common/src/txe_event_flags_info_get.c
-    ../../Middlewares/ST/threadx/common/src/txe_event_flags_set.c
-    ../../Middlewares/ST/threadx/common/src/txe_event_flags_set_notify.c
-    ../../Middlewares/ST/threadx/common/src/txe_mutex_create.c
-    ../../Middlewares/ST/threadx/common/src/txe_mutex_delete.c
-    ../../Middlewares/ST/threadx/common/src/txe_mutex_get.c
-    ../../Middlewares/ST/threadx/common/src/txe_mutex_info_get.c
-    ../../Middlewares/ST/threadx/common/src/txe_mutex_prioritize.c
-    ../../Middlewares/ST/threadx/common/src/txe_mutex_put.c
-    ../../Middlewares/ST/threadx/common/src/txe_queue_create.c
-    ../../Middlewares/ST/threadx/common/src/txe_queue_delete.c
-    ../../Middlewares/ST/threadx/common/src/txe_queue_flush.c
-    ../../Middlewares/ST/threadx/common/src/txe_queue_front_send.c
-    ../../Middlewares/ST/threadx/common/src/txe_queue_info_get.c
-    ../../Middlewares/ST/threadx/common/src/txe_queue_prioritize.c
-    ../../Middlewares/ST/threadx/common/src/txe_queue_receive.c
-    ../../Middlewares/ST/threadx/common/src/txe_queue_send.c
-    ../../Middlewares/ST/threadx/common/src/txe_queue_send_notify.c
-    ../../Middlewares/ST/threadx/common/src/txe_semaphore_ceiling_put.c
-    ../../Middlewares/ST/threadx/common/src/txe_semaphore_create.c
-    ../../Middlewares/ST/threadx/common/src/txe_semaphore_delete.c
-    ../../Middlewares/ST/threadx/common/src/txe_semaphore_get.c
-    ../../Middlewares/ST/threadx/common/src/txe_semaphore_info_get.c
-    ../../Middlewares/ST/threadx/common/src/txe_semaphore_prioritize.c
-    ../../Middlewares/ST/threadx/common/src/txe_semaphore_put.c
-    ../../Middlewares/ST/threadx/common/src/txe_semaphore_put_notify.c
-    ../../Middlewares/ST/threadx/common/src/txe_thread_create.c
-    ../../Middlewares/ST/threadx/common/src/txe_thread_delete.c
-    ../../Middlewares/ST/threadx/common/src/txe_thread_entry_exit_notify.c
-    ../../Middlewares/ST/threadx/common/src/txe_thread_info_get.c
-    ../../Middlewares/ST/threadx/common/src/txe_thread_preemption_change.c
-    ../../Middlewares/ST/threadx/common/src/txe_thread_priority_change.c
-    ../../Middlewares/ST/threadx/common/src/txe_thread_relinquish.c
-    ../../Middlewares/ST/threadx/common/src/txe_thread_reset.c
-    ../../Middlewares/ST/threadx/common/src/txe_thread_resume.c
-    ../../Middlewares/ST/threadx/common/src/txe_thread_suspend.c
-    ../../Middlewares/ST/threadx/common/src/txe_thread_terminate.c
-    ../../Middlewares/ST/threadx/common/src/txe_thread_time_slice_change.c
-    ../../Middlewares/ST/threadx/common/src/txe_thread_wait_abort.c
-    ../../Middlewares/ST/threadx/common/src/tx_timer_activate.c
-    ../../Middlewares/ST/threadx/common/src/tx_timer_change.c
-    ../../Middlewares/ST/threadx/common/src/tx_timer_create.c
-    ../../Middlewares/ST/threadx/common/src/tx_timer_deactivate.c
-    ../../Middlewares/ST/threadx/common/src/tx_timer_delete.c
-    ../../Middlewares/ST/threadx/common/src/tx_timer_expiration_process.c
-    ../../Middlewares/ST/threadx/common/src/tx_timer_info_get.c
-    ../../Middlewares/ST/threadx/common/src/tx_timer_initialize.c
-    ../../Middlewares/ST/threadx/common/src/tx_timer_system_activate.c
-    ../../Middlewares/ST/threadx/common/src/tx_timer_system_deactivate.c
-    ../../Middlewares/ST/threadx/common/src/tx_timer_thread_entry.c
-    ../../Middlewares/ST/threadx/common/src/txe_timer_activate.c
-    ../../Middlewares/ST/threadx/common/src/txe_timer_change.c
-    ../../Middlewares/ST/threadx/common/src/txe_timer_create.c
-    ../../Middlewares/ST/threadx/common/src/txe_timer_deactivate.c
-    ../../Middlewares/ST/threadx/common/src/txe_timer_delete.c
-    ../../Middlewares/ST/threadx/common/src/txe_timer_info_get.c
     ../../Core/Src/sysmem.c
     ../../Core/Src/syscalls.c
     ../../startup_stm32g473xx.s
-    ../../Core/Src/tx_initialize_low_level.S
-    ../../Middlewares/ST/threadx/ports/cortex_m4/gnu/src/tx_thread_context_restore.S
-    ../../Middlewares/ST/threadx/ports/cortex_m4/gnu/src/tx_thread_context_save.S
-    ../../Middlewares/ST/threadx/ports/cortex_m4/gnu/src/tx_thread_interrupt_control.S
-    ../../Middlewares/ST/threadx/ports/cortex_m4/gnu/src/tx_thread_interrupt_disable.S
-    ../../Middlewares/ST/threadx/ports/cortex_m4/gnu/src/tx_thread_interrupt_restore.S
-    ../../Middlewares/ST/threadx/ports/cortex_m4/gnu/src/tx_thread_schedule.S
-    ../../Middlewares/ST/threadx/ports/cortex_m4/gnu/src/tx_thread_stack_build.S
-    ../../Middlewares/ST/threadx/ports/cortex_m4/gnu/src/tx_thread_system_return.S
-    ../../Middlewares/ST/threadx/ports/cortex_m4/gnu/src/tx_timer_interrupt.S
 )
 
 target_link_directories(stm32cubemx INTERFACE
