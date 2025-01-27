@@ -110,9 +110,7 @@ int main(void)
   HAL_TIM_Base_Start(&htim2);
 
 
-  uint8_t writebuf[] = "Hello, World!";
-
-  if(CSP_QUADSPI_Init() != HAL_OK) Error_Handler();
+  // TODO: Add QSPI Support
 
 
 
@@ -130,7 +128,9 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    HAL_Delay(100);
+    uint8_t test[2] = {1, 2};
+    
+    HAL_SPI_Transmit(&hspi2, test, 2, 1000);
 
 
 
