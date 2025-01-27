@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "crc.h"
 #include "fdcan.h"
 #include "spi.h"
 #include "tim.h"
@@ -30,6 +31,7 @@
 #include "stdbool.h"
 #include "SEGGER_RTT.h"
 #include "align-utils.h"
+#include "bq79600.h"
 
 /* USER CODE END Includes */
 
@@ -105,6 +107,7 @@ int main(void)
   MX_SPI2_Init();
   MX_USB_PCD_Init();
   MX_TIM2_Init();
+  MX_CRC_Init();
   /* USER CODE BEGIN 2 */
 
   HAL_TIM_Base_Start(&htim2);
@@ -117,6 +120,18 @@ int main(void)
   uint8_t spiData = 0;
   bool pinStatus = false;
 
+  BQ_HandleTypeDef hbq;
+  hbq.hspi = &hspi2;
+  hbq.csGPIOx = GPIOB;
+  hbq.csPin = 12;
+  hbq.mosiGPIOx = GPIOB;
+  hbq.mosiPin = 15;
+  hbq.spiRdyGPIOx = GPIOB;
+  hbq.spiRdyPin = 11;
+
+  HAL_GPIO_WritePin(GPIOB, 12, GPIO_PIN_SET);
+
+
 
 
   /* USER CODE END 2 */
@@ -128,13 +143,9 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    uint8_t test[2] = {1, 2};
-    
-    HAL_SPI_Transmit(&hspi2, test, 2, 1000);
-
-
-
-
+    BQ_Wake(&hbq);
+    HAL_GPIO_WritePin(GPIOB, 12, GPIO_PIN_SET);
+    HAL_Delay(100);
 
 
   }

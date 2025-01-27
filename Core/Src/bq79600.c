@@ -1,6 +1,8 @@
 #include "bq79600.h"
 #include "align-utils.h"
 #include "spi.h"
+#include "crc.h"
+
 
 void BQ_Init(BQ_HandleTypeDef* hbq){
     HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
@@ -13,10 +15,10 @@ void BQ_Wake(BQ_HandleTypeDef* hbq){
     HAL_Delay(3); // Atleast 2.75 ms
     HAL_GPIO_WritePin(hbq->mosiGPIOx, hbq->mosiPin, GPIO_PIN_SET);
     Align_DelayUs(2); // Atleast 2 us
-    HAL_GPIO_writePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
     HAL_Delay(4); // Atleast 3.75 us
     uint8_t data[1] = {BQ_CONTROL1_SEND_WAKE}; // Data to send to CONTROL1[SEND_WAKE]
-    BQ_Write(hbq, &data, BQ_SELF_ID, BQ_CONTROL1, 1, BQ_DEVICE_WRITE);
+    BQ_Write(hbq, data, BQ_SELF_ID, BQ_CONTROL1, 1, BQ_DEVICE_WRITE);
 
     // Wait 1.6ms + 10ms pr device on bus
     // 10x 1.6+10 = 116ms
@@ -38,6 +40,11 @@ uint8_t BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *dataOut, uint8_t deviceId, uint1
     HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_RESET);
     Align_DelayUs(1);
 
+    uint8_t writeData[32] = {0};
+    
+
+    HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csGPIOx, GPIO_PIN_SET);
+
     return 0;
 }
 
@@ -53,7 +60,7 @@ uint8_t BQ_Write(BQ_HandleTypeDef* hbq, uint8_t *inData, uint8_t deviceId, uint1
     if((writeType != BQ_DEVICE_WRITE) && (writeType != BQ_DEVICE_WRITE) && (writeType != BQ_DEVICE_WRITE)){
         return 2;
     }
-    if(dataLength > 28){
+    if(dataLength > 26){
         return 3;
     }
     // To limit the program size for now
@@ -64,10 +71,10 @@ uint8_t BQ_Write(BQ_HandleTypeDef* hbq, uint8_t *inData, uint8_t deviceId, uint1
     writeSize++;
 
     if(writeType == BQ_DEVICE_WRITE){
-        writeData[1] = deviceId;
+        writeData[writeSize] = deviceId;
         writeSize++;
     }
-    writeData[writeSize] = (uint8_t) (regAddr << 8);
+    writeData[writeSize] = (uint8_t) (regAddr >> 8);
     writeSize++;
     writeData[writeSize] = (uint8_t) regAddr;
     writeSize++;
@@ -75,14 +82,24 @@ uint8_t BQ_Write(BQ_HandleTypeDef* hbq, uint8_t *inData, uint8_t deviceId, uint1
     for(int i=0; i<dataLength; i++){
         writeData[writeSize] = inData[i];
         writeSize++;
-    }  
-
+    }
+    
+    uint16_t crc = HAL_CRC_Calculate(&hcrc, writeData, writeSize);
+    writeData[writeSize] = (uint8_t) (crc >> 8);
+    writeSize++;
+    writeData[writeSize] = (uint8_t) (crc);
+    writeSize++;
+    
     // Whole transmit should be ready here
-
     HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_RESET);
     Align_DelayUs(1); // Atleast 50ns, we dont have that kind of resolution
 
-    HAL_SPI_Transmit(hbq->hspi, &writeData, writeSize, BQ_TIMEOUT);
+    HAL_SPI_Transmit(hbq->hspi, writeData, writeSize, BQ_TIMEOUT);
+
+    Align_DelayUs(1);
+    HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
+
+    
 
     return 0;
 }

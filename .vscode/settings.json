@@ -4,6 +4,7 @@
         "driver_w25qxx_interface.h": "c",
         "gpio.h": "c",
         "spi.h": "c",
-        "main.h": "c"
+        "main.h": "c",
+        "align-utils.h": "c"
     }
 }
