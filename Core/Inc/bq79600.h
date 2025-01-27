@@ -1,6 +1,5 @@
 #ifndef BQ79600_H
 #define BQ79600_H
-
 #include "main.h"
 
 typedef struct {

@@ -19,7 +19,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "fdcan.h"
-#include "quadspi.h"
 #include "spi.h"
 #include "tim.h"
 #include "usb.h"
@@ -102,18 +101,25 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_FDCAN1_Init();
-  MX_QUADSPI1_Init();
   MX_SPI1_Init();
   MX_SPI2_Init();
   MX_USB_PCD_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
-  uint8_t spiData = 0;
+  HAL_TIM_Base_Start(&htim2);
 
+
+  uint8_t writebuf[] = "Hello, World!";
+
+  if(CSP_QUADSPI_Init() != HAL_OK) Error_Handler();
+
+
+
+  uint8_t spiData = 0;
   bool pinStatus = false;
 
-  HAL_TIM_Base_Start(&htim2);
+
 
   /* USER CODE END 2 */
 
@@ -124,6 +130,9 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    HAL_Delay(100);
+
+
 
 
 
@@ -148,8 +157,11 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSI48
+                              |RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
