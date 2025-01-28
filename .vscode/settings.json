@@ -5,6 +5,8 @@
         "gpio.h": "c",
         "spi.h": "c",
         "main.h": "c",
-        "align-utils.h": "c"
+        "align-utils.h": "c",
+        "bq79600.h": "c",
+        "crc.h": "c"
     }
 }

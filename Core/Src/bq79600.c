@@ -188,7 +188,7 @@ uint8_t BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *pOut, uint8_t deviceId, uint16_t
 
     uint16_t fullBuffers = (uint16_t) (maxBytes/128);
     uint16_t remainingBytes = maxBytes - (fullBuffers*128);
-
+    BQ_SetMosiIdle(hbq); // We need to transmit 0xFFs.... so why not...?
     while(remainingBytes>0){
         start = HAL_GetTick();
         while(BQ_SpiRdy(hbq) != true){
@@ -238,14 +238,14 @@ uint8_t BQ_Write(BQ_HandleTypeDef* hbq, uint8_t *inData, uint8_t deviceId, uint1
     if((writeType != BQ_DEVICE_WRITE) && (writeType != BQ_STACK_WRITE) && (writeType != BQ_BROAD_WRITE)){
         return 2;
     }
-    if(dataLength > 8){
+    if(dataLength > 8 || dataLength < 1){
         return 3;
     }
     // To limit the program size for now
     uint8_t writeData[12] = {0};
 
     uint8_t writeSize = 0;
-    writeData[writeSize] = writeType;
+    writeData[writeSize] = writeType | (dataLength-1);    
     writeSize++;
 
     if(writeType == BQ_DEVICE_WRITE){

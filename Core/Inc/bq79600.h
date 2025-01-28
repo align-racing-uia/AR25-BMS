@@ -5,7 +5,7 @@
 
 // CONFIGS
 
-#define TOTALBOARDS 2 // Including base
+#define TOTALBOARDS 1 // Including base
 
 
 #define BQ_TIMEOUT 2000
@@ -54,6 +54,9 @@ typedef struct {
 } BQ_HandleTypeDef;
 
 extern uint8_t bqOutputBuffer[128*TOTALBOARDS];
+
+// inefficient, but works for now
+uint8_t bqFFBuffer[128] = {0xFF};
 
 void BQ_Init(BQ_HandleTypeDef* hbq);
 
