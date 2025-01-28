@@ -19,8 +19,21 @@
 
 // Some important registers
 #define BQ_CONTROL1 0x0309
+#define BQ_DIR0_ADDR 0x0306
+#define BQ_COMM_CTRL 0x0308
+#define BQ_OTP_ECC_DATAIN1 0x03043
+#define BQ_OTP_ECC_DATAIN2 0x03044
+#define BQ_OTP_ECC_DATAIN3 0x03045
+#define BQ_OTP_ECC_DATAIN4 0x03046
+#define BQ_OTP_ECC_DATAIN5 0x03047
+#define BQ_OTP_ECC_DATAIN6 0x03048
+#define BQ_OTP_ECC_DATAIN7 0x03049
+#define BQ_OTP_ECC_DATAIN8 0x0304A
+
+
 
 #define BQ_CONTROL1_SEND_WAKE 1<<5
+#define BQ_CONTROL1_AA 1<<0
 
 typedef struct {
 
@@ -28,9 +41,11 @@ typedef struct {
     GPIO_TypeDef* csGPIOx;
     GPIO_TypeDef* spiRdyGPIOx;
     GPIO_TypeDef* mosiGPIOx;
+    GPIO_TypeDef* nFaultGPIOx;
     uint16_t csPin;
     uint16_t spiRdyPin;
     uint16_t mosiPin;
+    uint16_t nFaultPin;
 
 
 } BQ_HandleTypeDef;
@@ -39,11 +54,15 @@ void BQ_Init(BQ_HandleTypeDef* hbq);
 
 void BQ_Wake(BQ_HandleTypeDef* hbq);
 
+void BQ_ClearComm(BQ_HandleTypeDef* hbq);
+void BQ_AutoAddress(BQ_HandleTypeDef* hbq);
+
 bool BQ_SpiRdy(BQ_HandleTypeDef* hbq);
 
 uint8_t BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *dataOut, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t readType);
 
 uint8_t BQ_Write(BQ_HandleTypeDef* hbq, uint8_t *inData, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t writeType);
+
 
 
 #endif
