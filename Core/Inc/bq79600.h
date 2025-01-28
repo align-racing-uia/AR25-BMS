@@ -35,8 +35,6 @@
 #define BQ_OTP_ECC_DATAIN7 0x0349
 #define BQ_OTP_ECC_DATAIN8 0x034A
 
-
-
 #define BQ_CONTROL1_SEND_WAKE 1<<5
 #define BQ_CONTROL1_AA 1<<0
 
@@ -55,6 +53,8 @@ typedef struct {
 
 } BQ_HandleTypeDef;
 
+extern uint8_t bqOutputBuffer[128*TOTALBOARDS];
+
 void BQ_Init(BQ_HandleTypeDef* hbq);
 
 void BQ_WakePing(BQ_HandleTypeDef* hbq);
@@ -65,7 +65,7 @@ void BQ_AutoAddress(BQ_HandleTypeDef* hbq);
 
 bool BQ_SpiRdy(BQ_HandleTypeDef* hbq);
 
-uint8_t BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *dataOut, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t readType);
+uint8_t BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *pOut, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t readType);
 
 uint8_t BQ_Write(BQ_HandleTypeDef* hbq, uint8_t *inData, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t writeType);
 

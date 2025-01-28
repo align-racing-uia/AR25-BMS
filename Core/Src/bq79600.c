@@ -3,6 +3,8 @@
 #include "spi.h"
 #include "crc.h"
 
+uint8_t bqOutputBuffer[128*TOTALBOARDS] = {0};
+
 // Because of a odd design requirement this is needed..
 // We sometimes need full control of the MOSI Pin between SPI commands
 void BQ_SetMosiGPIO(BQ_HandleTypeDef* hbq){
@@ -100,27 +102,30 @@ void BQ_AutoAddress(BQ_HandleTypeDef* hbq){
         data[0] = i;
         BQ_Write(hbq, data, BQ_SELF_ID, BQ_DIR0_ADDR, 1, BQ_BROAD_WRITE);
     }
+
     data[0] = 0x02;
     BQ_Write(hbq, data, BQ_SELF_ID, BQ_COMM_CTRL, 1, BQ_BROAD_WRITE);
     data[0] = 0x03;
     BQ_Write(hbq, data, TOTALBOARDS-1, BQ_COMM_CTRL, 1, BQ_DEVICE_WRITE);
     
+
+    uint8_t readData[TOTALBOARDS-1] = {0};
     for(int i=0; i<8; i++){
-        BQ_Read(hbq, data, BQ_SELF_ID, BQ_OTP_ECC_DATAIN1+i, 1, BQ_STACK_READ);
+        BQ_Read(hbq, readData, BQ_SELF_ID, BQ_OTP_ECC_DATAIN1+i, 1, BQ_STACK_READ);
     }
     
     
 
 }
 
-
+// Should be used with bqOutputBuffer
 // Output:
 // 0 - Everything is ok
 // 1 - SPI not ready, and timeout
 // 2 - Invalid read type
-// 3 - Asking for too much data (max 127 bytes) or too little (under 1)
+// 3 - Asking for too much data (max 128 bytes) or too little (under 1)
 // 4 - Recieve timeout
-uint8_t BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *dataOut, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t readType){
+uint8_t BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *pOut, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t readType){
     uint32_t start = HAL_GetTick();
     while(BQ_SpiRdy(hbq) != true){
         if(HAL_GetTick() > start + BQ_TIMEOUT){
@@ -131,12 +136,11 @@ uint8_t BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *dataOut, uint8_t deviceId, uint1
         return 2;
     }
 
-    if(dataLength > 127 || dataLength < 1){
+    if(dataLength > 128 || dataLength < 1){
         return 3;
     }
 
     // Formatting message
-
     uint8_t writeData[7] = {0};
     uint8_t writeSize = 0;
 
@@ -170,38 +174,51 @@ uint8_t BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *dataOut, uint8_t deviceId, uint1
     Align_DelayUs(10); // Safety margin
     HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
     
-    // Wait for ready response
-
-    start = HAL_GetTick();
-    while(BQ_SpiRdy(hbq) != true){
-        if(HAL_GetTick() > start + BQ_TIMEOUT){
-            BQ_SetMosiIdle(hbq); // Lets dont make the issue larger than it is
-            return 4;
-        }
-    }
 
     // How many bytes do we expect?
-    // TODO: Include logic for responses of more than 128 bytes
     uint16_t maxBytes = 0;
 
     if(readType == BQ_DEVICE_READ){
-        maxBytes = dataLength + 6;
+        maxBytes = dataLength;
     }else if(readType == BQ_STACK_READ){
-        maxBytes = (dataLength + 6) * (TOTALBOARDS - 1);
+        maxBytes = (dataLength) * (TOTALBOARDS - 1);
     }else if(readType == BQ_BROAD_READ){
-        maxBytes = (dataLength+6) * (TOTALBOARDS);
+        maxBytes = (dataLength) * (TOTALBOARDS);
     }
 
-    // Here we read the message(s)
-    HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_RESET);
-    Align_DelayUs(10); // Safety margin
-    HAL_SPI_Receive(hbq->hspi, dataOut, maxBytes, BQ_TIMEOUT);
-    Align_DelayUs(10); // Safety margin
-    HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
-    
+    uint16_t fullBuffers = (uint16_t) (maxBytes/128);
+    uint16_t remainingBytes = maxBytes - (fullBuffers*128);
+
+    while(remainingBytes>0){
+        start = HAL_GetTick();
+        while(BQ_SpiRdy(hbq) != true){
+            if(HAL_GetTick() > start + BQ_TIMEOUT){
+                BQ_SetMosiIdle(hbq); // Lets not make the issue bigger than it is
+                BQ_ClearComm(hbq);
+                return 4;
+            }
+        }
+
+        if(fullBuffers>0){
+            HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_RESET);
+            Align_DelayUs(10); // Safety margin
+            HAL_SPI_Receive(hbq->hspi, pOut, 128, BQ_TIMEOUT);
+            Align_DelayUs(10); // Safety margin
+            HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
+            pOut += 128; // Move pointer 128 steps
+            fullBuffers--;
+        }else{
+            HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_RESET);
+            Align_DelayUs(10); // Safety margin
+            HAL_SPI_Receive(hbq->hspi, pOut, remainingBytes, BQ_TIMEOUT);
+            Align_DelayUs(10); // Safety margin
+            HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
+            remainingBytes = 0;
+        }
+    }
+    // All data should now be in pOut location (most ofte bqOutputBuffer)
 
     BQ_SetMosiIdle(hbq); // Mosi always needs to be idle during end of command
-    Align_DelayUs(10); // Safety margin    
 
     return 0;
 }
