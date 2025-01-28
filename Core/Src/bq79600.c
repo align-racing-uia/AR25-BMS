@@ -51,8 +51,7 @@ void BQ_ClearComm(BQ_HandleTypeDef* hbq){
     BQ_SetMosiIdle(hbq); // Should always set Mosi Idle when not sending commands
 }
 
-void BQ_Wake(BQ_HandleTypeDef* hbq){
-
+void BQ_WakePing(BQ_HandleTypeDef* hbq){
     // We need to be able to control MOSI through GPIO during this
     BQ_SetMosiGPIO(hbq);
 
@@ -60,15 +59,19 @@ void BQ_Wake(BQ_HandleTypeDef* hbq){
     Align_DelayUs(2); // Atleast 2 us
 
     HAL_GPIO_WritePin(hbq->mosiGPIOx, hbq->mosiPin, GPIO_PIN_RESET);
-    HAL_Delay(3); // Atleast 2.75 ms
+    Align_DelayUs(2500); // Atleast 2.5 ms
     HAL_GPIO_WritePin(hbq->mosiGPIOx, hbq->mosiPin, GPIO_PIN_SET);
+    
     Align_DelayUs(2); // Atleast 2 us
 
     HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
-    HAL_Delay(4); // Atleast 3.75 us
 
-    // We also need Mosi on GPIO this call
-    BQ_SetMosiSPI(hbq);
+    HAL_Delay(4); // Atleast 3.5ms
+}
+
+void BQ_WakeMsg(BQ_HandleTypeDef* hbq){
+
+    // We need to be able to control MOSI through GPIO during this
 
     // Only normal thing that happens during this wake up call..
     uint8_t data[1] = {BQ_CONTROL1_SEND_WAKE}; // Data to send to CONTROL1[SEND_WAKE]
@@ -93,17 +96,17 @@ void BQ_AutoAddress(BQ_HandleTypeDef* hbq){
     }
     data[0] = BQ_CONTROL1_AA;
     BQ_Write(hbq, data, BQ_SELF_ID, BQ_CONTROL1, 1, BQ_BROAD_WRITE);
-    for(int i=0; i<4; i++){
+    for(int i=0; i<TOTALBOARDS; i++){
         data[0] = i;
         BQ_Write(hbq, data, BQ_SELF_ID, BQ_DIR0_ADDR, 1, BQ_BROAD_WRITE);
     }
     data[0] = 0x02;
     BQ_Write(hbq, data, BQ_SELF_ID, BQ_COMM_CTRL, 1, BQ_BROAD_WRITE);
     data[0] = 0x03;
-    BQ_Write(hbq, data, 1, BQ_COMM_CTRL, 1, BQ_DEVICE_WRITE);
+    BQ_Write(hbq, data, TOTALBOARDS-1, BQ_COMM_CTRL, 1, BQ_DEVICE_WRITE);
     
     for(int i=0; i<8; i++){
-        BQ_Read(hbq, data, BQ_SELF_ID, BQ_OTP_ECC_DATAIN1+i, 0, BQ_STACK_READ);
+        BQ_Read(hbq, data, BQ_SELF_ID, BQ_OTP_ECC_DATAIN1+i, 1, BQ_STACK_READ);
     }
     
     
@@ -115,8 +118,8 @@ void BQ_AutoAddress(BQ_HandleTypeDef* hbq){
 // 0 - Everything is ok
 // 1 - SPI not ready, and timeout
 // 2 - Invalid read type
-// 3 - Asking for too much data (max 127 bytes)
-// 4 - Recieve error
+// 3 - Asking for too much data (max 127 bytes) or too little (under 1)
+// 4 - Recieve timeout
 uint8_t BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *dataOut, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t readType){
     uint32_t start = HAL_GetTick();
     while(BQ_SpiRdy(hbq) != true){
@@ -127,11 +130,12 @@ uint8_t BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *dataOut, uint8_t deviceId, uint1
     if((readType != BQ_DEVICE_READ) && (readType != BQ_STACK_READ) && (readType != BQ_BROAD_READ)){
         return 2;
     }
-    if(dataLength > 127){
+
+    if(dataLength > 127 || dataLength < 1){
         return 3;
     }
-    HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_RESET);
-    Align_DelayUs(1);
+
+    // Formatting message
 
     uint8_t writeData[7] = {0};
     uint8_t writeSize = 0;
@@ -146,7 +150,7 @@ uint8_t BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *dataOut, uint8_t deviceId, uint1
     writeSize++;
     writeData[writeSize] = (uint8_t) (regAddr);
     writeSize++;
-    writeData[writeSize] = dataLength;
+    writeData[writeSize] = dataLength-1;
     writeSize++;
     uint16_t crc = HAL_CRC_Calculate(&hcrc, writeData, writeSize);
     // Crc should be sent in reverse
@@ -159,20 +163,45 @@ uint8_t BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *dataOut, uint8_t deviceId, uint1
 
     BQ_SetMosiSPI(hbq); // Getting ready to transmit
 
+    // Transmitting message
     HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_RESET);
     Align_DelayUs(10); // Safety margin
     HAL_SPI_Transmit(hbq->hspi, writeData, writeSize, BQ_TIMEOUT);
     Align_DelayUs(10); // Safety margin
+    HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
+    
+    // Wait for ready response
 
-    if(HAL_SPI_Receive(hbq->hspi, dataOut, dataLength, BQ_TIMEOUT) > 0){
-        HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET); // Cant forget to reset on an error
-        BQ_SetMosiIdle(hbq); // Mosi always needs to be idle during end of command
-        return 4;
+    start = HAL_GetTick();
+    while(BQ_SpiRdy(hbq) != true){
+        if(HAL_GetTick() > start + BQ_TIMEOUT){
+            BQ_SetMosiIdle(hbq); // Lets dont make the issue larger than it is
+            return 4;
+        }
     }
 
-    HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
-    BQ_SetMosiIdle(hbq); // Mosi always needs to be idle during end of command
+    // How many bytes do we expect?
+    // TODO: Include logic for responses of more than 128 bytes
+    uint16_t maxBytes = 0;
+
+    if(readType == BQ_DEVICE_READ){
+        maxBytes = dataLength + 6;
+    }else if(readType == BQ_STACK_READ){
+        maxBytes = (dataLength + 6) * (TOTALBOARDS - 1);
+    }else if(readType == BQ_BROAD_READ){
+        maxBytes = (dataLength+6) * (TOTALBOARDS);
+    }
+
+    // Here we read the message(s)
+    HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_RESET);
     Align_DelayUs(10); // Safety margin
+    HAL_SPI_Receive(hbq->hspi, dataOut, maxBytes, BQ_TIMEOUT);
+    Align_DelayUs(10); // Safety margin
+    HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
+    
+
+    BQ_SetMosiIdle(hbq); // Mosi always needs to be idle during end of command
+    Align_DelayUs(10); // Safety margin    
 
     return 0;
 }
@@ -189,7 +218,7 @@ uint8_t BQ_Write(BQ_HandleTypeDef* hbq, uint8_t *inData, uint8_t deviceId, uint1
             return 1;
         }
     }
-    if((writeType != BQ_DEVICE_WRITE) && (writeType != BQ_DEVICE_WRITE) && (writeType != BQ_DEVICE_WRITE)){
+    if((writeType != BQ_DEVICE_WRITE) && (writeType != BQ_STACK_WRITE) && (writeType != BQ_BROAD_WRITE)){
         return 2;
     }
     if(dataLength > 8){
@@ -226,7 +255,7 @@ uint8_t BQ_Write(BQ_HandleTypeDef* hbq, uint8_t *inData, uint8_t deviceId, uint1
     BQ_SetMosiSPI(hbq); // Getting ready to transmit
 
     HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_RESET);
-    Align_DelayUs(1); // Atleast 50ns, we dont have that kind of resolution
+    Align_DelayUs(10); // Atleast 50ns, we dont have that kind of resolution
 
     HAL_SPI_Transmit(hbq->hspi, writeData, writeSize, BQ_TIMEOUT);
 

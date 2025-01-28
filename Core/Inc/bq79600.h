@@ -3,6 +3,11 @@
 #include "main.h"
 #include "stdbool.h"
 
+// CONFIGS
+
+#define TOTALBOARDS 2 // Including base
+
+
 #define BQ_TIMEOUT 2000
 
 // BQ79600 Own ID
@@ -21,14 +26,14 @@
 #define BQ_CONTROL1 0x0309
 #define BQ_DIR0_ADDR 0x0306
 #define BQ_COMM_CTRL 0x0308
-#define BQ_OTP_ECC_DATAIN1 0x03043
-#define BQ_OTP_ECC_DATAIN2 0x03044
-#define BQ_OTP_ECC_DATAIN3 0x03045
-#define BQ_OTP_ECC_DATAIN4 0x03046
-#define BQ_OTP_ECC_DATAIN5 0x03047
-#define BQ_OTP_ECC_DATAIN6 0x03048
-#define BQ_OTP_ECC_DATAIN7 0x03049
-#define BQ_OTP_ECC_DATAIN8 0x0304A
+#define BQ_OTP_ECC_DATAIN1 0x0343
+#define BQ_OTP_ECC_DATAIN2 0x0344
+#define BQ_OTP_ECC_DATAIN3 0x0345
+#define BQ_OTP_ECC_DATAIN4 0x0346
+#define BQ_OTP_ECC_DATAIN5 0x0347
+#define BQ_OTP_ECC_DATAIN6 0x0348
+#define BQ_OTP_ECC_DATAIN7 0x0349
+#define BQ_OTP_ECC_DATAIN8 0x034A
 
 
 
@@ -52,7 +57,8 @@ typedef struct {
 
 void BQ_Init(BQ_HandleTypeDef* hbq);
 
-void BQ_Wake(BQ_HandleTypeDef* hbq);
+void BQ_WakePing(BQ_HandleTypeDef* hbq);
+void BQ_WakeMsg(BQ_HandleTypeDef* hbq);
 
 void BQ_ClearComm(BQ_HandleTypeDef* hbq);
 void BQ_AutoAddress(BQ_HandleTypeDef* hbq);

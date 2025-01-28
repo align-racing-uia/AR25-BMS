@@ -127,18 +127,12 @@ int main(void)
   hbq.nFaultPin = GPIO_PIN_8;
 
 
-  BQ_Wake(&hbq);
-  BQ_ClearComm(&hbq);
+  BQ_WakePing(&hbq);
+  BQ_WakePing(&hbq);
+  BQ_WakeMsg(&hbq);
+  // BQ_ClearComm(&hbq);
   BQ_AutoAddress(&hbq);
 
-  uint8_t crc_data[] = {
-    0x80,
-    0x01,
-    0x02,
-    0x15,
-    0x0B
-  };
-  volatile uint16_t crc_test = HAL_CRC_Calculate(&hcrc, crc_data, 5);
 
   /* USER CODE END 2 */
 
@@ -152,12 +146,6 @@ int main(void)
 
     uint8_t data[1] = {0};
     uint8_t res = BQ_Read(&hbq, data, BQ_SELF_ID, 0x2001, 1, BQ_DEVICE_READ);
-    uint8_t testData[64] = {0};
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
-    Align_DelayUs(1);
-    HAL_SPI_Receive(&hspi2, testData, 64, 1000);
-    Align_DelayUs(1);
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
     
 
     HAL_Delay(100);
