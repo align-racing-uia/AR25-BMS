@@ -109,7 +109,7 @@ void BQ_AutoAddress(BQ_HandleTypeDef* hbq){
     BQ_Write(hbq, data, TOTALBOARDS-1, BQ_COMM_CTRL, 1, BQ_DEVICE_WRITE);
     
 
-    uint8_t readData[TOTALBOARDS-1] = {0};
+    uint8_t readData[TOTALBOARDS] = {0};
     for(int i=0; i<8; i++){
         BQ_Read(hbq, readData, BQ_SELF_ID, BQ_OTP_ECC_DATAIN1+i, 1, BQ_STACK_READ);
     }
@@ -179,11 +179,11 @@ uint8_t BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *pOut, uint8_t deviceId, uint16_t
     uint16_t maxBytes = 0;
 
     if(readType == BQ_DEVICE_READ){
-        maxBytes = dataLength;
+        maxBytes = dataLength + 6;
     }else if(readType == BQ_STACK_READ){
-        maxBytes = (dataLength) * (TOTALBOARDS - 1);
+        maxBytes = (dataLength + 6) * (TOTALBOARDS - 1);
     }else if(readType == BQ_BROAD_READ){
-        maxBytes = (dataLength) * (TOTALBOARDS);
+        maxBytes = (dataLength + 6) * (TOTALBOARDS);
     }
 
     uint16_t fullBuffers = (uint16_t) (maxBytes/128);

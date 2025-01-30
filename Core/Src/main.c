@@ -131,7 +131,7 @@ int main(void)
   BQ_WakePing(&hbq);
   BQ_WakeMsg(&hbq);
   // BQ_ClearComm(&hbq);
-  // BQ_AutoAddress(&hbq);
+  BQ_AutoAddress(&hbq);
 
 
   /* USER CODE END 2 */
@@ -144,7 +144,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-    BQ_Read(&hbq, bqOutputBuffer, 1, 0x0568, 2, BQ_DEVICE_READ);
+    BQ_Read(&hbq, bqOutputBuffer, 1, 0x568, 2, BQ_DEVICE_READ);
     
 
     HAL_Delay(100);
