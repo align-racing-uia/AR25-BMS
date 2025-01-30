@@ -145,9 +145,9 @@ void BQ_GetCellVoltages(BQ_HandleTypeDef* hbq){
     memset(bqOutputBuffer, 0x00, BQ_OUTPUT_BUFFER_SIZE);
     memset(bqCellVoltages, 0x00, TOTAL_CELLS);
 
-    BQ_Read(hbq, bqOutputBuffer, 0, BQ16_VCELL16_HI + 2*(16-CELLS_IN_SERIES), CELLS_IN_SERIES*2, BQ_STACK_READ); // 2 registers for each cell
+    BQ_Read(hbq, bqOutputBuffer, 0, BQ16_VCELL16_HI +( 2*(16-CELLS_IN_SERIES)), CELLS_IN_SERIES*2, BQ_STACK_READ); // 2 registers for each cell
 
-    uint8_t totalLen = 6 + CELLS_IN_SERIES; // Totalt expected message length
+    uint8_t totalLen = 6 + CELLS_IN_SERIES * 2; // Totalt expected message length
 
     for(uint8_t i=0;i<TOTALBOARDS-1;i++){ // Base board will not be part of the cell voltages
 
@@ -160,7 +160,7 @@ void BQ_GetCellVoltages(BQ_HandleTypeDef* hbq){
         uint8_t len = bqOutputBuffer[i*totalLen]+1; // Should be known, but might as well
 
         for(uint8_t y=0; y<len; y+=2){
-            uint16_t rawAdc = (((uint16_t) bqOutputBuffer[i*totalLen+4+y]) << 8) | ((uint16_t) bqOutputBuffer[i*totalLen+4+y+1]);
+            uint16_t rawAdc = (((uint16_t) bqOutputBuffer[i*totalLen+4+y]) << 8) | ((uint16_t) bqOutputBuffer[i*totalLen+5+y]);
             bqCellVoltages[CELLS_IN_SERIES*i+y/2] = (float) ((float) rawAdc * 0.00019073); // in mV
         }
 

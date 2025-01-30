@@ -8,7 +8,7 @@
 #define TOTALBOARDS 2 // Including base
 #define CELLS_IN_SERIES 16
 
-#define VREF 5000
+
 #define ADC_RES 16
 
 
