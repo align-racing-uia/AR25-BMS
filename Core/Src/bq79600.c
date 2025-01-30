@@ -143,7 +143,7 @@ void BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq){
 void BQ_GetCellVoltages(BQ_HandleTypeDef* hbq){
     // Cleanup
     memset(bqOutputBuffer, 0x00, BQ_OUTPUT_BUFFER_SIZE);
-    memset(bqCellVoltages, 0x00, TOTAL_CELLS);
+    memset(bqCellVoltages, 0x00, TOTAL_CELLS*sizeof(float));
 
     BQ_Read(hbq, bqOutputBuffer, 0, BQ16_VCELL16_HI +( 2*(16-CELLS_IN_SERIES)), CELLS_IN_SERIES*2, BQ_STACK_READ); // 2 registers for each cell
 
