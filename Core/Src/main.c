@@ -125,7 +125,6 @@ int main(void)
   hbq.spiRdyPin = GPIO_PIN_11;
   hbq.nFaultGPIOx = GPIOA;
   hbq.nFaultPin = GPIO_PIN_8;
-  hbq.numOfCells = 16;
 
 
   BQ_WakePing(&hbq);
@@ -141,7 +140,6 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-  float cellVoltages[MAX_CELLS] = {0}; // Should probably be made global
 
   while (1)
   {
@@ -149,7 +147,8 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-    BQ_GetCellVoltages(&hbq, cellVoltages);
+    BQ_GetCellVoltages(&hbq);
+    BQ_GetDieTemperature(&hbq);
 
     HAL_Delay(100);
 

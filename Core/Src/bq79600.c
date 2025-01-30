@@ -1,5 +1,4 @@
 #include "bq79600.h"
-#include "bq79616.h"
 #include "align-utils.h"
 #include "string.h"
 #include "spi.h"
@@ -7,9 +6,11 @@
 #include "math.h"
 
 uint8_t bqOutputBuffer[128*TOTALBOARDS] = {0};
+float bqCellVoltages[TOTAL_CELLS] = {0};
+float bqDieTemperatures[2*(TOTALBOARDS-1)] = {0};
 
-// Because of a odd design requirement this is needed..
-// We sometimes need full control of the MOSI Pin between SPI commands
+
+// We sometimes need full control of the MOSI Pin in GPIO between SPI commands
 void BQ_SetMosiGPIO(BQ_HandleTypeDef* hbq){
 
     HAL_GPIO_DeInit(hbq->mosiGPIOx, hbq->mosiPin);
@@ -24,7 +25,7 @@ void BQ_SetMosiGPIO(BQ_HandleTypeDef* hbq){
 
 }
 
-// We should always give back control after using it
+// As we quite often need GPIO control over the MOSI pin, we have to give it back once in a while as well
 void BQ_SetMosiSPI(BQ_HandleTypeDef* hbq){
     
     HAL_GPIO_DeInit(hbq->mosiGPIOx, hbq->mosiPin);
@@ -38,11 +39,13 @@ void BQ_SetMosiSPI(BQ_HandleTypeDef* hbq){
 
 }
 
+// Utility function to set the MOSI pin high, as defined in the datasheet of the BQ79600
 void BQ_SetMosiIdle(BQ_HandleTypeDef* hbq){
     BQ_SetMosiGPIO(hbq);
     HAL_GPIO_WritePin(hbq->mosiGPIOx,hbq->mosiPin, GPIO_PIN_SET);
 }
 
+// Resets the communication FIFO on the BQ79600
 void BQ_ClearComm(BQ_HandleTypeDef* hbq){
     BQ_SetMosiSPI(hbq);
 
@@ -56,6 +59,7 @@ void BQ_ClearComm(BQ_HandleTypeDef* hbq){
     BQ_SetMosiIdle(hbq); // Should always set Mosi Idle when not sending commands
 }
 
+// Wakes up the master from the shutdown state
 void BQ_WakePing(BQ_HandleTypeDef* hbq){
     // We need to be able to control MOSI through GPIO during this
     BQ_SetMosiGPIO(hbq);
@@ -74,6 +78,8 @@ void BQ_WakePing(BQ_HandleTypeDef* hbq){
     HAL_Delay(4); // Atleast 3.5ms
 }
 
+
+// The master pings all chips on the stack to wake up from shutdown state
 void BQ_WakeMsg(BQ_HandleTypeDef* hbq){
 
     // We need to be able to control MOSI through GPIO during this
@@ -88,11 +94,12 @@ void BQ_WakeMsg(BQ_HandleTypeDef* hbq){
     HAL_Delay(120);
 }
 
+// Checks if the SPI Bus is ready for further communication
 bool BQ_SpiRdy(BQ_HandleTypeDef* hbq){
     return HAL_GPIO_ReadPin(hbq->spiRdyGPIOx, hbq->spiRdyPin) == GPIO_PIN_SET;
 }
 
-
+// Auto addressing routine, used to create the stacks, and put all slaves on the stack
 void BQ_AutoAddress(BQ_HandleTypeDef* hbq){
 
     uint8_t data[1] = {0};    
@@ -123,7 +130,7 @@ void BQ_AutoAddress(BQ_HandleTypeDef* hbq){
 // Num of cells correspond to the number of cells in series each IC should measure (max 16)
 void BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq){
     // Activate on the whole stack
-    uint8_t data[1] = {hbq->numOfCells - 6}; // 0x00 => 6 measured cells
+    uint8_t data[1] = {CELLS_IN_SERIES - 6}; // 0x00 => 6 measured cells
     BQ_Write(hbq, data, 0, BQ16_ACTIVE_CELLS, 1, BQ_STACK_WRITE);
     data[0] = BQ16_ADC_CTRL1_ADCCONT | BQ16_ADC_CTRL1_MAINGO;
     BQ_Write(hbq, data, 0, BQ16_ADC_CTRL1, 1, BQ_BROAD_WRITE);
@@ -131,32 +138,58 @@ void BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq){
     Align_DelayUs(192 + (5*TOTALBOARDS));
 }
 
-// Reads ADC and converts them to voltages in place, and puts them on the out data pointer, whose size should match the max cells variable
-void BQ_GetCellVoltages(BQ_HandleTypeDef* hbq, float* outVoltages){
-    memset(bqOutputBuffer, 0x00, BQ_OUTPUT_BUFFER_SIZE); // Clear all
-    BQ_Read(hbq, bqOutputBuffer, 0, BQ16_VCELL16_HI, hbq->numOfCells*2, BQ_STACK_READ); // 2 registers for each cell
-    uint16_t rawAdc = 0;
-    float voltage = 0;
-    uint32_t totalLen = 6 + CELLS_IN_SERIES; // Totalt expected message length
+// Reads ADC and converts them to voltages in place, and puts them on the global bqCellVoltages pointer, whose size should match the max cells variable
+// TODO: Convert to a uint8_t return type, to define different error states, which can be handled properly
+void BQ_GetCellVoltages(BQ_HandleTypeDef* hbq){
+    // Cleanup
+    memset(bqOutputBuffer, 0x00, BQ_OUTPUT_BUFFER_SIZE);
+    memset(bqCellVoltages, 0x00, TOTAL_CELLS);
+
+    BQ_Read(hbq, bqOutputBuffer, 0, BQ16_VCELL16_HI + 2*(16-CELLS_IN_SERIES), CELLS_IN_SERIES*2, BQ_STACK_READ); // 2 registers for each cell
+
+    uint8_t totalLen = 6 + CELLS_IN_SERIES; // Totalt expected message length
+
     for(uint8_t i=0;i<TOTALBOARDS-1;i++){ // Base board will not be part of the cell voltages
+
         // For now, ignore all CRC checking and verifications, we want the data
         // TODO: Implement proper CRC verification
 
         // The responses are always:
         // 1 bytes for message length (minus 1), 1 byte for device id, 2 bytes for register, data inbetween, 2 bytes for CRC
 
-        uint8_t len = bqOutputBuffer[i*totalLen]+1;
-        // Saving in place
+        uint8_t len = bqOutputBuffer[i*totalLen]+1; // Should be known, but might as well
+
         for(uint8_t y=0; y<len; y+=2){
-            rawAdc = (((uint16_t) bqOutputBuffer[i*totalLen+4+y]) << 8) | ((uint16_t) bqOutputBuffer[i*totalLen+4+y+1]);
-            voltage = (float) rawAdc * 0.00019073; 
-            outVoltages[CELLS_IN_SERIES*i+y/2] = voltage; // in mV
+            uint16_t rawAdc = (((uint16_t) bqOutputBuffer[i*totalLen+4+y]) << 8) | ((uint16_t) bqOutputBuffer[i*totalLen+4+y+1]);
+            bqCellVoltages[CELLS_IN_SERIES*i+y/2] = (float) ((float) rawAdc * 0.00019073); // in mV
         }
 
 
 
     }
 }
+
+void BQ_GetDieTemperature(BQ_HandleTypeDef* hbq){
+    // Cleanup
+    memset(bqOutputBuffer, 0x00, BQ_OUTPUT_BUFFER_SIZE);
+    memset(bqDieTemperatures, 0x00, 2*(TOTALBOARDS-1));
+
+    BQ_Read(hbq, bqOutputBuffer, 0, BQ16_DIETEMP1_HI, 2, BQ_STACK_READ);
+
+    uint8_t totalLen = 8; // pr board
+    for(uint8_t i=0; i<TOTALBOARDS-1; i++){
+
+        // For now, ignore all CRC checking and verifications, we want the data
+        // TODO: Implement proper CRC verification
+
+        uint16_t rawTemp = ((uint16_t)(bqOutputBuffer[i*totalLen+4] << 8)) | ((uint16_t)(bqOutputBuffer[i*totalLen+4]));
+        // As of now, we are only getting the temperature of Die 1
+        bqDieTemperatures[2*i] = rawTemp * 0.025; // degrees Celcius
+
+    }
+
+}
+
 
 
 

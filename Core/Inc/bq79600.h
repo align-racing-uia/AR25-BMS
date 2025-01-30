@@ -43,6 +43,18 @@
 #define BQ_CONTROL1_SEND_WAKE 1<<5
 #define BQ_CONTROL1_AA 1<<0
 
+// Registers for BQ79616
+#define BQ16_ACTIVE_CELLS 0x0003
+#define BQ16_ADC_CTRL1 0x030D
+#define BQ16_VCELL16_HI 0x0568 // Everything else is a increment of this + Apply offset for cells less than 16
+#define BQ16_DIETEMP1_HI 0x05AE // Low is a increment of this
+
+
+// Register Flags for BQ79616
+#define BQ16_ADC_CTRL1_MAINGO 0x04
+#define BQ16_ADC_CTRL1_ADCCONT 0x02
+
+
 typedef struct {
 
     SPI_HandleTypeDef* hspi;
@@ -54,14 +66,15 @@ typedef struct {
     uint16_t spiRdyPin;
     uint16_t mosiPin;
     uint16_t nFaultPin;
-    uint8_t numOfCells;
-
 
 } BQ_HandleTypeDef;
 
 #define BQ_OUTPUT_BUFFER_SIZE 128*TOTALBOARDS
-#define MAX_CELLS (TOTALBOARDS-1)*CELLS_IN_SERIES
+#define TOTAL_CELLS (TOTALBOARDS-1)*CELLS_IN_SERIES
 extern uint8_t bqOutputBuffer[BQ_OUTPUT_BUFFER_SIZE];
+extern float bqCellVoltages[TOTAL_CELLS];
+// Each board except the master has 2 internal temperature sensors
+extern float bqDieTemperatures[2*(TOTALBOARDS-1)];
 
 void BQ_Init(BQ_HandleTypeDef* hbq);
 
@@ -69,7 +82,8 @@ void BQ_WakePing(BQ_HandleTypeDef* hbq);
 void BQ_WakeMsg(BQ_HandleTypeDef* hbq);
 
 void BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq);
-void BQ_GetCellVoltages(BQ_HandleTypeDef* hbq, float* outVoltages);
+void BQ_GetCellVoltages(BQ_HandleTypeDef* hbq);
+void BQ_GetDieTemperature(BQ_HandleTypeDef* hbq);
 void BQ_ClearComm(BQ_HandleTypeDef* hbq);
 void BQ_AutoAddress(BQ_HandleTypeDef* hbq);
 
