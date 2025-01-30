@@ -1,7 +1,10 @@
 #include "bq79600.h"
+#include "bq79616.h"
 #include "align-utils.h"
+#include "string.h"
 #include "spi.h"
 #include "crc.h"
+#include "math.h"
 
 uint8_t bqOutputBuffer[128*TOTALBOARDS] = {0};
 
@@ -114,9 +117,48 @@ void BQ_AutoAddress(BQ_HandleTypeDef* hbq){
         BQ_Read(hbq, readData, BQ_SELF_ID, BQ_OTP_ECC_DATAIN1+i, 1, BQ_STACK_READ);
     }
     
-    
-
 }
+
+// Activates the ADC on all slaves
+// Num of cells correspond to the number of cells in series each IC should measure (max 16)
+void BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq){
+    // Activate on the whole stack
+    uint8_t data[1] = {hbq->numOfCells};
+    BQ_Write(hbq, data, 0, BQ16_ACTIVE_CELLS, 1, BQ_STACK_WRITE);
+    data[1] = BQ16_ADC_CTRL1_ADCCONT | BQ16_ADC_CTRL1_MAINGO;
+    BQ_Write(hbq, data, 0, BQ16_ADC_CTRL1, 1, BQ_BROAD_WRITE);
+    // Wait for everyone to get the message
+    Align_DelayUs(192 + (5*TOTALBOARDS));
+}
+
+// Reads ADC and converts them to voltages in place, and puts them on the out data pointer, whose size should match the max cells variable
+void BQ_GetCellVoltages(BQ_HandleTypeDef* hbq, uint32_t* outVoltages, uint8_t maxCells){
+    memset(bqOutputBuffer, 0x00, BQ_OUTPUT_BUFFER_SIZE); // Clear all
+    BQ_Read(hbq, bqOutputBuffer, 0, BQ16_VCELL16_HI, hbq->numOfCells*2, BQ_STACK_READ); // 2 registers for each cell
+    uint16_t rawAdc = 0;
+    uint32_t voltage = 0;
+    uint32_t totalLen = 6 + CELLS_IN_SERIES; // Totalt expected message length
+    for(uint8_t i=0;i<TOTALBOARDS-1;i++){ // Base board will not be part of the cell voltages
+        // For now, ignore all CRC checking and verifications, we want the data
+        // TODO: Implement proper CRC verification
+
+        // The responses are always:
+        // 1 bytes for message length (minus 1), 1 byte for device id, 2 bytes for register, data inbetween, 2 bytes for CRC
+
+        uint8_t len = bqOutputBuffer[i*totalLen]+1;
+        // Saving in place
+        for(uint8_t y=0; y<len; y+=2){
+            rawAdc = (((uint16_t) bqOutputBuffer[i*totalLen+4+y]) << 8) | ((uint16_t) bqOutputBuffer[i*totalLen+4+y+1]);
+            voltage = ((uint32_t) rawAdc) * ((uint32_t) VREF) / (pow(2,ADC_RES)); 
+            outVoltages[CELLS_IN_SERIES*i+y/2] = voltage; // in mV
+        }
+
+
+
+    }
+}
+
+
 
 // Should be used with bqOutputBuffer
 // Output:

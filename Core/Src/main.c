@@ -125,6 +125,7 @@ int main(void)
   hbq.spiRdyPin = GPIO_PIN_11;
   hbq.nFaultGPIOx = GPIOA;
   hbq.nFaultPin = GPIO_PIN_8;
+  hbq.numOfCells = 16;
 
 
   BQ_WakePing(&hbq);
@@ -132,20 +133,23 @@ int main(void)
   BQ_WakeMsg(&hbq);
   // BQ_ClearComm(&hbq);
   BQ_AutoAddress(&hbq);
+  BQ_ActivateSlaveADC(&hbq);
 
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
+  uint32_t cellVoltages[MAX_CELLS] = {0};
+
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
 
-    BQ_Read(&hbq, bqOutputBuffer, 1, 0x568, 2, BQ_DEVICE_READ);
-    
+    BQ_GetCellVoltages(&hbq, cellVoltages, MAX_CELLS);
 
     HAL_Delay(100);
 

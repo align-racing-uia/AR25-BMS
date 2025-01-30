@@ -6,6 +6,11 @@
 // CONFIGS
 
 #define TOTALBOARDS 2 // Including base
+#define CELLS_IN_SERIES 16
+
+#define VREF 5000
+#define ADC_RES 16
+
 
 
 #define BQ_TIMEOUT 2000
@@ -49,17 +54,22 @@ typedef struct {
     uint16_t spiRdyPin;
     uint16_t mosiPin;
     uint16_t nFaultPin;
+    uint8_t numOfCells;
 
 
 } BQ_HandleTypeDef;
 
-extern uint8_t bqOutputBuffer[128*TOTALBOARDS];
+#define BQ_OUTPUT_BUFFER_SIZE 128*TOTALBOARDS
+#define MAX_CELLS (TOTALBOARDS-1)*CELLS_IN_SERIES
+extern uint8_t bqOutputBuffer[BQ_OUTPUT_BUFFER_SIZE];
 
 void BQ_Init(BQ_HandleTypeDef* hbq);
 
 void BQ_WakePing(BQ_HandleTypeDef* hbq);
 void BQ_WakeMsg(BQ_HandleTypeDef* hbq);
 
+void BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq);
+void BQ_GetCellVoltages(BQ_HandleTypeDef* hbq, uint32_t* outVoltages, uint8_t maxCells);
 void BQ_ClearComm(BQ_HandleTypeDef* hbq);
 void BQ_AutoAddress(BQ_HandleTypeDef* hbq);
 
