@@ -102,6 +102,7 @@ bool BQ_SpiRdy(BQ_HandleTypeDef* hbq){
 // Auto addressing routine, used to create the stacks, and put all slaves on the stack
 void BQ_AutoAddress(BQ_HandleTypeDef* hbq){
 
+    // Relatively undocumented as its more or less a straight copy of what the TI driver does
     uint8_t data[1] = {0};    
     for(int i=0; i<8; i++){ // Luckly all the registers are after eachother
         BQ_Write(hbq, data, BQ_SELF_ID, BQ_OTP_ECC_DATAIN1+i, 1, BQ_STACK_WRITE);
@@ -126,7 +127,7 @@ void BQ_AutoAddress(BQ_HandleTypeDef* hbq){
     
 }
 
-// Activates the ADC on all slaves
+// Activates the main ADC on all slaves
 // Num of cells correspond to the number of cells in series each IC should measure (max 16)
 void BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq){
     // Activate on the whole stack
@@ -136,6 +137,30 @@ void BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq){
     BQ_Write(hbq, data, 0, BQ16_ADC_CTRL1, 1, BQ_BROAD_WRITE);
     // Wait for everyone to get the message
     Align_DelayUs(192 + (5*TOTALBOARDS));
+}
+
+// TODO Implement this function
+void BQ_SetGPIO(BQ_HandleTypeDef* hbq, uint8_t pin, bool logicState){
+
+}
+
+void BQ_ActivateSlaveAuxADC(BQ_HandleTypeDef* hbq){
+
+    for(int i=0; i<4; i++){
+        // Look at this amazing mess
+        uint8_t gpio1 = (hbq->gpioADC & (0x1 << (2*i)) == (0x1 << (2*i)))?(BQ16_GPIO_CONF1_GPIO1_ADC):(0x00);
+        uint8_t gpio2 = (hbq->gpioADC & (0x2 << (2*i)) == (0x2 << (2*i)))?(BQ16_GPIO_CONF1_GPIO2_ADC):(0x00);
+        uint8_t data[1] = {gpio1 | gpio2};
+        BQ_Write(hbq, data, 0, BQ16_GPIO_CONF1+i, 1, BQ_STACK_WRITE);
+        // Wait for everyone to get the message
+        Align_DelayUs(192 + (5*TOTALBOARDS));
+    }
+
+    uint8_t data[1] = {BQ16_ADC_CTRL3_AUXCONT | BQ16_ADC_CTRL3_AUXGO};
+    BQ_Write(hbq, data, 0, BQ16_ADC_CTRL3, 1, BQ_STACK_WRITE);
+    // Wait for everyone to get the message
+    Align_DelayUs(192 + (5*TOTALBOARDS));
+
 }
 
 // Reads ADC and converts them to voltages in place, and puts them on the global bqCellVoltages pointer, whose size should match the max cells variable
@@ -172,7 +197,7 @@ void BQ_GetCellVoltages(BQ_HandleTypeDef* hbq){
 void BQ_GetDieTemperature(BQ_HandleTypeDef* hbq){
     // Cleanup
     memset(bqOutputBuffer, 0x00, BQ_OUTPUT_BUFFER_SIZE);
-    memset(bqDieTemperatures, 0x00, 2*(TOTALBOARDS-1));
+    memset(bqDieTemperatures, 0x00, 2*(TOTALBOARDS-1)*sizeof(float));
 
     BQ_Read(hbq, bqOutputBuffer, 0, BQ16_DIETEMP1_HI, 2, BQ_STACK_READ);
 
@@ -187,6 +212,10 @@ void BQ_GetDieTemperature(BQ_HandleTypeDef* hbq){
         bqDieTemperatures[2*i] = rawTemp * 0.025; // degrees Celcius
 
     }
+
+    memset(bqOutputBuffer, 0x00, BQ_OUTPUT_BUFFER_SIZE);
+
+    BQ_Read(hbq, bqOutputBuffer, 0, BQ16_DIETEMP2_HI, 2, BQ_STACK_READ);
 
 }
 

@@ -11,8 +11,6 @@
 
 #define ADC_RES 16
 
-
-
 #define BQ_TIMEOUT 2000
 
 // BQ79600 Own ID
@@ -46,13 +44,25 @@
 // Registers for BQ79616
 #define BQ16_ACTIVE_CELLS 0x0003
 #define BQ16_ADC_CTRL1 0x030D
+#define BQ16_ADC_CTRL2 0x030E
+#define BQ16_ADC_CTRL3 0x030F
+
 #define BQ16_VCELL16_HI 0x0568 // Everything else is a increment of this + Apply offset for cells less than 16
+#define BQ16_GPIO1_HI 0x058E // The rest is increments of this
 #define BQ16_DIETEMP1_HI 0x05AE // Low is a increment of this
+#define BQ16_DIETEMP2_HI 0x05B0  // Low is a increment of this
+
+#define BQ16_GPIO_CONF1 0x000E // GPIO_CONF2-4 are increments of this
 
 
 // Register Flags for BQ79616
 #define BQ16_ADC_CTRL1_MAINGO 0x04
 #define BQ16_ADC_CTRL1_ADCCONT 0x02
+#define BQ16_ADC_CTRL3_AUXGO 0x04
+#define BQ16_ADC_CTRL3_AUXCONT 0x02
+#define BQ16_GPIO_CONF1_GPIO1_ADC (1 << 1) // These can be used in the relevant positions for the rest as well
+#define BQ16_GPIO_CONF1_GPIO2_ADC (1 << 4)
+
 
 
 typedef struct {
@@ -66,6 +76,11 @@ typedef struct {
     uint16_t spiRdyPin;
     uint16_t mosiPin;
     uint16_t nFaultPin;
+    // This parameter is a bitwise select of what GPIOs should be activated as ADCs
+    // And what GPIOs should be treated as GPIOs
+    //    GPIO8 GPIO7 GPIO6 ...
+    //  0b  0     0     0   ...
+    uint8_t gpioADC;
 
 } BQ_HandleTypeDef;
 
@@ -82,6 +97,8 @@ void BQ_WakePing(BQ_HandleTypeDef* hbq);
 void BQ_WakeMsg(BQ_HandleTypeDef* hbq);
 
 void BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq);
+void BQ_SetGPIO(BQ_HandleTypeDef* hbq, uint8_t pin, bool logicState);
+void BQ_ActivateSlaveAuxADC(BQ_HandleTypeDef* hbq);
 void BQ_GetCellVoltages(BQ_HandleTypeDef* hbq);
 void BQ_GetDieTemperature(BQ_HandleTypeDef* hbq);
 void BQ_ClearComm(BQ_HandleTypeDef* hbq);

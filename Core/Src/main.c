@@ -125,6 +125,7 @@ int main(void)
   hbq.spiRdyPin = GPIO_PIN_11;
   hbq.nFaultGPIOx = GPIOA;
   hbq.nFaultPin = GPIO_PIN_8;
+  hbq.gpioADC = 0b00000000;
 
 
   BQ_WakePing(&hbq);
