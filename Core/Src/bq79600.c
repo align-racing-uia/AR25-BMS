@@ -123,20 +123,20 @@ void BQ_AutoAddress(BQ_HandleTypeDef* hbq){
 // Num of cells correspond to the number of cells in series each IC should measure (max 16)
 void BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq){
     // Activate on the whole stack
-    uint8_t data[1] = {hbq->numOfCells};
+    uint8_t data[1] = {hbq->numOfCells - 6}; // 0x00 => 6 measured cells
     BQ_Write(hbq, data, 0, BQ16_ACTIVE_CELLS, 1, BQ_STACK_WRITE);
-    data[1] = BQ16_ADC_CTRL1_ADCCONT | BQ16_ADC_CTRL1_MAINGO;
+    data[0] = BQ16_ADC_CTRL1_ADCCONT | BQ16_ADC_CTRL1_MAINGO;
     BQ_Write(hbq, data, 0, BQ16_ADC_CTRL1, 1, BQ_BROAD_WRITE);
     // Wait for everyone to get the message
     Align_DelayUs(192 + (5*TOTALBOARDS));
 }
 
 // Reads ADC and converts them to voltages in place, and puts them on the out data pointer, whose size should match the max cells variable
-void BQ_GetCellVoltages(BQ_HandleTypeDef* hbq, uint32_t* outVoltages, uint8_t maxCells){
+void BQ_GetCellVoltages(BQ_HandleTypeDef* hbq, float* outVoltages){
     memset(bqOutputBuffer, 0x00, BQ_OUTPUT_BUFFER_SIZE); // Clear all
     BQ_Read(hbq, bqOutputBuffer, 0, BQ16_VCELL16_HI, hbq->numOfCells*2, BQ_STACK_READ); // 2 registers for each cell
     uint16_t rawAdc = 0;
-    uint32_t voltage = 0;
+    float voltage = 0;
     uint32_t totalLen = 6 + CELLS_IN_SERIES; // Totalt expected message length
     for(uint8_t i=0;i<TOTALBOARDS-1;i++){ // Base board will not be part of the cell voltages
         // For now, ignore all CRC checking and verifications, we want the data
@@ -149,7 +149,7 @@ void BQ_GetCellVoltages(BQ_HandleTypeDef* hbq, uint32_t* outVoltages, uint8_t ma
         // Saving in place
         for(uint8_t y=0; y<len; y+=2){
             rawAdc = (((uint16_t) bqOutputBuffer[i*totalLen+4+y]) << 8) | ((uint16_t) bqOutputBuffer[i*totalLen+4+y+1]);
-            voltage = ((uint32_t) rawAdc) * ((uint32_t) VREF) / (pow(2,ADC_RES)); 
+            voltage = (float) rawAdc * 0.00019073; 
             outVoltages[CELLS_IN_SERIES*i+y/2] = voltage; // in mV
         }
 

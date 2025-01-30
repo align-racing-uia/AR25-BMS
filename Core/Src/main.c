@@ -141,7 +141,7 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-  uint32_t cellVoltages[MAX_CELLS] = {0};
+  float cellVoltages[MAX_CELLS] = {0}; // Should probably be made global
 
   while (1)
   {
@@ -149,7 +149,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-    BQ_GetCellVoltages(&hbq, cellVoltages, MAX_CELLS);
+    BQ_GetCellVoltages(&hbq, cellVoltages);
 
     HAL_Delay(100);
 

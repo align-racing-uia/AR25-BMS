@@ -69,7 +69,7 @@ void BQ_WakePing(BQ_HandleTypeDef* hbq);
 void BQ_WakeMsg(BQ_HandleTypeDef* hbq);
 
 void BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq);
-void BQ_GetCellVoltages(BQ_HandleTypeDef* hbq, uint32_t* outVoltages, uint8_t maxCells);
+void BQ_GetCellVoltages(BQ_HandleTypeDef* hbq, float* outVoltages);
 void BQ_ClearComm(BQ_HandleTypeDef* hbq);
 void BQ_AutoAddress(BQ_HandleTypeDef* hbq);
 
