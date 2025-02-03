@@ -48,12 +48,14 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     ${CMAKE_SOURCE_DIR}/Core/Src/bq79600.c
     ${CMAKE_SOURCE_DIR}/Core/Src/align-utils.c
+    ${CMAKE_SOURCE_DIR}/w25q/Library/w25q_mem.c
 
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
+    ${CMAKE_SOURCE_DIR}/w25q/Library/
 
 )
 

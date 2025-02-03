@@ -20,18 +20,21 @@
 #include "main.h"
 #include "crc.h"
 #include "fdcan.h"
+#include "quadspi.h"
 #include "spi.h"
 #include "tim.h"
-#include "usb.h"
+#include "usb_device.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+#include "usbd_cdc_if.h"
 #include "stdbool.h"
 #include "SEGGER_RTT.h"
 #include "align-utils.h"
 #include "bq79600.h"
+#include "w25q_mem.h"
 
 /* USER CODE END Includes */
 
@@ -103,17 +106,18 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_FDCAN1_Init();
+  MX_QUADSPI1_Init();
   MX_SPI1_Init();
   MX_SPI2_Init();
-  MX_USB_PCD_Init();
   MX_TIM2_Init();
   MX_CRC_Init();
+  MX_USB_Device_Init();
   /* USER CODE BEGIN 2 */
 
   HAL_TIM_Base_Start(&htim2);
 
-
-  // TODO: Add QSPI Support
+  //Initialize w25q32
+  W25Q_STATE res = W25Q_Init();  
 
   BQ_HandleTypeDef hbq;
   hbq.hspi = &hspi2;
@@ -125,15 +129,14 @@ int main(void)
   hbq.spiRdyPin = GPIO_PIN_11;
   hbq.nFaultGPIOx = GPIOA;
   hbq.nFaultPin = GPIO_PIN_8;
-  hbq.gpioADC = 0b00000000;
 
 
   BQ_WakePing(&hbq);
   BQ_WakePing(&hbq);
   BQ_WakeMsg(&hbq);
   // BQ_ClearComm(&hbq);
-  BQ_AutoAddress(&hbq);
-  BQ_ActivateSlaveADC(&hbq);
+  // BQ_AutoAddress(&hbq);
+  // BQ_ActivateSlaveADC(&hbq);
 
 
   /* USER CODE END 2 */
@@ -148,9 +151,10 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-    BQ_GetCellVoltages(&hbq);
-    BQ_GetDieTemperature(&hbq);
+    // BQ_GetCellVoltages(&hbq);
+    // BQ_GetDieTemperature(&hbq);
 
+    CDC_Transmit_FS("hello, world!", strlen("hello, world!"));
     HAL_Delay(100);
 
 

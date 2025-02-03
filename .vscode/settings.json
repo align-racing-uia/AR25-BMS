@@ -8,6 +8,12 @@
         "align-utils.h": "c",
         "bq79600.h": "c",
         "crc.h": "c",
-        "stdbool.h": "c"
+        "stdbool.h": "c",
+        "usb_device.h": "c",
+        "usbd_cdc_if.h": "c",
+        "fdcan.h": "c",
+        "quadspi.h": "c",
+        "spif.h": "c",
+        "w25q_mem.h": "c"
     }
 }
