@@ -31,7 +31,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#define hqspi hqspi1
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -57,10 +57,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define Low_Current_Sensor_Pin GPIO_PIN_0
+#define Low_Current_Sensor_Pin GPIO_PIN_1
 #define Low_Current_Sensor_GPIO_Port GPIOA
-#define Slave_Alive_Sig_Pin GPIO_PIN_1
-#define Slave_Alive_Sig_GPIO_Port GPIOA
 #define Co_MCU_CS_Pin GPIO_PIN_4
 #define Co_MCU_CS_GPIO_Port GPIOA
 #define High_Current_Sensor_Pin GPIO_PIN_5

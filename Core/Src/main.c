@@ -18,7 +18,9 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "adc.h"
 #include "crc.h"
+#include "dma.h"
 #include "fdcan.h"
 #include "quadspi.h"
 #include "spi.h"
@@ -56,6 +58,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+
+uint16_t adcBuffer[2];
 
 /* USER CODE END PV */
 
@@ -105,6 +109,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_FDCAN1_Init();
   MX_QUADSPI1_Init();
   MX_SPI1_Init();
@@ -112,6 +117,7 @@ int main(void)
   MX_TIM2_Init();
   MX_CRC_Init();
   MX_USB_Device_Init();
+  MX_ADC2_Init();
   /* USER CODE BEGIN 2 */
 
   HAL_TIM_Base_Start(&htim2);
@@ -144,7 +150,8 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-
+  HAL_ADC_Start_DMA(&hadc2, (uint16_t *)adcBuffer, 2);
+  
   while (1)
   {
     /* USER CODE END WHILE */
@@ -154,8 +161,7 @@ int main(void)
     // BQ_GetCellVoltages(&hbq);
     // BQ_GetDieTemperature(&hbq);
 
-    CDC_Transmit_FS("hello, world!", strlen("hello, world!"));
-    HAL_Delay(100);
+  
 
 
   }
@@ -170,6 +176,7 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_CRSInitTypeDef pInit = {0};
 
   /** Configure the main internal regulator output voltage
   */
@@ -189,7 +196,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV3;
   RCC_OscInitStruct.PLL.PLLN = 85;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV8;
   RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -209,6 +216,21 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+
+  /** Enable the SYSCFG APB clock
+  */
+  __HAL_RCC_CRS_CLK_ENABLE();
+
+  /** Configures CRS
+  */
+  pInit.Prescaler = RCC_CRS_SYNC_DIV1;
+  pInit.Source = RCC_CRS_SYNC_SOURCE_USB;
+  pInit.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
+  pInit.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000,1000);
+  pInit.ErrorLimitValue = 34;
+  pInit.HSI48CalibrationValue = 32;
+
+  HAL_RCCEx_CRSConfig(&pInit);
 }
 
 /* USER CODE BEGIN 4 */
