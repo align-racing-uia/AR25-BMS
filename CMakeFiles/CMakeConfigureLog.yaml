@@ -127,3 +127,15 @@ events:
         C:/Users/hrrs01/Documents/AR25/AR25-BMS/CMakeFiles/3.28.1/CompilerIdCXX/CMakeCXXCompilerId.o
       
 ...
+
+---
+events:
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake-3.28/Modules/CMakeDetermineSystem.cmake:228 (message)"
+      - "CMakeLists.txt:31 (enable_language)"
+    message: |
+      The target system is: Generic -  - arm
+      The host system is: Linux - 6.8.0-55-generic - x86_64
+...
