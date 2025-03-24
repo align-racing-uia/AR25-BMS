@@ -49,6 +49,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Core/Src/bq79600.c
     ${CMAKE_SOURCE_DIR}/Core/Src/align-utils.c
     ${CMAKE_SOURCE_DIR}/w25q/Library/w25q_mem.c
+    ${CMAKE_SOURCE_DIR}/Core/Src/icm.c
 
 )
 
