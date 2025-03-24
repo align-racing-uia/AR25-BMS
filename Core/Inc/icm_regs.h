@@ -1,3 +1,6 @@
+
+#ifndef ICM_REGS_H
+#define ICM_REGS_H
 // Accesible from all user banks
 #define ICM_REG_BANK_SEL 0x76
 
@@ -133,3 +136,5 @@
 #define ICM_UB4_REG_OFFSET_USER6 0x7D
 #define ICM_UB4_REG_OFFSET_USER7 0x7E
 #define ICM_UB4_REG_OFFSET_USER8 0x7F
+
+#endif

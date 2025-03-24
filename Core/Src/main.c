@@ -39,6 +39,8 @@
 #include "bq79600.h"
 #include "w25q_mem.h"
 
+#include "icm.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -74,7 +76,6 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN 0 */
 
 // Simple delay function that takes microseconds 
-// Configured around TIM2 with a 1MHz signal, with a overflow reset every 1000 million cycles
 // Max delay is therefore 1000 seconds
 
 
@@ -82,7 +83,7 @@ void SystemClock_Config(void);
 
 /**
   * @brief  The application entry point.
-  * @retval int
+  * @retval int@
   */
 int main(void)
 {
@@ -151,6 +152,12 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  ICM_HandleTypeDef hicm;
+  hicm.hi2c = &hi2c1;
+  hicm.address = 0b1101001;
+
+
+  ICM_WriteReg(&hicm, ICM_REG_BANK_SEL, 2);
 
   HAL_ADC_Start_DMA(&hadc2, (uint16_t *)adcBuffer, 2);
   
@@ -159,7 +166,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-
     // BQ_GetCellVoltages(&hbq);
     // BQ_GetDieTemperature(&hbq);
 
