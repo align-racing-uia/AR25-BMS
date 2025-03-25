@@ -20,7 +20,6 @@
 #include "main.h"
 #include "adc.h"
 #include "crc.h"
-#include "fdcan.h"
 #include "i2c.h"
 #include "quadspi.h"
 #include "spi.h"
@@ -112,7 +111,6 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_FDCAN1_Init();
   MX_QUADSPI1_Init();
   MX_SPI1_Init();
   MX_SPI2_Init();
@@ -129,44 +127,44 @@ int main(void)
   // Initialize w25q32
   W25Q_STATE res = W25Q_Init();
 
-  BQ_HandleTypeDef hbq;
-  hbq.hspi = &hspi2;
-  hbq.csGPIOx = GPIOB;
-  hbq.csPin = GPIO_PIN_12;
-  hbq.mosiGPIOx = GPIOB;
-  hbq.mosiPin = GPIO_PIN_15;
-  hbq.spiRdyGPIOx = GPIOB;
-  hbq.spiRdyPin = GPIO_PIN_11;
-  hbq.nFaultGPIOx = GPIOA;
-  hbq.nFaultPin = GPIO_PIN_8;
+  // BQ_HandleTypeDef hbq;
+  // hbq.hspi = &hspi2;
+  // hbq.csGPIOx = GPIOB;
+  // hbq.csPin = GPIO_PIN_12;
+  // hbq.mosiGPIOx = GPIOB;
+  // hbq.mosiPin = GPIO_PIN_15;
+  // hbq.spiRdyGPIOx = GPIOB;
+  // hbq.spiRdyPin = GPIO_PIN_11;
+  // hbq.nFaultGPIOx = GPIOA;
+  // hbq.nFaultPin = GPIO_PIN_8;
 
-  // Init BQ79600 (Could be wrapped into one function)
-  BQ_StatusTypeDef status;
-  BQ_WakePing(&hbq);
-  BQ_WakePing(&hbq);
-  status = BQ_WakeMsg(&hbq);
-  if (status != BQ_STATUS_OK)
-  {
-    while (true)
-    {
-    }; // If we can't wake up the chips, we should just stop
-       // TODO: Make it clear somehow what the fault is
-  }
-  BQ_ClearComm(&hbq);
-  status = BQ_AutoAddress(&hbq);
-  if (status != BQ_STATUS_OK)
-  {
-    while (true)
-    {
-    }; // This makes it easy to check where it failed with a debugger
-  }
-  BQ_ActivateSlaveADC(&hbq);
-  if (status != BQ_STATUS_OK)
-  {
-    while (true)
-    {
-    };
-  }
+  // // Init BQ79600 (Could be wrapped into one function)
+  // BQ_StatusTypeDef status;
+  // BQ_WakePing(&hbq);
+  // BQ_WakePing(&hbq);
+  // status = BQ_WakeMsg(&hbq);
+  // if (status != BQ_STATUS_OK)
+  // {
+  //   while (true)
+  //   {
+  //   }; // If we can't wake up the chips, we should just stop
+  //      // TODO: Make it clear somehow what the fault is
+  // }
+  // BQ_ClearComm(&hbq);
+  // status = BQ_AutoAddress(&hbq);
+  // if (status != BQ_STATUS_OK)
+  // {
+  //   while (true)
+  //   {
+  //   }; // This makes it easy to check where it failed with a debugger
+  // }
+  // BQ_ActivateSlaveADC(&hbq);
+  // if (status != BQ_STATUS_OK)
+  // {
+  //   while (true)
+  //   {
+  //   };
+  // }
 
   /* USER CODE END 2 */
 
@@ -178,14 +176,18 @@ int main(void)
   BatteryModel_HandleTypeDef battery_model;
   BatteryModel_Init(&battery_model, TOTAL_CELLS);
   
+  Align_CAN_Init(&hfdcan1, ALIGN_CAN_SPEED_500KBPS, FDCAN1);
 
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    BQ_GetCellVoltages(&hbq);
-    BatteryModel_UpdateMeasured(&battery_model, bqCellVoltages, bqDieTemperatures);
+    // BQ_GetCellVoltages(&hbq);
+    // BatteryModel_UpdateMeasured(&battery_model, bqCellVoltages, bqDieTemperatures);
+    uint8_t data[8] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
+    Align_CAN_Send(&hfdcan1, 0x12, data, 8);
+    HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }
