@@ -1,5 +1,5 @@
 #include "bq79600.h"
-#include "align-utils.h"
+#include "alignutils.h"
 #include "string.h"
 #include "spi.h"
 #include "crc.h"
@@ -80,18 +80,19 @@ void BQ_WakePing(BQ_HandleTypeDef* hbq){
 
 
 // The master pings all chips on the stack to wake up from shutdown state
-void BQ_WakeMsg(BQ_HandleTypeDef* hbq){
+BQ_StatusTypeDef BQ_WakeMsg(BQ_HandleTypeDef* hbq){
 
     // We need to be able to control MOSI through GPIO during this
 
     // Only normal thing that happens during this wake up call..
     uint8_t data[1] = {BQ_CONTROL1_SEND_WAKE}; // Data to send to CONTROL1[SEND_WAKE]
-    BQ_Write(hbq, data, BQ_SELF_ID, BQ_CONTROL1, 1, BQ_DEVICE_WRITE);
+    BQ_StatusTypeDef status = BQ_Write(hbq, data, BQ_SELF_ID, BQ_CONTROL1, 1, BQ_DEVICE_WRITE);
 
     // Wait 1.6ms + 10ms pr device on bus
     // 10x 1.6+10 = 116ms
     
     HAL_Delay(120);
+    return status;
 }
 
 // Checks if the SPI Bus is ready for further communication
@@ -100,43 +101,64 @@ bool BQ_SpiRdy(BQ_HandleTypeDef* hbq){
 }
 
 // Auto addressing routine, used to create the stacks, and put all slaves on the stack
-void BQ_AutoAddress(BQ_HandleTypeDef* hbq){
+BQ_StatusTypeDef BQ_AutoAddress(BQ_HandleTypeDef* hbq){
 
     // Relatively undocumented as its more or less a straight copy of what the TI driver does
-    uint8_t data[1] = {0};    
+    uint8_t data[1] = {0};
+    BQ_StatusTypeDef status;    
     for(int i=0; i<8; i++){ // Luckly all the registers are after eachother
-        BQ_Write(hbq, data, BQ_SELF_ID, BQ_OTP_ECC_DATAIN1+i, 1, BQ_STACK_WRITE);
+        status = BQ_Write(hbq, data, BQ_SELF_ID, BQ_OTP_ECC_DATAIN1+i, 1, BQ_STACK_WRITE);
+        if(status != BQ_STATUS_OK){
+            return status;
+        }
     }
     data[0] = BQ_CONTROL1_AA;
-    BQ_Write(hbq, data, BQ_SELF_ID, BQ_CONTROL1, 1, BQ_BROAD_WRITE);
+    status = BQ_Write(hbq, data, BQ_SELF_ID, BQ_CONTROL1, 1, BQ_BROAD_WRITE);
+    if(status != BQ_STATUS_OK){
+        return status;
+    }
     for(int i=0; i<TOTALBOARDS; i++){
         data[0] = i;
-        BQ_Write(hbq, data, BQ_SELF_ID, BQ_DIR0_ADDR, 1, BQ_BROAD_WRITE);
+        status = BQ_Write(hbq, data, BQ_SELF_ID, BQ_DIR0_ADDR, 1, BQ_BROAD_WRITE);
+        if(status != BQ_STATUS_OK){
+            return status;
+        }
     }
 
     data[0] = 0x02;
-    BQ_Write(hbq, data, BQ_SELF_ID, BQ_COMM_CTRL, 1, BQ_BROAD_WRITE);
+    status = BQ_Write(hbq, data, BQ_SELF_ID, BQ_COMM_CTRL, 1, BQ_BROAD_WRITE);
     data[0] = 0x03;
-    BQ_Write(hbq, data, TOTALBOARDS-1, BQ_COMM_CTRL, 1, BQ_DEVICE_WRITE);
-    
+    status = BQ_Write(hbq, data, TOTALBOARDS-1, BQ_COMM_CTRL, 1, BQ_DEVICE_WRITE);
+    if(status != BQ_STATUS_OK){ // The odds of one failing but not the other is very small, as the only possible error would be a SPI fault
+        return status;
+    }
 
     uint8_t readData[TOTALBOARDS] = {0};
     for(int i=0; i<8; i++){
-        BQ_Read(hbq, readData, BQ_SELF_ID, BQ_OTP_ECC_DATAIN1+i, 1, BQ_STACK_READ);
+        status = BQ_Read(hbq, readData, BQ_SELF_ID, BQ_OTP_ECC_DATAIN1+i, 1, BQ_STACK_READ);
+        if(status != BQ_STATUS_OK){
+            return status;
+        }
     }
+    return status;
     
 }
 
 // Activates the main ADC on all slaves
 // Num of cells correspond to the number of cells in series each IC should measure (max 16)
-void BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq){
+BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq){
     // Activate on the whole stack
     uint8_t data[1] = {CELLS_IN_SERIES - 6}; // 0x00 => 6 measured cells
-    BQ_Write(hbq, data, 0, BQ16_ACTIVE_CELLS, 1, BQ_STACK_WRITE);
+    BQ_StatusTypeDef status;
+    status = BQ_Write(hbq, data, 0, BQ16_ACTIVE_CELLS, 1, BQ_STACK_WRITE);
+    if(status != BQ_STATUS_OK){
+        return status;
+    }
     data[0] = BQ16_ADC_CTRL1_ADCCONT | BQ16_ADC_CTRL1_MAINGO;
-    BQ_Write(hbq, data, 0, BQ16_ADC_CTRL1, 1, BQ_BROAD_WRITE);
+    status = BQ_Write(hbq, data, 0, BQ16_ADC_CTRL1, 1, BQ_BROAD_WRITE);
     // Wait for everyone to get the message
     Align_DelayUs(192 + (5*TOTALBOARDS));
+    return status;
 }
 
 // TODO Implement this function
@@ -144,33 +166,42 @@ void BQ_SetGPIO(BQ_HandleTypeDef* hbq, uint8_t pin, bool logicState){
 
 }
 
-void BQ_ActivateSlaveAuxADC(BQ_HandleTypeDef* hbq){
+BQ_StatusTypeDef BQ_ActivateSlaveAuxADC(BQ_HandleTypeDef* hbq){
 
+    BQ_StatusTypeDef status;
     for(int i=0; i<4; i++){
         // Look at this amazing mess
         uint8_t gpio1 = (hbq->gpioADC & (0x1 << (2*i)) == (0x1 << (2*i)))?(BQ16_GPIO_CONF1_GPIO1_ADC):(0x00);
         uint8_t gpio2 = (hbq->gpioADC & (0x2 << (2*i)) == (0x2 << (2*i)))?(BQ16_GPIO_CONF1_GPIO2_ADC):(0x00);
         uint8_t data[1] = {gpio1 | gpio2};
-        BQ_Write(hbq, data, 0, BQ16_GPIO_CONF1+i, 1, BQ_STACK_WRITE);
+        status = BQ_Write(hbq, data, 0, BQ16_GPIO_CONF1+i, 1, BQ_STACK_WRITE);
         // Wait for everyone to get the message
         Align_DelayUs(192 + (5*TOTALBOARDS));
+        if(status != BQ_STATUS_OK){
+            return status;
+        }
     }
 
     uint8_t data[1] = {BQ16_ADC_CTRL3_AUXCONT | BQ16_ADC_CTRL3_AUXGO};
-    BQ_Write(hbq, data, 0, BQ16_ADC_CTRL3, 1, BQ_STACK_WRITE);
+    status = BQ_Write(hbq, data, 0, BQ16_ADC_CTRL3, 1, BQ_STACK_WRITE);
     // Wait for everyone to get the message
     Align_DelayUs(192 + (5*TOTALBOARDS));
+    return status;
 
 }
 
 // Reads ADC and converts them to voltages in place, and puts them on the global bqCellVoltages pointer, whose size should match the max cells variable
 // TODO: Convert to a uint8_t return type, to define different error states, which can be handled properly
-void BQ_GetCellVoltages(BQ_HandleTypeDef* hbq){
+BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef* hbq){
     // Cleanup
     memset(bqOutputBuffer, 0x00, BQ_OUTPUT_BUFFER_SIZE);
     memset(bqCellVoltages, 0x00, TOTAL_CELLS*sizeof(float));
+    BQ_StatusTypeDef status;
+    status = BQ_Read(hbq, bqOutputBuffer, 0, BQ16_VCELL16_HI +( 2*(16-CELLS_IN_SERIES)), CELLS_IN_SERIES*2, BQ_STACK_READ); // 2 registers for each cell
 
-    BQ_Read(hbq, bqOutputBuffer, 0, BQ16_VCELL16_HI +( 2*(16-CELLS_IN_SERIES)), CELLS_IN_SERIES*2, BQ_STACK_READ); // 2 registers for each cell
+    if(status != BQ_STATUS_OK){
+        return status;
+    }
 
     uint8_t totalLen = 6 + CELLS_IN_SERIES * 2; // Totalt expected message length
 
@@ -192,15 +223,19 @@ void BQ_GetCellVoltages(BQ_HandleTypeDef* hbq){
 
 
     }
+    return status;
 }
 
-void BQ_GetDieTemperature(BQ_HandleTypeDef* hbq){
+BQ_StatusTypeDef BQ_GetDieTemperature(BQ_HandleTypeDef* hbq){
     // Cleanup
     memset(bqOutputBuffer, 0x00, BQ_OUTPUT_BUFFER_SIZE);
     memset(bqDieTemperatures, 0x00, 2*(TOTALBOARDS-1)*sizeof(float));
+    BQ_StatusTypeDef status = BQ_STATUS_OK;
+    status = BQ_Read(hbq, bqOutputBuffer, 0, BQ16_DIETEMP1_HI, 2, BQ_STACK_READ);
 
-    BQ_Read(hbq, bqOutputBuffer, 0, BQ16_DIETEMP1_HI, 2, BQ_STACK_READ);
-
+    if(status != BQ_STATUS_OK){
+        return status;
+    }
     uint8_t totalLen = 8; // pr board
     for(uint8_t i=0; i<TOTALBOARDS-1; i++){
 
@@ -215,7 +250,7 @@ void BQ_GetDieTemperature(BQ_HandleTypeDef* hbq){
 
     memset(bqOutputBuffer, 0x00, BQ_OUTPUT_BUFFER_SIZE);
 
-    BQ_Read(hbq, bqOutputBuffer, 0, BQ16_DIETEMP2_HI, 2, BQ_STACK_READ);
+    return BQ_Read(hbq, bqOutputBuffer, 0, BQ16_DIETEMP2_HI, 2, BQ_STACK_READ);
 
 }
 
@@ -229,19 +264,19 @@ void BQ_GetDieTemperature(BQ_HandleTypeDef* hbq){
 // 2 - Invalid read type
 // 3 - Asking for too much data (max 128 bytes) or too little (under 1)
 // 4 - Recieve timeout
-uint8_t BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *pOut, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t readType){
+BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *pOut, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t readType){
     uint32_t start = HAL_GetTick();
     while(BQ_SpiRdy(hbq) != true){
         if(HAL_GetTick() > start + BQ_TIMEOUT){
-            return 1;
+            return BQ_STATUS_TIMEOUT;
         }
     }
     if((readType != BQ_DEVICE_READ) && (readType != BQ_STACK_READ) && (readType != BQ_BROAD_READ)){
-        return 2;
+        return BQ_STATUS_DATA_ERROR;
     }
 
     if(dataLength > 128 || dataLength < 1){
-        return 3;
+        return BQ_STATUS_DATA_ERROR;
     }
 
     // Formatting message
@@ -299,7 +334,7 @@ uint8_t BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *pOut, uint8_t deviceId, uint16_t
             if(HAL_GetTick() > start + BQ_TIMEOUT){
                 BQ_SetMosiIdle(hbq); // Lets not make the issue bigger than it is
                 BQ_ClearComm(hbq);
-                return 4;
+                return BQ_STATUS_TIMEOUT;
             }
         }
 
@@ -324,7 +359,7 @@ uint8_t BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *pOut, uint8_t deviceId, uint16_t
 
     BQ_SetMosiIdle(hbq); // Mosi always needs to be idle during end of command
 
-    return 0;
+    return BQ_STATUS_OK;
 }
 
 // Output:
@@ -332,18 +367,18 @@ uint8_t BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *pOut, uint8_t deviceId, uint16_t
 // 1 - SPI not ready, and timeout
 // 2 - Invalid writeType
 // 3 - Too much data, over 8 bytes, max supported by device
-uint8_t BQ_Write(BQ_HandleTypeDef* hbq, uint8_t *inData, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t writeType){
+BQ_StatusTypeDef BQ_Write(BQ_HandleTypeDef* hbq, uint8_t *inData, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t writeType){
     uint32_t start = HAL_GetTick();
     while(BQ_SpiRdy(hbq) != true){
         if(HAL_GetTick() > start + BQ_TIMEOUT){
-            return 1;
+            return BQ_STATUS_TIMEOUT;
         }
     }
     if((writeType != BQ_DEVICE_WRITE) && (writeType != BQ_STACK_WRITE) && (writeType != BQ_BROAD_WRITE)){
-        return 2;
+        return BQ_STATUS_DATA_ERROR;
     }
     if(dataLength > 8 || dataLength < 1){
-        return 3;
+        return BQ_STATUS_DATA_ERROR;
     }
     // To limit the program size for now
     uint8_t writeData[12] = {0};
@@ -386,5 +421,5 @@ uint8_t BQ_Write(BQ_HandleTypeDef* hbq, uint8_t *inData, uint8_t deviceId, uint1
     BQ_SetMosiIdle(hbq); // Mosi always needs to be idle during end of command
 
 
-    return 0;
+    return BQ_STATUS_OK;
 }

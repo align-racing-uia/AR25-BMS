@@ -1,26 +1,25 @@
 /* USER CODE BEGIN Header */
 /**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2025 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+ ******************************************************************************
+ * @file           : main.c
+ * @brief          : Main program body
+ ******************************************************************************
+ * @attention
+ *
+ * Copyright (c) 2025 STMicroelectronics.
+ * All rights reserved.
+ *
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
+ *
+ ******************************************************************************
+ */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "adc.h"
 #include "crc.h"
-#include "dma.h"
 #include "fdcan.h"
 #include "i2c.h"
 #include "quadspi.h"
@@ -35,9 +34,12 @@
 #include "usbd_cdc_if.h"
 #include "stdbool.h"
 #include "SEGGER_RTT.h"
-#include "align-utils.h"
+#include "alignutils.h"
+#include "aligncan.h"
 #include "bq79600.h"
 #include "w25q_mem.h"
+
+#include "battery_model.h"
 
 #include "icm.h"
 
@@ -75,15 +77,14 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-// Simple delay function that takes microseconds 
+// Simple delay function that takes microseconds
 // Max delay is therefore 1000 seconds
-
 
 /* USER CODE END 0 */
 
 /**
   * @brief  The application entry point.
-  * @retval int@
+  * @retval int
   */
 int main(void)
 {
@@ -111,7 +112,6 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_DMA_Init();
   MX_FDCAN1_Init();
   MX_QUADSPI1_Init();
   MX_SPI1_Init();
@@ -121,12 +121,13 @@ int main(void)
   MX_USB_Device_Init();
   MX_ADC2_Init();
   MX_I2C1_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
 
   HAL_TIM_Base_Start(&htim2);
 
-  //Initialize w25q32
-  W25Q_STATE res = W25Q_Init();  
+  // Initialize w25q32
+  W25Q_STATE res = W25Q_Init();
 
   BQ_HandleTypeDef hbq;
   hbq.hspi = &hspi2;
@@ -139,39 +140,52 @@ int main(void)
   hbq.nFaultGPIOx = GPIOA;
   hbq.nFaultPin = GPIO_PIN_8;
 
-
-  // BQ_WakePing(&hbq);
-  // BQ_WakePing(&hbq);
-  // BQ_WakeMsg(&hbq);
-  // BQ_ClearComm(&hbq);
-  // BQ_AutoAddress(&hbq);
-  // BQ_ActivateSlaveADC(&hbq);
-
+  // Init BQ79600 (Could be wrapped into one function)
+  BQ_StatusTypeDef status;
+  BQ_WakePing(&hbq);
+  BQ_WakePing(&hbq);
+  status = BQ_WakeMsg(&hbq);
+  if (status != BQ_STATUS_OK)
+  {
+    while (true)
+    {
+    }; // If we can't wake up the chips, we should just stop
+       // TODO: Make it clear somehow what the fault is
+  }
+  BQ_ClearComm(&hbq);
+  status = BQ_AutoAddress(&hbq);
+  if (status != BQ_STATUS_OK)
+  {
+    while (true)
+    {
+    }; // This makes it easy to check where it failed with a debugger
+  }
+  BQ_ActivateSlaveADC(&hbq);
+  if (status != BQ_STATUS_OK)
+  {
+    while (true)
+    {
+    };
+  }
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  ICM_HandleTypeDef hicm;
-  hicm.hi2c = &hi2c1;
-  hicm.address = 0b1101001;
-
-
-  ICM_WriteReg(&hicm, ICM_REG_BANK_SEL, 2);
 
   HAL_ADC_Start_DMA(&hadc2, (uint16_t *)adcBuffer, 2);
+
+  BatteryModel_HandleTypeDef battery_model;
+  BatteryModel_Init(&battery_model, TOTAL_CELLS);
   
+
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    // BQ_GetCellVoltages(&hbq);
-    // BQ_GetDieTemperature(&hbq);
-
-  
-
-
+    BQ_GetCellVoltages(&hbq);
+    BatteryModel_UpdateMeasured(&battery_model, bqCellVoltages, bqDieTemperatures);
   }
   /* USER CODE END 3 */
 }
@@ -204,7 +218,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV3;
   RCC_OscInitStruct.PLL.PLLN = 85;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV8;
+  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
   RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {

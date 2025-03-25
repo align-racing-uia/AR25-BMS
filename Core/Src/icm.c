@@ -20,6 +20,12 @@ void ICM_WriteReg(ICM_HandleTypeDef *hicm, uint8_t reg, uint8_t data)
 void ICM_ReadReg(ICM_HandleTypeDef *hicm, uint8_t reg, uint8_t count, uint8_t *dest)
 {
     // Placeholder for the register to read
-    HAL_I2C_Master_Transmit(hicm->hi2c, hicm->address, &reg, 1, 100);
-    HAL_I2C_Master_Receive(hicm->hi2c, hicm->address, dest, count, 100);
+    HAL_StatusTypeDef ret = HAL_I2C_Mem_Read(hicm->hi2c, hicm->address<<1, reg, 1, dest, count, 100);
+    if (ret != HAL_OK)
+    {
+        // Error
+        while (1)
+        {
+        };
+    }
 }

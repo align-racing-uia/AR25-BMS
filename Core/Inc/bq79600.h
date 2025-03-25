@@ -5,9 +5,8 @@
 
 // CONFIGS
 
-#define TOTALBOARDS 1 // Including base
+#define TOTALBOARDS 2 // Including base
 #define CELLS_IN_SERIES 16
-
 
 #define ADC_RES 16
 
@@ -38,8 +37,8 @@
 #define BQ_OTP_ECC_DATAIN7 0x0349
 #define BQ_OTP_ECC_DATAIN8 0x034A
 
-#define BQ_CONTROL1_SEND_WAKE 1<<5
-#define BQ_CONTROL1_AA 1<<0
+#define BQ_CONTROL1_SEND_WAKE 1 << 5
+#define BQ_CONTROL1_AA 1 << 0
 
 // Registers for BQ79616
 #define BQ16_ACTIVE_CELLS 0x0003
@@ -47,13 +46,12 @@
 #define BQ16_ADC_CTRL2 0x030E
 #define BQ16_ADC_CTRL3 0x030F
 
-#define BQ16_VCELL16_HI 0x0568 // Everything else is a increment of this + Apply offset for cells less than 16
-#define BQ16_GPIO1_HI 0x058E // The rest is increments of this
+#define BQ16_VCELL16_HI 0x0568  // Everything else is a increment of this + Apply offset for cells less than 16
+#define BQ16_GPIO1_HI 0x058E    // The rest is increments of this
 #define BQ16_DIETEMP1_HI 0x05AE // Low is a increment of this
-#define BQ16_DIETEMP2_HI 0x05B0  // Low is a increment of this
+#define BQ16_DIETEMP2_HI 0x05B0 // Low is a increment of this
 
 #define BQ16_GPIO_CONF1 0x000E // GPIO_CONF2-4 are increments of this
-
 
 // Register Flags for BQ79616
 #define BQ16_ADC_CTRL1_MAINGO 0x04
@@ -63,15 +61,14 @@
 #define BQ16_GPIO_CONF1_GPIO1_ADC (1 << 1) // These can be used in the relevant positions for the rest as well
 #define BQ16_GPIO_CONF1_GPIO2_ADC (1 << 4)
 
+typedef struct
+{
 
-
-typedef struct {
-
-    SPI_HandleTypeDef* hspi;
-    GPIO_TypeDef* csGPIOx;
-    GPIO_TypeDef* spiRdyGPIOx;
-    GPIO_TypeDef* mosiGPIOx;
-    GPIO_TypeDef* nFaultGPIOx;
+    SPI_HandleTypeDef *hspi;
+    GPIO_TypeDef *csGPIOx;
+    GPIO_TypeDef *spiRdyGPIOx;
+    GPIO_TypeDef *mosiGPIOx;
+    GPIO_TypeDef *nFaultGPIOx;
     uint16_t csPin;
     uint16_t spiRdyPin;
     uint16_t mosiPin;
@@ -84,32 +81,34 @@ typedef struct {
 
 } BQ_HandleTypeDef;
 
-#define BQ_OUTPUT_BUFFER_SIZE 128*TOTALBOARDS
-#define TOTAL_CELLS (TOTALBOARDS-1)*CELLS_IN_SERIES
+typedef enum
+{
+    BQ_STATUS_OK = 0,
+    BQ_STATUS_SPI_ERROR = 1,
+    BQ_STATUS_DATA_ERROR = 2,
+    BQ_STATUS_TIMEOUT = 3
+} BQ_StatusTypeDef;
+
+#define BQ_OUTPUT_BUFFER_SIZE 128 * TOTALBOARDS
+#define TOTAL_CELLS (TOTALBOARDS - 1) * CELLS_IN_SERIES
 extern uint8_t bqOutputBuffer[BQ_OUTPUT_BUFFER_SIZE];
 extern float bqCellVoltages[TOTAL_CELLS];
 // Each board except the master has 2 internal temperature sensors
-extern float bqDieTemperatures[2*(TOTALBOARDS-1)];
+extern float bqDieTemperatures[2 * (TOTALBOARDS - 1)];
 
-void BQ_Init(BQ_HandleTypeDef* hbq);
+void BQ_Init(BQ_HandleTypeDef *hbq);
+void BQ_WakePing(BQ_HandleTypeDef *hbq);
+void BQ_ClearComm(BQ_HandleTypeDef *hbq);
+void BQ_SetGPIO(BQ_HandleTypeDef *hbq, uint8_t pin, bool logicState);
+bool BQ_SpiRdy(BQ_HandleTypeDef *hbq);
+BQ_StatusTypeDef BQ_WakeMsg(BQ_HandleTypeDef *hbq);
+BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef *hbq);
+BQ_StatusTypeDef BQ_ActivateSlaveAuxADC(BQ_HandleTypeDef *hbq);
+BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq);
+BQ_StatusTypeDef BQ_AutoAddress(BQ_HandleTypeDef *hbq);
+BQ_StatusTypeDef BQ_GetDieTemperature(BQ_HandleTypeDef *hbq);
 
-void BQ_WakePing(BQ_HandleTypeDef* hbq);
-void BQ_WakeMsg(BQ_HandleTypeDef* hbq);
-
-void BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq);
-void BQ_SetGPIO(BQ_HandleTypeDef* hbq, uint8_t pin, bool logicState);
-void BQ_ActivateSlaveAuxADC(BQ_HandleTypeDef* hbq);
-void BQ_GetCellVoltages(BQ_HandleTypeDef* hbq);
-void BQ_GetDieTemperature(BQ_HandleTypeDef* hbq);
-void BQ_ClearComm(BQ_HandleTypeDef* hbq);
-void BQ_AutoAddress(BQ_HandleTypeDef* hbq);
-
-bool BQ_SpiRdy(BQ_HandleTypeDef* hbq);
-
-uint8_t BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *pOut, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t readType);
-
-uint8_t BQ_Write(BQ_HandleTypeDef* hbq, uint8_t *inData, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t writeType);
-
-
+BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef *hbq, uint8_t *pOut, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t readType);
+BQ_StatusTypeDef BQ_Write(BQ_HandleTypeDef *hbq, uint8_t *inData, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t writeType);
 
 #endif
