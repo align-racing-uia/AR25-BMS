@@ -52,6 +52,10 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
+
+#define CELL_VOLTAGE_ID 0x10
+
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -205,13 +209,23 @@ int main(void)
       // Process the received data
       uint32_t id = rxHeader.Identifier;
       uint8_t len = rxHeader.DataLength;
+
+      switch (id)
+      {
+      case 0x01: // Insert Charger ID here
+        /* code */
+        break;
+      
+      default:
+        break;
+      }
     }
 
     if ((can_timestamp + 1000) <= HAL_GetTick())
     {
       // Every second
       uint8_t data[8] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
-      Align_CAN_Send(&hfdcan1, 0x12, data, 8, false);
+      Align_CAN_Send(&hfdcan1, 0x0F, data, 8, false);
       can_timestamp = HAL_GetTick();
     }
   }

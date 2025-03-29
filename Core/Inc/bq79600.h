@@ -1,12 +1,10 @@
 #ifndef BQ79600_H
 #define BQ79600_H
 #include "main.h"
+#include "bms_config.h"
 #include "stdbool.h"
 
-// CONFIGS
-
-#define TOTALBOARDS 2 // Including base
-#define CELLS_IN_SERIES 16
+// CONFIG
 
 #define ADC_RES 16
 
