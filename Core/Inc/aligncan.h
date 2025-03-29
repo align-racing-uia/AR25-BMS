@@ -8,11 +8,11 @@
 typedef enum {
     ALIGN_CAN_SPEED_500KBPS,
     ALIGN_CAN_SPEED_1MBPS,
-} Align_CAN_Speed_Typedef;
+} Align_CAN_SpeedTypeDef;
 
-Align_StatusTypedef Align_CAN_Init(FDCAN_HandleTypeDef *hfdcan, Align_CAN_Speed_Typedef speed,  FDCAN_GlobalTypeDef* fdcan_instance);
+Align_StatusTypeDef Align_CAN_Init(FDCAN_HandleTypeDef *hfdcan, Align_CAN_SpeedTypeDef speed,  FDCAN_GlobalTypeDef* fdcan_instance);
 
-Align_StatusTypedef Align_CAN_Send(FDCAN_HandleTypeDef *hfdcan, uint32_t id, uint8_t *data, uint8_t len);
+Align_StatusTypeDef Align_CAN_Send(FDCAN_HandleTypeDef *hfdcan, uint32_t id, uint8_t *data, uint8_t len, bool ext);
 
 bool Align_CAN_Receive(FDCAN_HandleTypeDef *hfdcan, FDCAN_RxHeaderTypeDef *rxHeader, uint8_t *rxData);
 

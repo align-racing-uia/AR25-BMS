@@ -1,7 +1,7 @@
 #include "aligncan.h"
 
 // Needs FDCAN to be configured to use the HSE, and the HSE needs to be either a 12MHz crystal, or a 20MHz crystal
-Align_StatusTypedef Align_CAN_Init(FDCAN_HandleTypeDef *hfdcan, Align_CAN_Speed_Typedef can_speed, FDCAN_GlobalTypeDef *fdcan_instance)
+Align_StatusTypeDef Align_CAN_Init(FDCAN_HandleTypeDef *hfdcan, Align_CAN_SpeedTypeDef can_speed, FDCAN_GlobalTypeDef *fdcan_instance)
 {
     HAL_FDCAN_DeInit(hfdcan); // This overwrites earlier settings
 
@@ -19,6 +19,11 @@ Align_StatusTypedef Align_CAN_Init(FDCAN_HandleTypeDef *hfdcan, Align_CAN_Speed_
     hfdcan->Init.NominalTimeSeg1 = 1;
     hfdcan->Init.NominalTimeSeg2 = 1;
 
+    hfdcan->Init.DataPrescaler = 16;
+    hfdcan->Init.DataSyncJumpWidth = 1;
+    hfdcan->Init.DataTimeSeg1 = 1;
+    hfdcan->Init.DataTimeSeg2 = 1;
+    
     switch (HSE_VALUE)
     {
     case 12000000:
@@ -26,18 +31,18 @@ Align_StatusTypedef Align_CAN_Init(FDCAN_HandleTypeDef *hfdcan, Align_CAN_Speed_
         {
         case ALIGN_CAN_SPEED_500KBPS:
             hfdcan->Init.ClockDivider = FDCAN_CLOCK_DIV1;
-            hfdcan->Init.DataPrescaler = 3;
-            hfdcan->Init.DataSyncJumpWidth = 1;
-            hfdcan->Init.DataTimeSeg1 = 6;
-            hfdcan->Init.DataTimeSeg2 = 1;
+            hfdcan->Init.NominalPrescaler = 3;
+            hfdcan->Init.NominalSyncJumpWidth = 1;
+            hfdcan->Init.NominalTimeSeg1 = 6;
+            hfdcan->Init.NominalTimeSeg2 = 1;
             break;
 
         case ALIGN_CAN_SPEED_1MBPS:
             hfdcan->Init.ClockDivider = FDCAN_CLOCK_DIV1;
-            hfdcan->Init.DataPrescaler = 1;
-            hfdcan->Init.DataSyncJumpWidth = 1;
-            hfdcan->Init.DataTimeSeg1 = 10;
-            hfdcan->Init.DataTimeSeg2 = 1;
+            hfdcan->Init.NominalPrescaler = 1;
+            hfdcan->Init.NominalSyncJumpWidth = 1;
+            hfdcan->Init.NominalTimeSeg1 = 10;
+            hfdcan->Init.NominalTimeSeg2 = 1;
             break;
 
         default:
@@ -53,18 +58,18 @@ Align_StatusTypedef Align_CAN_Init(FDCAN_HandleTypeDef *hfdcan, Align_CAN_Speed_
         {
         case ALIGN_CAN_SPEED_500KBPS:
             hfdcan->Init.ClockDivider = FDCAN_CLOCK_DIV1;
-            hfdcan->Init.DataPrescaler = 8;
-            hfdcan->Init.DataSyncJumpWidth = 1;
-            hfdcan->Init.DataTimeSeg1 = 6;
-            hfdcan->Init.DataTimeSeg2 = 1;
+            hfdcan->Init.NominalPrescaler = 8;
+            hfdcan->Init.NominalSyncJumpWidth = 1;
+            hfdcan->Init.NominalTimeSeg1 = 6;
+            hfdcan->Init.NominalTimeSeg2 = 1;
             break;
 
         case ALIGN_CAN_SPEED_1MBPS:
             hfdcan->Init.ClockDivider = FDCAN_CLOCK_DIV1;
-            hfdcan->Init.DataPrescaler = 2;
-            hfdcan->Init.DataSyncJumpWidth = 1;
-            hfdcan->Init.DataTimeSeg1 = 8;
-            hfdcan->Init.DataTimeSeg2 = 1;
+            hfdcan->Init.NominalPrescaler = 2;
+            hfdcan->Init.NominalSyncJumpWidth = 1;
+            hfdcan->Init.NominalTimeSeg1 = 8;
+            hfdcan->Init.NominalTimeSeg2 = 1;
             break;
 
         default:
@@ -85,22 +90,18 @@ Align_StatusTypedef Align_CAN_Init(FDCAN_HandleTypeDef *hfdcan, Align_CAN_Speed_
 
     HAL_StatusTypeDef ret = HAL_FDCAN_Init(hfdcan);
     if (ret != HAL_OK){
-        while(true){
-            // If this fails, theres no need to continue as its critical for most systems, and should be fixed
-        }
+        return ALIGN_ERROR;
     }
 
 
     if(HAL_FDCAN_Start(hfdcan) != HAL_OK){
-        while(true){
-            // If this fails, theres no need to continue as its critical for most systems, and should be fixed
-        }
+        return ALIGN_ERROR;
     }
 
     return ALIGN_OK;
 }
 
-Align_StatusTypedef Align_CAN_Send(FDCAN_HandleTypeDef *hfdcan, uint32_t id, uint8_t *data, uint8_t len)
+Align_StatusTypeDef Align_CAN_Send(FDCAN_HandleTypeDef *hfdcan, uint32_t id, uint8_t *data, uint8_t len, bool ext)
 {
     FDCAN_TxHeaderTypeDef txHeader;
     txHeader.Identifier = id;
@@ -111,7 +112,11 @@ Align_StatusTypedef Align_CAN_Send(FDCAN_HandleTypeDef *hfdcan, uint32_t id, uin
     txHeader.FDFormat = FDCAN_CLASSIC_CAN;
     txHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
     txHeader.MessageMarker = 0;
-    txHeader.IdType = FDCAN_STANDARD_ID;
+    if(ext){
+        txHeader.IdType = FDCAN_EXTENDED_ID;
+    }else{
+        txHeader.IdType = FDCAN_STANDARD_ID;
+    }
 
     HAL_StatusTypeDef ret = HAL_FDCAN_AddMessageToTxFifoQ(hfdcan, &txHeader, data);
     if(ret != HAL_OK){

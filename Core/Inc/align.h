@@ -3,6 +3,6 @@
 typedef enum {
     ALIGN_OK = 0,
     ALIGN_ERROR = 1,
-} Align_StatusTypedef;
+} Align_StatusTypeDef;
 
 #endif // ALIGN_H
