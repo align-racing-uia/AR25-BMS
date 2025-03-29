@@ -120,9 +120,11 @@ int main(void)
   MX_ADC2_Init();
   MX_I2C1_Init();
   MX_ADC1_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 
   HAL_TIM_Base_Start(&htim2);
+  HAL_TIM_Base_Start(&htim3);
 
   // Initialize w25q32
   W25Q_STATE res = W25Q_Init();
@@ -188,20 +190,20 @@ int main(void)
     /* USER CODE BEGIN 3 */
     BQ_GetCellVoltages(&hbq);
 
+
     if(Align_CAN_Receive(&hfdcan1, &rxHeader, rxData)){
       // Process the received data
       uint32_t id = rxHeader.Identifier;
       uint8_t len = rxHeader.DataLength;
     }
 
-    // Every 1000ms, send a message over CAN
-    if(HAL_GetTick() % 1000 == 0){
+    if(htim3.Instance->CNT > 10000){
+        // Every second
         uint8_t data[8] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
-        // Send data over CAN
         Align_CAN_Send(&hfdcan1, 0x12, data, 8, false);
-    }
 
-    HAL_Delay(1); // Just to make sure it doesn't run too fast
+
+    }
     
   }
   /* USER CODE END 3 */
