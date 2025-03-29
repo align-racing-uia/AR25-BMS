@@ -63,7 +63,10 @@
 
 /* USER CODE BEGIN PV */
 
-uint16_t adcBuffer[2];
+uint16_t adc1Buffer[1];
+uint16_t adc2Buffer[1];
+int16_t lowCurrentSensor;
+int16_t highCurrentSensor;
 
 /* USER CODE END PV */
 
@@ -71,13 +74,13 @@ uint16_t adcBuffer[2];
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
+
+void UpdateCurrentSensor(void);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
-// Simple delay function that takes microseconds
-// Max delay is therefore 1000 seconds
 
 /* USER CODE END 0 */
 
@@ -122,6 +125,7 @@ int main(void)
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
 
+  // Initialize timer for align delay
   HAL_TIM_Base_Start(&htim2);
 
   // Initialize w25q32
@@ -171,7 +175,8 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-  HAL_ADC_Start_DMA(&hadc2, (uint16_t *)adcBuffer, 2);
+  HAL_ADC_Start_DMA(&hadc1, (uint16_t *)adc1Buffer, 1);
+  HAL_ADC_Start_DMA(&hadc2, (uint16_t *)adc2Buffer, 1);
 
   BatteryModel_HandleTypeDef battery_model;
   BatteryModel_Init(&battery_model, TOTAL_CELLS);
@@ -188,8 +193,13 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    // The main task of the BMS
     BQ_GetCellVoltages(&hbq);
 
+    BQ_GetCellTemperatures(&hbq);
+
+    UpdateCurrentSensor();
+  
     if (Align_CAN_Receive(&hfdcan1, &rxHeader, rxData))
     {
       // Process the received data
@@ -234,13 +244,8 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV3;
   RCC_OscInitStruct.PLL.PLLN = 85;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
-  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-  {
-    Error_Handler();
-  }
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;uint16_t adc1Buffer[1];
+
 
   /** Initializes the CPU, AHB and APB buses clocks
    */
@@ -310,6 +315,14 @@ void Error_Handler(void)
   {
   }
   /* USER CODE END Error_Handler_Debug */
+}
+
+void UpdateCurrentSensor(void)
+{
+  // Read the current sensors
+  lowCurrentSensor = adc1Buffer[0];
+
+  highCurrentSensor = adc2Buffer[0];
 }
 
 #ifdef USE_FULL_ASSERT
