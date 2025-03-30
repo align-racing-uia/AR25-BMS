@@ -30,6 +30,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+#include "bms_config.h"
 #include "usbd_cdc_if.h"
 #include "stdbool.h"
 #include "SEGGER_RTT.h"

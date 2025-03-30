@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "bq79600.h"
+#include "bms_config.h"
 
 typedef struct {
     

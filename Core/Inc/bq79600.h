@@ -61,7 +61,6 @@
 
 typedef struct
 {
-
     SPI_HandleTypeDef *hspi;
     GPIO_TypeDef *csGPIOx;
     GPIO_TypeDef *spiRdyGPIOx;
