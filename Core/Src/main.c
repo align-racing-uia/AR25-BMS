@@ -200,7 +200,7 @@ int main(void)
     // The main task of the BMS
     BQ_GetCellVoltages(&hbq);
 
-    BQ_GetCellTemperatures(&hbq);
+    //BQ_GetCellTemperatures(&hbq);
 
     UpdateCurrentSensor();
   
