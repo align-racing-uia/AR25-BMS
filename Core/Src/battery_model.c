@@ -1,4 +1,5 @@
 #include "battery_model.h"
+#include "stdlib.h"
 
 void BatteryModel_Init(BatteryModel_HandleTypeDef *battery_model, uint8_t cell_count)
 {

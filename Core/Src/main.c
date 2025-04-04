@@ -267,7 +267,7 @@ int main(void)
     {
       // Every second
       uint8_t data[8] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
-      uint32_t can_id = Align_CombineCanID(bms_config.CanNodeID, bms_config.BroadcastPacket, bms_config.CanExtended);
+      uint32_t can_id = Align_CombineCanId(bms_config.CanNodeID, bms_config.BroadcastPacket, bms_config.CanExtended);
       Align_CAN_Send(&hfdcan1, can_id, data, 8, bms_config.CanExtended);
       can_timestamp = HAL_GetTick();
     }
