@@ -58,8 +58,8 @@
 #define BQ16_ADC_CTRL3_AUXCONT 0x02
 #define BQ16_GPIO_CONF1_GPIO1_ADC (1 << 1) // These can be used in the relevant positions for the rest as well
 #define BQ16_GPIO_CONF1_GPIO2_ADC (1 << 4)
-#define BQ16_GPIO_CONF1_GPIO1_OUTPUT (1 << 2) // These can be used in the relevant positions for the rest as well
-#define BQ16_GPIO_CONF1_GPIO2_OUTPUT (1 << 5)
+#define BQ16_GPIO_CONF1_GPIO1_OUTPUT (1 << 2) & (1 << 0) // These can be used in the relevant positions for the rest as well
+#define BQ16_GPIO_CONF1_GPIO2_OUTPUT (1 << 5) & (1 << 3) // Defaults to setting the output to low
 
 typedef struct
 {
@@ -77,6 +77,7 @@ typedef struct
     //    GPIO8 GPIO7 GPIO6 ...
     //  0b  0     0     0   ...
     uint8_t gpioADC;
+    uint8_t gpioconf[4]; // This is to skip the need to read the GPIO config registers when setting the GPIOs
 
 } BQ_HandleTypeDef;
 

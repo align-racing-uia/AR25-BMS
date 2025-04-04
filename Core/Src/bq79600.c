@@ -164,7 +164,22 @@ BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq){
 // This sets the selected GPIO of all the slaves
 BQ_StatusTypeDef BQ_SetGPIOAll(BQ_HandleTypeDef* hbq, uint8_t pin, bool logicState){
 
+    uint8_t data[1] = {0};
+    uint8_t register_offset = pin / 2;
+    uint8_t pin_offset = pin % 2;
 
+    // I really wish there was an atomic write for this.. But we need to rely on the local data instead
+    if(logicState){
+        hbq->gpioconf[register_offset] |= (1 << (pin_offset*3));
+    }else{
+        hbq->gpioconf[register_offset] &= ~(1 << (pin_offset*3));
+    }
+
+
+    BQ_StatusTypeDef status = BQ_Write(hbq, &(hbq->gpioconf[register_offset]), 0, BQ16_GPIO1_HI + register_offset, 1, BQ_BROAD_WRITE);
+    // Wait for everyone to get the message
+    Align_DelayUs(192 + (5*DEFAULT_TOTALBOARDS));
+    return status;
 
 }
 
@@ -174,7 +189,7 @@ BQ_StatusTypeDef BQ_ConfigureGPIO(BQ_HandleTypeDef* hbq){
     BQ_StatusTypeDef status;
     for(int i=0; i<4; i++){
         // Look at this amazing mess
-        uint8_t data[1] = 0;
+        uint8_t data[1] = {0};
         for(int j=0; j<2; j++){
             if(hbq->gpioADC >> (j+i*2) & 0x01){
                 if(j == 0){
@@ -197,6 +212,7 @@ BQ_StatusTypeDef BQ_ConfigureGPIO(BQ_HandleTypeDef* hbq){
         if(status != BQ_STATUS_OK){
             return status;
         }
+        hbq->gpioconf[i] = data[0]; // Save the config for later
     }
 
     uint8_t data[1] = {BQ16_ADC_CTRL3_AUXCONT | BQ16_ADC_CTRL3_AUXGO};
