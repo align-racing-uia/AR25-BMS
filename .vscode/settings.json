@@ -1,5 +1,6 @@
 {
     "files.associations": {
-        "alignutils.h": "c"
+        "alignutils.h": "c",
+        "battery_model.h": "c"
     }
 }

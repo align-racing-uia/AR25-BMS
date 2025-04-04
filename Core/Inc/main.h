@@ -32,6 +32,7 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #define hqspi hqspi1
+#include "math.h" // Needed for the w25q_mem.h
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
