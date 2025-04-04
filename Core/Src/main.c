@@ -199,7 +199,7 @@ int main(void)
   {
    Error_Handler(); // Hard stop if this fails
   }
-  status = BQ_ActivateSlaveADC(&hbq);
+  status = BQ_ConfigureGPIO(&hbq);
   if (status != BQ_STATUS_OK)
   {
     Error_Handler(); // Hard stop if this fails

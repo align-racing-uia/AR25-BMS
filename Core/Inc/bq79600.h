@@ -103,7 +103,7 @@ bool BQ_SpiRdy(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_SetGPIOAll(BQ_HandleTypeDef *hbq, uint8_t pin, bool logicState);
 BQ_StatusTypeDef BQ_WakeMsg(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef *hbq);
-BQ_StatusTypeDef BQ_ActivateSlaveAuxADC(BQ_HandleTypeDef *hbq);
+BQ_StatusTypeDef BQ_ConfigureGPIO(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_AutoAddress(BQ_HandleTypeDef *hbq);
