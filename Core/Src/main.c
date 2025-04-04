@@ -64,8 +64,8 @@
 
 /* USER CODE BEGIN PV */
 
-uint16_t adc1Buffer[1];
-uint16_t adc2Buffer[1];
+uint32_t adc1Buffer[1];
+uint32_t adc2Buffer[1];
 int16_t lowCurrentSensor;
 int16_t highCurrentSensor;
 
@@ -216,8 +216,8 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-  HAL_ADC_Start_DMA(&hadc1, (uint16_t *)adc1Buffer, 1);
-  HAL_ADC_Start_DMA(&hadc2, (uint16_t *)adc2Buffer, 1);
+  HAL_ADC_Start_DMA(&hadc1, adc1Buffer, 1);
+  HAL_ADC_Start_DMA(&hadc2, adc2Buffer, 1);
 
   BatteryModel_HandleTypeDef battery_model;
   BatteryModel_Init(&battery_model, TOTAL_CELLS);
@@ -306,7 +306,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV3;
   RCC_OscInitStruct.PLL.PLLN = 85;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;uint16_t adc1Buffer[1];
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
 
 
   /** Initializes the CPU, AHB and APB buses clocks
