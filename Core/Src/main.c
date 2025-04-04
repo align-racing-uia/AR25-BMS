@@ -182,6 +182,7 @@ int main(void)
   hbq.spiRdyPin = GPIO_PIN_11;
   hbq.nFaultGPIOx = GPIOA;
   hbq.nFaultPin = GPIO_PIN_8;
+  hbq.gpioADC = 0b01111111; // All GPIOs are ADCs, except GPIO8, which is an output
 
   // Init BQ79600 (Could be wrapped into one function)
   BQ_StatusTypeDef status;
@@ -229,13 +230,18 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    // The main task of the BMS
+    // The main tasks of the BMS
     BQ_GetCellVoltages(&hbq);
 
     BQ_GetCellTemperatures(&hbq);
 
     UpdateCurrentSensor();
   
+
+
+
+
+    // We do communication at the end
     if (Align_CAN_Receive(&hfdcan1, &rxHeader, rxData))
     {
       // Process the received data

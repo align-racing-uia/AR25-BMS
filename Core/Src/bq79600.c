@@ -161,19 +161,36 @@ BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq){
     return status;
 }
 
-// This sets the GPIO of all the slaves
-BQ_StatusTypeDef BQ_SetAllGPIO(BQ_HandleTypeDef* hbq, uint8_t pin, bool logicState){
+// This sets the selected GPIO of all the slaves
+BQ_StatusTypeDef BQ_SetGPIOAll(BQ_HandleTypeDef* hbq, uint8_t pin, bool logicState){
+
+
 
 }
 
-BQ_StatusTypeDef BQ_ActivateSlaveAuxADC(BQ_HandleTypeDef* hbq){
+// This function configures the GPIOs of the slaves to be either ADCs or GPIOs, based on the gpioADC variable
+BQ_StatusTypeDef BQ_ConfigureGPIO(BQ_HandleTypeDef* hbq){
 
     BQ_StatusTypeDef status;
     for(int i=0; i<4; i++){
         // Look at this amazing mess
-        uint8_t gpio1 = (hbq->gpioADC & (0x1 << (2*i)) == (0x1 << (2*i)))?(BQ16_GPIO_CONF1_GPIO1_ADC):(0x00);
-        uint8_t gpio2 = (hbq->gpioADC & (0x2 << (2*i)) == (0x2 << (2*i)))?(BQ16_GPIO_CONF1_GPIO2_ADC):(0x00);
-        uint8_t data[1] = {gpio1 | gpio2};
+        uint8_t data[1] = 0;
+        for(int j=0; j<2; j++){
+            if(hbq->gpioADC >> (j+i*2) & 0x01){
+                if(j == 0){
+                    data[0] |= BQ16_GPIO_CONF1_GPIO1_ADC;
+                }else{
+                    data[0] |= BQ16_GPIO_CONF1_GPIO2_ADC;
+                }
+            }else{
+                if(j == 0){
+                    data[0] |= BQ16_GPIO_CONF1_GPIO1_OUTPUT;
+                }else{
+                    data[0] |= BQ16_GPIO_CONF1_GPIO2_OUTPUT;
+                }
+            }
+        }
+
         status = BQ_Write(hbq, data, 0, BQ16_GPIO_CONF1+i, 1, BQ_STACK_WRITE);
         // Wait for everyone to get the message
         Align_DelayUs(192 + (5*DEFAULT_TOTALBOARDS));

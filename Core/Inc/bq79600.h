@@ -58,6 +58,8 @@
 #define BQ16_ADC_CTRL3_AUXCONT 0x02
 #define BQ16_GPIO_CONF1_GPIO1_ADC (1 << 1) // These can be used in the relevant positions for the rest as well
 #define BQ16_GPIO_CONF1_GPIO2_ADC (1 << 4)
+#define BQ16_GPIO_CONF1_GPIO1_OUTPUT (1 << 2) // These can be used in the relevant positions for the rest as well
+#define BQ16_GPIO_CONF1_GPIO2_OUTPUT (1 << 5)
 
 typedef struct
 {
@@ -71,7 +73,7 @@ typedef struct
     uint16_t mosiPin;
     uint16_t nFaultPin;
     // This parameter is a bitwise select of what GPIOs should be activated as ADCs
-    // And what GPIOs should be treated as GPIOs
+    // And what GPIOs should be treated as General Purpose Outputs
     //    GPIO8 GPIO7 GPIO6 ...
     //  0b  0     0     0   ...
     uint8_t gpioADC;
@@ -98,7 +100,7 @@ void BQ_Init(BQ_HandleTypeDef *hbq);
 void BQ_WakePing(BQ_HandleTypeDef *hbq);
 void BQ_ClearComm(BQ_HandleTypeDef *hbq);
 bool BQ_SpiRdy(BQ_HandleTypeDef *hbq);
-BQ_StatusTypeDef BQ_SetAllGPIO(BQ_HandleTypeDef *hbq, uint8_t pin, bool logicState);
+BQ_StatusTypeDef BQ_SetGPIOAll(BQ_HandleTypeDef *hbq, uint8_t pin, bool logicState);
 BQ_StatusTypeDef BQ_WakeMsg(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_ActivateSlaveAuxADC(BQ_HandleTypeDef *hbq);
