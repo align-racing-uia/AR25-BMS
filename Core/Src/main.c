@@ -56,6 +56,9 @@
 
 #define CELL_VOLTAGE_ID 0x10
 
+// This follows the CAN ID format of the DTI HV550
+#define DEFAULT_CAN_NODEID 5
+
 
 /* USER CODE END PD */
 
@@ -201,7 +204,7 @@ int main(void)
     // The main task of the BMS
     BQ_GetCellVoltages(&hbq);
 
-    //BQ_GetCellTemperatures(&hbq);
+    BQ_GetCellTemperatures(&hbq);
 
     UpdateCurrentSensor();
   

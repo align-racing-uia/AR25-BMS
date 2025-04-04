@@ -47,11 +47,10 @@ add_subdirectory(asl)
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     ${CMAKE_SOURCE_DIR}/Core/Src/bq79600.c
-    ${CMAKE_SOURCE_DIR}/Core/Src/alignutils.c
     ${CMAKE_SOURCE_DIR}/w25q/Library/w25q_mem.c
     ${CMAKE_SOURCE_DIR}/Core/Src/icm.c
     ${CMAKE_SOURCE_DIR}/Core/Src/battery_model.c
-    ${CMAKE_SOURCE_DIR}/Core/Src/aligncan.c
+
 
 )
 

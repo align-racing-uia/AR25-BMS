@@ -161,8 +161,8 @@ BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq){
     return status;
 }
 
-// TODO Implement this function
-void BQ_SetGPIO(BQ_HandleTypeDef* hbq, uint8_t pin, bool logicState){
+// This sets the GPIO of all the slaves
+BQ_StatusTypeDef BQ_SetAllGPIO(BQ_HandleTypeDef* hbq, uint8_t pin, bool logicState){
 
 }
 
@@ -225,6 +225,13 @@ BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef* hbq){
     }
     return status;
 }
+
+BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef* hbq){
+
+
+    return BQ_STATUS_OK;
+}
+
 
 BQ_StatusTypeDef BQ_GetDieTemperature(BQ_HandleTypeDef* hbq){
     // Cleanup

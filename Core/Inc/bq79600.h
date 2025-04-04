@@ -96,14 +96,15 @@ extern float bqDieTemperatures[2 * (TOTALBOARDS - 1)];
 void BQ_Init(BQ_HandleTypeDef *hbq);
 void BQ_WakePing(BQ_HandleTypeDef *hbq);
 void BQ_ClearComm(BQ_HandleTypeDef *hbq);
-void BQ_SetGPIO(BQ_HandleTypeDef *hbq, uint8_t pin, bool logicState);
 bool BQ_SpiRdy(BQ_HandleTypeDef *hbq);
+BQ_StatusTypeDef BQ_SetAllGPIO(BQ_HandleTypeDef *hbq, uint8_t pin, bool logicState);
 BQ_StatusTypeDef BQ_WakeMsg(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_ActivateSlaveAuxADC(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq);
+BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_AutoAddress(BQ_HandleTypeDef *hbq);
-BQ_StatusTypeDef BQ_GetDieTemperature(BQ_HandleTypeDef *hbq);
+BQ_StatusTypeDef BQ_GetDieTemperatures(BQ_HandleTypeDef *hbq);
 
 BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef *hbq, uint8_t *pOut, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t readType);
 BQ_StatusTypeDef BQ_Write(BQ_HandleTypeDef *hbq, uint8_t *inData, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t writeType);

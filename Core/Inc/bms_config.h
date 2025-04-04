@@ -1,3 +1,6 @@
+#ifndef __BMS_CONFIG_H
+#define __BMS_CONFIG_H
+
 #define TOTALBOARDS 2 // Including base
 #define CELLS_IN_SERIES 16 // On each board
 
@@ -12,3 +15,5 @@ typedef struct {
     uint16_t CellVoltageLimitLow; // The minimum voltage of a cell
     uint16_t CellVoltageLimitHigh; // The maximum voltage of a cell
 } BMS_ConfigTypeDef;
+
+#endif // __BMS_CONFIG_H
