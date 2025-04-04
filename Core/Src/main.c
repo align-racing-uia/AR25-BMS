@@ -38,7 +38,7 @@
 #include "aligncan.h"
 #include "bq79600.h"
 #include "w25q_mem.h"
-
+#include "string.h"
 #include "battery_model.h"
 
 #include "icm.h"
@@ -52,13 +52,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
-
-#define CELL_VOLTAGE_ID 0x10
-
-// This follows the CAN ID format of the DTI HV550
-#define DEFAULT_CAN_NODEID 5
-
 
 /* USER CODE END PD */
 
@@ -136,8 +129,48 @@ int main(void)
   // Initialize timer for align delay
   HAL_TIM_Base_Start(&htim2);
 
+
   // Initialize w25q32
   W25Q_STATE res = W25Q_Init();
+  if(res != W25Q_OK){
+    Error_Handler(); // Hard stop if this fails
+  }
+
+  // Initilalize the BMS Config
+  BMS_ConfigTypeDef bms_config;
+  bool valid_config = false;
+
+  // Read the config from the flash: The max size is currently one page (256 bytes)
+  if(W25Q_ReadData((uint8_t *)&bms_config, sizeof(BMS_ConfigTypeDef), 0, 0) != W25Q_OK){
+    Error_Handler(); // Hard stop if this fails
+    // Someone mustve pulled the chip out, or something else went wrong
+  }
+  
+  // Check if memory contains a config, and that it is a valid
+  if(strcmp(bms_config.MemoryCheck, "align") == 0){
+    
+    // Verify checksum:
+    // TODO Implement a good checksum 
+    valid_config = true;
+
+  }
+
+  if(!valid_config){
+    // If the config is not valid, we should set it to default values
+    bms_config.ConfigVersion = 1;
+    bms_config.BroadcastPacket = DEFAULT_CAN_BROADCAST_PACKET;
+    bms_config.CellCount = DEFAULT_TOTAL_CELLS;
+    bms_config.CellCountInSeries = DEFAULT_CELLS_IN_SERIES;
+    bms_config.CellCountInParallel = DEFAULT_CELLS_IN_PARALLEL;
+    bms_config.CellVoltageLimitLow = DEFAULT_CELLVOLTAGE_LIMIT_LOW;
+    bms_config.CellVoltageLimitHigh = DEFAULT_CELLVOLTAGE_LIMIT_HIGH;
+    bms_config.CellTemperatureLimitLow = DEFAULT_CELLTEMPERATURE_LIMIT_LOW; // -40C
+    bms_config.CellTemperatureLimitHigh = DEFAULT_CELLTEMPERATURE_LIMIT_HIGH; // 85C
+    bms_config.CanNodeID = DEFAULT_CAN_NODE_ID;
+    bms_config.CanBaudrate = ALIGN_CAN_SPEED_500KBPS;
+    bms_config.Checksum = 0x00; // TODO: Implement a good checksum
+    
+  }
 
   BQ_HandleTypeDef hbq;
   hbq.hspi = &hspi2;
@@ -211,17 +244,28 @@ int main(void)
     if (Align_CAN_Receive(&hfdcan1, &rxHeader, rxData))
     {
       // Process the received data
-      uint32_t id = rxHeader.Identifier;
-      uint8_t len = rxHeader.DataLength;
-
-      switch (id)
+      uint32_t can_id = rxHeader.Identifier;
+      uint8_t packet_id = 0;
+      uint8_t node_id = 0;
+      Align_SplitCanId(can_id, &packet_id, &node_id, false);
+      
+      // TODO: Implement this as a loop instead, so that we can have configure what IDs to check for without recompiling
+      switch (can_id)
       {
+      // We first check for special IDs in case there are devices on the network which do not follow the DTI standard
       case 0x01: // Insert Charger ID here
         /* code */
         break;
       
       default:
-        break;
+        switch(node_id)
+        {
+
+          case 0x01:
+
+          default:
+            break;
+        }
       }
     }
 

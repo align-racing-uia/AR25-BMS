@@ -5,9 +5,9 @@
 #include "crc.h"
 #include "math.h"
 
-uint8_t bqOutputBuffer[128*TOTALBOARDS] = {0};
-float bqCellVoltages[TOTAL_CELLS] = {0};
-float bqDieTemperatures[2*(TOTALBOARDS-1)] = {0};
+uint8_t bqOutputBuffer[128*DEFAULT_TOTALBOARDS] = {0};
+float bqCellVoltages[DEFAULT_TOTAL_CELLS] = {0};
+float bqDieTemperatures[2*(DEFAULT_TOTALBOARDS-1)] = {0};
 
 
 // We sometimes need full control of the MOSI Pin in GPIO between SPI commands
@@ -117,7 +117,7 @@ BQ_StatusTypeDef BQ_AutoAddress(BQ_HandleTypeDef* hbq){
     if(status != BQ_STATUS_OK){
         return status;
     }
-    for(int i=0; i<TOTALBOARDS; i++){
+    for(int i=0; i<DEFAULT_TOTALBOARDS; i++){
         data[0] = i;
         status = BQ_Write(hbq, data, BQ_SELF_ID, BQ_DIR0_ADDR, 1, BQ_BROAD_WRITE);
         if(status != BQ_STATUS_OK){
@@ -128,12 +128,12 @@ BQ_StatusTypeDef BQ_AutoAddress(BQ_HandleTypeDef* hbq){
     data[0] = 0x02;
     status = BQ_Write(hbq, data, BQ_SELF_ID, BQ_COMM_CTRL, 1, BQ_BROAD_WRITE);
     data[0] = 0x03;
-    status = BQ_Write(hbq, data, TOTALBOARDS-1, BQ_COMM_CTRL, 1, BQ_DEVICE_WRITE);
+    status = BQ_Write(hbq, data, DEFAULT_TOTALBOARDS-1, BQ_COMM_CTRL, 1, BQ_DEVICE_WRITE);
     if(status != BQ_STATUS_OK){ // The odds of one failing but not the other is very small, as the only possible error would be a SPI fault
         return status;
     }
 
-    uint8_t readData[TOTALBOARDS] = {0};
+    uint8_t readData[DEFAULT_TOTALBOARDS] = {0};
     for(int i=0; i<8; i++){
         status = BQ_Read(hbq, readData, BQ_SELF_ID, BQ_OTP_ECC_DATAIN1+i, 1, BQ_STACK_READ);
         if(status != BQ_STATUS_OK){
@@ -148,7 +148,7 @@ BQ_StatusTypeDef BQ_AutoAddress(BQ_HandleTypeDef* hbq){
 // Num of cells correspond to the number of cells in series each IC should measure (max 16)
 BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq){
     // Activate on the whole stack
-    uint8_t data[1] = {CELLS_IN_SERIES - 6}; // 0x00 => 6 measured cells
+    uint8_t data[1] = {DEFAULT_CELLS_IN_SERIES - 6}; // 0x00 => 6 measured cells
     BQ_StatusTypeDef status;
     status = BQ_Write(hbq, data, 0, BQ16_ACTIVE_CELLS, 1, BQ_STACK_WRITE);
     if(status != BQ_STATUS_OK){
@@ -157,7 +157,7 @@ BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq){
     data[0] = BQ16_ADC_CTRL1_ADCCONT | BQ16_ADC_CTRL1_MAINGO;
     status = BQ_Write(hbq, data, 0, BQ16_ADC_CTRL1, 1, BQ_BROAD_WRITE);
     // Wait for everyone to get the message
-    Align_DelayUs(192 + (5*TOTALBOARDS));
+    Align_DelayUs(192 + (5*DEFAULT_TOTALBOARDS));
     return status;
 }
 
@@ -176,7 +176,7 @@ BQ_StatusTypeDef BQ_ActivateSlaveAuxADC(BQ_HandleTypeDef* hbq){
         uint8_t data[1] = {gpio1 | gpio2};
         status = BQ_Write(hbq, data, 0, BQ16_GPIO_CONF1+i, 1, BQ_STACK_WRITE);
         // Wait for everyone to get the message
-        Align_DelayUs(192 + (5*TOTALBOARDS));
+        Align_DelayUs(192 + (5*DEFAULT_TOTALBOARDS));
         if(status != BQ_STATUS_OK){
             return status;
         }
@@ -185,7 +185,7 @@ BQ_StatusTypeDef BQ_ActivateSlaveAuxADC(BQ_HandleTypeDef* hbq){
     uint8_t data[1] = {BQ16_ADC_CTRL3_AUXCONT | BQ16_ADC_CTRL3_AUXGO};
     status = BQ_Write(hbq, data, 0, BQ16_ADC_CTRL3, 1, BQ_STACK_WRITE);
     // Wait for everyone to get the message
-    Align_DelayUs(192 + (5*TOTALBOARDS));
+    Align_DelayUs(192 + (5*DEFAULT_TOTALBOARDS));
     return status;
 
 }
@@ -195,17 +195,17 @@ BQ_StatusTypeDef BQ_ActivateSlaveAuxADC(BQ_HandleTypeDef* hbq){
 BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef* hbq){
     // Cleanup
     memset(bqOutputBuffer, 0x00, BQ_OUTPUT_BUFFER_SIZE);
-    memset(bqCellVoltages, 0x00, TOTAL_CELLS*sizeof(float));
+    memset(bqCellVoltages, 0x00, DEFAULT_TOTAL_CELLS*sizeof(float));
     BQ_StatusTypeDef status;
-    status = BQ_Read(hbq, bqOutputBuffer, 0, BQ16_VCELL16_HI +( 2*(16-CELLS_IN_SERIES)), CELLS_IN_SERIES*2, BQ_STACK_READ); // 2 registers for each cell
+    status = BQ_Read(hbq, bqOutputBuffer, 0, BQ16_VCELL16_HI +( 2*(16-DEFAULT_CELLS_IN_SERIES)), DEFAULT_CELLS_IN_SERIES*2, BQ_STACK_READ); // 2 registers for each cell
 
     if(status != BQ_STATUS_OK){
         return status;
     }
 
-    uint8_t totalLen = 6 + CELLS_IN_SERIES * 2; // Totalt expected message length
+    uint8_t totalLen = 6 + DEFAULT_CELLS_IN_SERIES * 2; // Totalt expected message length
 
-    for(uint8_t i=0;i<TOTALBOARDS-1;i++){ // Base board will not be part of the cell voltages
+    for(uint8_t i=0;i<DEFAULT_TOTALBOARDS-1;i++){ // Base board will not be part of the cell voltages
 
         // For now, ignore all CRC checking and verifications, we want the data
         // TODO: Implement proper CRC verification
@@ -217,7 +217,7 @@ BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef* hbq){
 
         for(uint8_t y=0; y<len; y+=2){
             uint16_t rawAdc = (((uint16_t) bqOutputBuffer[i*totalLen+4+y]) << 8) | ((uint16_t) bqOutputBuffer[i*totalLen+5+y]);
-            bqCellVoltages[CELLS_IN_SERIES*i+y/2] = (float) ((float) rawAdc * 0.00019073); // in mV
+            bqCellVoltages[DEFAULT_CELLS_IN_SERIES*i+y/2] = (float) ((float) rawAdc * 0.00019073); // in mV
         }
 
 
@@ -236,7 +236,7 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef* hbq){
 BQ_StatusTypeDef BQ_GetDieTemperature(BQ_HandleTypeDef* hbq){
     // Cleanup
     memset(bqOutputBuffer, 0x00, BQ_OUTPUT_BUFFER_SIZE);
-    memset(bqDieTemperatures, 0x00, 2*(TOTALBOARDS-1)*sizeof(float));
+    memset(bqDieTemperatures, 0x00, 2*(DEFAULT_TOTALBOARDS-1)*sizeof(float));
     BQ_StatusTypeDef status = BQ_STATUS_OK;
     status = BQ_Read(hbq, bqOutputBuffer, 0, BQ16_DIETEMP1_HI, 2, BQ_STACK_READ);
 
@@ -244,7 +244,7 @@ BQ_StatusTypeDef BQ_GetDieTemperature(BQ_HandleTypeDef* hbq){
         return status;
     }
     uint8_t totalLen = 8; // pr board
-    for(uint8_t i=0; i<TOTALBOARDS-1; i++){
+    for(uint8_t i=0; i<DEFAULT_TOTALBOARDS-1; i++){
 
         // For now, ignore all CRC checking and verifications, we want the data
         // TODO: Implement proper CRC verification
@@ -327,9 +327,9 @@ BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *pOut, uint8_t deviceId,
     if(readType == BQ_DEVICE_READ){
         maxBytes = dataLength + 6;
     }else if(readType == BQ_STACK_READ){
-        maxBytes = (dataLength + 6) * (TOTALBOARDS - 1);
+        maxBytes = (dataLength + 6) * (DEFAULT_TOTALBOARDS - 1);
     }else if(readType == BQ_BROAD_READ){
-        maxBytes = (dataLength + 6) * (TOTALBOARDS);
+        maxBytes = (dataLength + 6) * (DEFAULT_TOTALBOARDS);
     }
 
     uint16_t fullBuffers = (uint16_t) (maxBytes/128);
