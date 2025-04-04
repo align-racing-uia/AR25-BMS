@@ -167,7 +167,7 @@ int main(void)
     bms_config.CellTemperatureLimitLow = DEFAULT_CELLTEMPERATURE_LIMIT_LOW; // -40C
     bms_config.CellTemperatureLimitHigh = DEFAULT_CELLTEMPERATURE_LIMIT_HIGH; // 85C
     bms_config.CanNodeID = DEFAULT_CAN_NODE_ID;
-    bms_config.CanBaudrate = ALIGN_CAN_SPEED_500KBPS;
+    bms_config.CanBaudrate = DEFAULT_CAN_BAUDRATE;
     bms_config.Checksum = 0x00; // TODO: Implement a good checksum
     
   }
@@ -190,31 +190,19 @@ int main(void)
   status = BQ_WakeMsg(&hbq);
   if (status != BQ_STATUS_OK)
   {
-    while (true)
-    {
-    }; // If we can't wake up the chips, we should just stop
-       // TODO: Make it clear somehow what the fault is
+    Error_Handler(); // Hard stop if this fails
   }
   BQ_ClearComm(&hbq);
   status = BQ_AutoAddress(&hbq);
   if (status != BQ_STATUS_OK)
   {
-    while (true)
-    {
-    }; // This makes it easy to check where it failed with a debugger
+   Error_Handler(); // Hard stop if this fails
   }
-  BQ_ActivateSlaveADC(&hbq);
+  status = BQ_ActivateSlaveADC(&hbq);
   if (status != BQ_STATUS_OK)
   {
-    while (true)
-    {
-    };
+    Error_Handler(); // Hard stop if this fails
   }
-
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
 
   HAL_ADC_Start_DMA(&hadc1, adc1Buffer, 1);
   HAL_ADC_Start_DMA(&hadc2, adc2Buffer, 1);
@@ -223,6 +211,13 @@ int main(void)
   BatteryModel_Init(&battery_model, TOTAL_CELLS);
 
   Align_CAN_Init(&hfdcan1, ALIGN_CAN_SPEED_500KBPS, FDCAN1);
+
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+
+
 
   FDCAN_RxHeaderTypeDef rxHeader;
   uint8_t rxData[8];
@@ -247,9 +242,8 @@ int main(void)
       uint32_t can_id = rxHeader.Identifier;
       uint8_t packet_id = 0;
       uint8_t node_id = 0;
-      Align_SplitCanId(can_id, &packet_id, &node_id, false);
+      Align_SplitCanId(can_id, &packet_id, &node_id, rxHeader.IdType == FDCAN_EXTENDED_ID);
       
-      // TODO: Implement this as a loop instead, so that we can have configure what IDs to check for without recompiling
       switch (can_id)
       {
       // We first check for special IDs in case there are devices on the network which do not follow the DTI standard
@@ -273,7 +267,8 @@ int main(void)
     {
       // Every second
       uint8_t data[8] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
-      Align_CAN_Send(&hfdcan1, 0x0F, data, 8, false);
+      uint32_t can_id = Align_CombineCanID(bms_config.CanNodeID, bms_config.BroadcastPacket, bms_config.CanExtended);
+      Align_CAN_Send(&hfdcan1, can_id, data, 8, bms_config.CanExtended);
       can_timestamp = HAL_GetTick();
     }
   }

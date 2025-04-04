@@ -1,6 +1,9 @@
 #ifndef __BMS_CONFIG_H
 #define __BMS_CONFIG_H
 
+#include "stdint.h"
+#include "stdbool.h"
+
 // Default values for compiled programs can be set in this header
 #define DEFAULT_TOTALBOARDS 2       // Including base
 #define DEFAULT_CELLS_IN_SERIES 16  // On each board
@@ -12,6 +15,7 @@
 #define DEFAULT_CAN_NODE_ID 0x01
 #define DEFAULT_CAN_BROADCAST_PACKET 0x01
 #define DEFAULT_CAN_BAUDRATE 500000 // 500kbit/s
+#define DEFAULT_CAN_EXTENDED 0 // Should the CAN ID be extended or not
 #define DEFAULT_BROADCAST_PACKET 0x01
 
 #define DEFAULT_TOTAL_CELLS (DEFAULT_TOTALBOARDS * DEFAULT_CELLS_IN_SERIES) // Counts cells in parallel as one
@@ -31,6 +35,7 @@ typedef struct
 
     uint8_t CanNodeID;       // This follows the CAN ID format specified by DTI
     uint16_t CanBaudrate;    // The baudrate of the CAN bus
+    bool CanExtended; // Should the CAN ID be extended or not
     uint8_t BroadcastPacket; // The ID of the board
     uint32_t Checksum;       // The checksum of the config
 
