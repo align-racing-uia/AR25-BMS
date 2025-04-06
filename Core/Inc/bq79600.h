@@ -80,6 +80,8 @@ typedef struct
     uint8_t gpioconf[4]; // This is to skip the need to read the GPIO config registers when setting the GPIOs
 
     float *cellVoltages;
+    float *cellTemperatures;
+    // Each board except the master has 2 internal temperature sensors, one on each chip
     float *bqDieTemperatures;
     uint8_t *bqOutputBuffer;
 
@@ -95,13 +97,7 @@ typedef enum
     BQ_STATUS_TIMEOUT = 3
 } BQ_StatusTypeDef;
 
-// TODO: Make this care about the config
-#define BQ_OUTPUT_BUFFER_SIZE 128 * DEFAULT_TOTALBOARDS
-#define TOTAL_CELLS (DEFAULT_TOTALBOARDS - 1) * DEFAULT_CELLS_IN_SERIES
-extern uint8_t bqOutputBuffer[BQ_OUTPUT_BUFFER_SIZE];
-extern float bqCellVoltages[DEFAULT_TOTAL_CELLS];
-// Each board except the master has 2 internal temperature sensors
-extern float bqDieTemperatures[2 * (DEFAULT_TOTALBOARDS - 1)];
+
 
 void BQ_Init(BQ_HandleTypeDef *hbq);
 void BQ_WakePing(BQ_HandleTypeDef *hbq);

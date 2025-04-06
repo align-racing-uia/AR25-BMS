@@ -14,7 +14,7 @@
 #define DEFAULT_CELLTEMPERATURE_LIMIT_HIGH 60 // C
 #define DEFAULT_CAN_NODE_ID 0x01
 #define DEFAULT_CAN_BROADCAST_PACKET 0x01
-#define DEFAULT_CAN_BAUDRATE 500000 // 500kbit/s
+#define DEFAULT_CAN_BAUDRATE (uint16_t) 500000 // 500kbit/s
 #define DEFAULT_CAN_EXTENDED 0 // Should the CAN ID be extended or not
 #define DEFAULT_BROADCAST_PACKET 0x01
 
@@ -27,6 +27,9 @@ typedef struct
     char MemoryCheck[5];               // Inital check of config, should default to "align"
     uint8_t NumOfBoards;                // The number of boards in the system, including the base
     uint16_t CellCount;                // Total number of cells
+    // TODO: Make sure that the voltage readings are based on this
+    uint8_t  ChipCount;              // The number of chips in the system, not including the base 
+    uint16_t TemperatureSensorCount;        // Total number of temperature sensors for each BQ79616
     uint16_t CellCountInSeries;        // Number of cells in series
     uint16_t CellCountInParallel;      // Number of cells in parallel
     uint16_t CellVoltageLimitLow;      // The minimum voltage of a cell
@@ -41,5 +44,9 @@ typedef struct
     uint32_t Checksum;       // The checksum of the config
 
 } BMS_ConfigTypeDef;
+
+void BMS_Config_WriteToFlash(BMS_ConfigTypeDef *bms_config, uint8_t* data, uint16_t size);
+void BMS_Config_ReadFromFlash(BMS_ConfigTypeDef *bms_config, uint8_t* data, uint16_t size);
+
 
 #endif // __BMS_CONFIG_H

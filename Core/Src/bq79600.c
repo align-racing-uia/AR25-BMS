@@ -25,6 +25,11 @@ void BQ_AllocateMemory(BQ_HandleTypeDef* hbq){
         // Handle memory allocation error
         Error_Handler();
     }
+    hbq->cellTemperatures = (float*)malloc(hbq->bms_config->ChipCount*hbq->bms_config->TemperatureSensorCount*sizeof(float));
+    if(hbq->cellTemperatures == NULL){
+        // Handle memory allocation error
+        Error_Handler();
+    }
     // Set to default values
     for(int i=0; i<128*(hbq->bms_config->NumOfBoards); i++){
         hbq->bqOutputBuffer[i] = 0;
@@ -34,6 +39,9 @@ void BQ_AllocateMemory(BQ_HandleTypeDef* hbq){
     }
     for(int i=0; i<2*(hbq->bms_config->NumOfBoards-1); i++){
         hbq->bqDieTemperatures[i] = 0;
+    }
+    for(int i=0; i<hbq->bms_config->TemperatureSensorCount; i++){
+        hbq->cellTemperatures[i] = 0;
     }
 }
 

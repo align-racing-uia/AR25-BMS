@@ -153,6 +153,7 @@ int main(void)
     
     // Verify checksum:
     // TODO Implement a good checksum 
+    
     valid_config = true;
 
   }
@@ -242,9 +243,12 @@ int main(void)
     UpdateCurrentSensor();
   
     float currentSensor = lowCurrentSensor;
+    // We rely on the low current sensor to be the most accurate, and the high current sensor when we are in the high current region
     if(lowCurrentSensor >= LOW_CURRENT_SENSOR_LIMIT || lowCurrentSensor <= LOW_CURRENT_SENSOR_LIMIT){
-
+      currentSensor = highCurrentSensor;
     }
+
+    BatteryModel_UpdateEstimates(&battery_model, hbq.cellVoltages, hbq.cellTemperatures, &currentSensor);
 
 
     // We do communication at the end
