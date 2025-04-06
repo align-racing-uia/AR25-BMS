@@ -25,6 +25,7 @@ typedef struct
 {
     uint16_t ConfigVersion;            // This number will automatically increment when the config changes
     char MemoryCheck[5];               // Inital check of config, should default to "align"
+    uint8_t NumOfBoards;                // The number of boards in the system, including the base
     uint16_t CellCount;                // Total number of cells
     uint16_t CellCountInSeries;        // Number of cells in series
     uint16_t CellCountInParallel;      // Number of cells in parallel

@@ -79,6 +79,12 @@ typedef struct
     uint8_t gpioADC;
     uint8_t gpioconf[4]; // This is to skip the need to read the GPIO config registers when setting the GPIOs
 
+    float *cellVoltages;
+    float *bqDieTemperatures;
+    uint8_t *bqOutputBuffer;
+
+    BMS_ConfigTypeDef *bms_config;
+
 } BQ_HandleTypeDef;
 
 typedef enum
@@ -101,6 +107,7 @@ void BQ_Init(BQ_HandleTypeDef *hbq);
 void BQ_WakePing(BQ_HandleTypeDef *hbq);
 void BQ_ClearComm(BQ_HandleTypeDef *hbq);
 bool BQ_SpiRdy(BQ_HandleTypeDef *hbq);
+void BQ_AllocateMemory(BQ_HandleTypeDef* hbq);
 BQ_StatusTypeDef BQ_SetGPIOAll(BQ_HandleTypeDef *hbq, uint8_t pin, bool logicState);
 BQ_StatusTypeDef BQ_WakeMsg(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef *hbq);

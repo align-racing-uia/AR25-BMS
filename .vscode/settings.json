@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "alignutils.h": "c",
-        "battery_model.h": "c"
+        "battery_model.h": "c",
+        "w25q_mem.h": "c"
     }
 }

@@ -184,6 +184,8 @@ int main(void)
   hbq.nFaultPin = GPIO_PIN_8;
   hbq.gpioADC = 0b01111111; // All GPIOs are ADCs, except GPIO8, which is an output
 
+  BQ_AllocateMemory(&hbq); // Allocate memory for the BQ79600 cell voltages
+
   // Init BQ79600 (Could be wrapped into one function)
   BQ_StatusTypeDef status;
   BQ_WakePing(&hbq);

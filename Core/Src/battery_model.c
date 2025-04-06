@@ -7,9 +7,7 @@ void BatteryModel_Init(BatteryModel_HandleTypeDef *battery_model, uint8_t cell_c
     battery_model->Cells = (CellModel_HandleTypeDef *)malloc(cell_count * sizeof(CellModel_HandleTypeDef));
     if (battery_model->Cells == NULL)
     {
-        while(true){
-            // If this fails, theres no need to continue
-        }
+        Error_Handler();
     }
     for (int i = 0; i < cell_count; i++)
     {
