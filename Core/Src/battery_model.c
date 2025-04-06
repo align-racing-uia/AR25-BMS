@@ -1,7 +1,7 @@
 #include "battery_model.h"
 #include "stdlib.h"
 
-void BatteryModel_Init(BatteryModel_HandleTypeDef *battery_model, uint8_t cell_count)
+void BatteryModel_Init(BatteryModel_HandleTypeDef *battery_model, uint16_t cell_count)
 {
     battery_model->CellCount = cell_count;
     battery_model->Cells = (CellModel_HandleTypeDef *)malloc(cell_count * sizeof(CellModel_HandleTypeDef));
@@ -20,7 +20,7 @@ void BatteryModel_Init(BatteryModel_HandleTypeDef *battery_model, uint8_t cell_c
     }
 }
 
-void BatteryModel_UpdateMeasured(BatteryModel_HandleTypeDef *battery_model, uint16_t *cell_voltages, int8_t *die_temperatures)
+void BatteryModel_UpdateMeasured(BatteryModel_HandleTypeDef *battery_model, float *cell_voltages, float *die_temperatures)
 {
     
     

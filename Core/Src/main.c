@@ -182,7 +182,7 @@ int main(void)
   hbq.spiRdyPin = GPIO_PIN_11;
   hbq.nFaultGPIOx = GPIOA;
   hbq.nFaultPin = GPIO_PIN_8;
-  hbq.gpioADC = 0b01111111; // All GPIOs are ADCs, except GPIO8, which is an output
+  hbq.gpioADC = 0x7F; // All GPIOs are ADCs, except GPIO8, which is an output
 
   BQ_AllocateMemory(&hbq); // Allocate memory for the BQ79600 cell voltages
 

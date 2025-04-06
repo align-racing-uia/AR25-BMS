@@ -8,7 +8,7 @@
 
 void BQ_AllocateMemory(BQ_HandleTypeDef* hbq){
     // Allocate memory for the output buffer
-    // We need to add one here, to include the master board
+    // For not enough memory allocation errors, we could return a status type, but this is such a substantial error that we just want to stop the program
     hbq->bqOutputBuffer = (uint8_t*)malloc(128*(hbq->bms_config->NumOfBoards));
     if(hbq->bqOutputBuffer == NULL){
         // Handle memory allocation error
