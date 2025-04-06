@@ -18,16 +18,18 @@ typedef struct {
 
 typedef struct {
 
-    int8_t AverageTemperature;
-    uint8_t PackVoltage;
+    float AverageTemperature;
+    uint16_t PackVoltage;
     int16_t PackCurrent; 
-    uint8_t CellCount;
+    uint16_t CellCount;
+    uint16_t CellsInSeries;
     CellModel_HandleTypeDef *Cells;
 
 } BatteryModel_HandleTypeDef;
 
-void BatteryModel_Init(BatteryModel_HandleTypeDef *battery_model, uint16_t cell_count);
+void BatteryModel_Init(BatteryModel_HandleTypeDef *battery_model, uint16_t cell_count, uint16_t cells_in_series);
 void BatteryModel_UpdateMeasured(BatteryModel_HandleTypeDef *battery_model, float *cell_voltages, float *die_temperatures);
+void BatteryModel_UpdateEstimates(BatteryModel_HandleTypeDef *battery_model, float *cell_voltages, float *cell_temperatures, float *current_sensor);
 
 
 #endif // BATTERY_MODEL_H

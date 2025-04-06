@@ -52,7 +52,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+// TODO: Find actual limit
+#define LOW_CURRENT_SENSOR_LIMIT 100 // Amps
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -66,8 +67,9 @@
 
 uint32_t adc1Buffer[1];
 uint32_t adc2Buffer[1];
-int16_t lowCurrentSensor;
-int16_t highCurrentSensor;
+float lowCurrentSensor;
+float highCurrentSensor;
+
 
 /* USER CODE END PV */
 
@@ -211,7 +213,7 @@ int main(void)
   HAL_ADC_Start_DMA(&hadc2, adc2Buffer, 1);
 
   BatteryModel_HandleTypeDef battery_model;
-  BatteryModel_Init(&battery_model, TOTAL_CELLS);
+  BatteryModel_Init(&battery_model, bms_config.CellCount, bms_config.CellCountInSeries);
 
   Align_CAN_Init(&hfdcan1, ALIGN_CAN_SPEED_500KBPS, FDCAN1);
 
@@ -239,8 +241,10 @@ int main(void)
 
     UpdateCurrentSensor();
   
+    float currentSensor = lowCurrentSensor;
+    if(lowCurrentSensor >= LOW_CURRENT_SENSOR_LIMIT || lowCurrentSensor <= LOW_CURRENT_SENSOR_LIMIT){
 
-
+    }
 
 
     // We do communication at the end

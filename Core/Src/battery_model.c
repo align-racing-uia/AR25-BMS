@@ -1,9 +1,11 @@
 #include "battery_model.h"
 #include "stdlib.h"
 
-void BatteryModel_Init(BatteryModel_HandleTypeDef *battery_model, uint16_t cell_count)
+void BatteryModel_Init(BatteryModel_HandleTypeDef *battery_model, uint16_t cell_count, uint16_t cells_in_series)
 {
     battery_model->CellCount = cell_count;
+    battery_model->CellsInSeries = cells_in_series;
+    battery_model->AverageTemperature = 20; // Default temperature for no apparent reason
     battery_model->Cells = (CellModel_HandleTypeDef *)malloc(cell_count * sizeof(CellModel_HandleTypeDef));
     if (battery_model->Cells == NULL)
     {
@@ -31,4 +33,8 @@ void BatteryModel_UpdateMeasured(BatteryModel_HandleTypeDef *battery_model, floa
     }
 
 
+}
+
+void BatteryModel_UpdateEstimates(BatteryModel_HandleTypeDef *battery_model, float *cell_voltages, float *cell_temperatures, float *current_sensor){
+    // TODO: Implement the juicy part here
 }

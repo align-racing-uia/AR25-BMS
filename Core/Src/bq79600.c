@@ -188,7 +188,7 @@ BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq){
     return status;
 }
 
-// This sets the selected GPIO of all the slaves
+// This sets the selected GPIO of all the slaves the GPIO are 0 indexed
 BQ_StatusTypeDef BQ_SetGPIOAll(BQ_HandleTypeDef* hbq, uint8_t pin, bool logicState){
 
     uint8_t data[1] = {0};
@@ -287,6 +287,14 @@ BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef* hbq){
 }
 
 BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef* hbq){
+
+    BQ_SetGPIOAll(hbq, 7, true); // Set GPIO8 to high
+
+    // TODO Implement temperature reading
+
+    BQ_SetGPIOAll(hbq, 8, false); // Set GPIO8 to low
+
+    // TODO Implement temperature reading
 
 
     return BQ_STATUS_OK;
