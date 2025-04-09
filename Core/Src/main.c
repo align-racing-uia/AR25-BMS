@@ -54,6 +54,10 @@
 /* USER CODE BEGIN PD */
 // TODO: Find actual limit
 #define LOW_CURRENT_SENSOR_LIMIT 100 // Amps
+
+#define CELL_MEMORY_POOL_SIZE 300 // Size of the cell memory pool, defaults to a maximum of 300 cells
+#define TEMP_MAP_POOL_MAX_POINTS 15 // Size of the OCV map pool, defaults to a maximum of 5 temperature maps with 15 points each
+#define TEMP_MAP_POOL_SIZE 5 // Size of the temperature map pool, defaults to a maximum of 5 temperature maps with 15 points each
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -69,6 +73,10 @@ uint32_t adc1Buffer[1];
 uint32_t adc2Buffer[1];
 float lowCurrentSensor;
 float highCurrentSensor;
+
+// Create memory pools for the battery models
+CellModel_HandleTypeDef cell_memory_pool[CELL_MEMORY_POOL_SIZE]; 
+float temp_map_voltage_points[TEMP_MAP_POOL_MAX_POINTS * TEMP_MAP_POOL_SIZE];
 
 
 /* USER CODE END PV */
@@ -141,7 +149,7 @@ int main(void)
   BMS_ConfigTypeDef bms_config;
   bool valid_config = false;
 
-  // Read the config from the flash: The max size is currently one page (256 bytes)
+  // Read the config from the flash: The max size is of the config is currently one page (256 bytes)
   if(W25Q_ReadData((uint8_t *)&bms_config, sizeof(BMS_ConfigTypeDef), 0, 0) != W25Q_OK){
     Error_Handler(); // Hard stop if this fails
     // Someone mustve pulled the chip out, or something else went wrong
@@ -222,7 +230,7 @@ int main(void)
   HAL_ADC_Start_DMA(&hadc2, adc2Buffer, 1);
 
   BatteryModel_HandleTypeDef battery_model;
-  BatteryModel_Init(&battery_model, bms_config.CellCount, bms_config.CellCountInSeries);
+  BatteryModel_Init(&battery_model, bms_config.CellCount, cell_memory_pool, bms_config.CellCountInSeries, bms_config.CellCountInParallel);
 
   Align_CAN_Init(&hfdcan1, ALIGN_CAN_SPEED_500KBPS, FDCAN1);
 
@@ -256,7 +264,8 @@ int main(void)
       currentSensor = highCurrentSensor;
     }
 
-    BatteryModel_UpdateEstimates(&battery_model, hbq.cellVoltages, hbq.cellTemperatures, &currentSensor);
+    BatteryModel_UpdateMeasured(&battery_model, hbq.cellVoltages, hbq.cellTemperatures, &currentSensor);
+    BatteryModel_UpdateEstimates(&battery_model);
 
 
     // We do communication at the end
