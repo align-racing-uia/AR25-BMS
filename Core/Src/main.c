@@ -55,7 +55,6 @@
 // TODO: Find actual limit
 #define LOW_CURRENT_SENSOR_LIMIT 100 // Amps
 
-
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -72,28 +71,25 @@ uint32_t adc2Buffer[1];
 float lowCurrentSensor;
 float highCurrentSensor;
 
-
 // Create memory pools for the battery models
 // This is done here to make it transparent to the user
-CellModel_HandleTypeDef cell_model_memory_pool[CELL_MEMORY_POOL_SIZE]; 
+CellModel_HandleTypeDef cell_model_memory_pool[CELL_MEMORY_POOL_SIZE];
 float temp_map_voltage_points[TEMP_MAP_POOL_MAX_POINTS * TEMP_MAP_POOL_AMOUNT];
 float temp_map_soc_points[TEMP_MAP_POOL_MAX_POINTS];
 TempMap_HandleTypeDef temp_map_pool[TEMP_MAP_POOL_AMOUNT];
 
 // Memory pools for the BQ79600
 // This is done here to make it transparent to the user
-uint8_t bq_output_buffer[BQ_MAX_AMOUNT_OF_CHIPS * 128]; // This is the memory pool for the BQ79600 output buffer
-float bq_cell_voltages[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_CELLS_EACH]; // This is the memory pool for the cell voltages
-float bq_die_temperature_pool[2*BQ_MAX_AMOUNT_OF_SLAVES]; // This is the memory pool for the die temperatures
+uint8_t bq_output_buffer[BQ_MAX_AMOUNT_OF_CHIPS * 128];                                // This is the memory pool for the BQ79600 output buffer
+float bq_cell_voltages[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_CELLS_EACH];         // This is the memory pool for the cell voltages
+float bq_die_temperature_pool[2 * BQ_MAX_AMOUNT_OF_SLAVES];                            // This is the memory pool for the die temperatures
 float bq_cell_temperature_pool[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_TEMPS_EACH]; // This is the memory pool for the cell temperatures
-
 
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-
 
 void UpdateCurrentSensor(void);
 
@@ -105,9 +101,9 @@ void UpdateCurrentSensor(void);
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
+ * @brief  The application entry point.
+ * @retval int
+ */
 int main(void)
 {
 
@@ -150,7 +146,8 @@ int main(void)
 
   // Initialize w25q32
   W25Q_STATE res = W25Q_Init();
-  if(res != W25Q_OK){
+  if (res != W25Q_OK)
+  {
     Error_Handler(); // Hard stop if this fails
   }
 
@@ -159,22 +156,24 @@ int main(void)
   bool valid_config = false;
 
   // Read the config from the flash: The max size is of the config is currently one page (256 bytes)
-  if(W25Q_ReadData((uint8_t *)&bms_config, sizeof(BMS_ConfigTypeDef), 0, 0) != W25Q_OK){
+  if (W25Q_ReadData((uint8_t *)&bms_config, sizeof(BMS_ConfigTypeDef), 0, 0) != W25Q_OK)
+  {
     Error_Handler(); // Hard stop if this fails
     // Someone mustve pulled the chip out, or something else went wrong
   }
-  
-  // Check if memory contains a config, and that it is a valid
-  if(strcmp(bms_config.MemoryCheck, "align") == 0){
-    
-    // Verify checksum:
-    // TODO Implement a good checksum 
-    
-    valid_config = true;
 
+  // Check if memory contains a config, and that it is a valid
+  if (strcmp(bms_config.MemoryCheck, "align") == 0)
+  {
+
+    // Verify checksum:
+    // TODO Implement a good checksum
+
+    valid_config = true;
   }
 
-  if(!valid_config){
+  if (!valid_config)
+  {
     // If the config is not valid, we should set it to default values
     bms_config.ConfigVersion = 1;
     bms_config.BroadcastPacket = DEFAULT_CAN_BROADCAST_PACKET;
@@ -183,16 +182,17 @@ int main(void)
     bms_config.NumOfSlaves = DEFAULT_TOTAL_CHIPS - 1; // The master is not counted as a slave
     bms_config.CellsEach = DEFAULT_CELLS_EACH;
     bms_config.TempsEach = DEFAULT_TEMPS_EACH;
+    bms_config.TempMapVoltagePoints = DEFAULT_TEMP_MAP_VOLTAGE_POINTS;
+    bms_config.TempMapAmount = DEFAULT_TEMP_MAP_AMOUNT;
     bms_config.TotalCellCountInSeries = DEFAULT_TOTAL_CELLS_IN_SERIES;
     bms_config.CellCountInParallel = DEFAULT_CELLS_IN_PARALLEL;
     bms_config.CellVoltageLimitLow = DEFAULT_CELLVOLTAGE_LIMIT_LOW;
     bms_config.CellVoltageLimitHigh = DEFAULT_CELLVOLTAGE_LIMIT_HIGH;
-    bms_config.CellTemperatureLimitLow = DEFAULT_CELLTEMPERATURE_LIMIT_LOW; // -40C
+    bms_config.CellTemperatureLimitLow = DEFAULT_CELLTEMPERATURE_LIMIT_LOW;   // -40C
     bms_config.CellTemperatureLimitHigh = DEFAULT_CELLTEMPERATURE_LIMIT_HIGH; // 85C
     bms_config.CanNodeID = DEFAULT_CAN_NODE_ID;
     bms_config.CanBaudrate = DEFAULT_CAN_BAUDRATE;
     bms_config.Checksum = 0x00; // TODO: Implement a good checksum
-    
   }
 
   BQ_HandleTypeDef hbq;
@@ -207,7 +207,7 @@ int main(void)
   hbq.nFaultPin = GPIO_PIN_8;
   hbq.gpioADC = 0x7F; // All GPIOs are ADCs, except GPIO8, which is an output
 
-  BQ_BindMemory(&hbq, bms_config.NumOfChips, bq_output_buffer, bq_cell_voltages, bms_config.CellsEach, bq_cell_temperature_pool, bms_config.TempsEach, bq_die_temperature_pool); // Bind memory pools for the BQ79600 cell voltages
+  BQ_BindMemory(&hbq, bms_config.NumOfSlaves, bq_output_buffer, bq_cell_voltages, bms_config.CellsEach, bq_cell_temperature_pool, bms_config.TempsEach, bq_die_temperature_pool); // Bind memory pools for the BQ79600 cell voltages
 
   // Init BQ79600 (Could be wrapped into one function)
   BQ_StatusTypeDef status;
@@ -222,7 +222,7 @@ int main(void)
   status = BQ_AutoAddress(&hbq);
   if (status != BQ_STATUS_OK)
   {
-   Error_Handler(); // Hard stop if this fails
+    Error_Handler(); // Hard stop if this fails
   }
   status = BQ_ConfigureGPIO(&hbq);
   if (status != BQ_STATUS_OK)
@@ -269,16 +269,16 @@ int main(void)
     BQ_GetCellTemperatures(&hbq);
 
     // UpdateCurrentSensor();
-  
+
     float currentSensor = lowCurrentSensor;
     // We rely on the low current sensor to be the most accurate, and the high current sensor when we are in the high current region
-    if(lowCurrentSensor >= LOW_CURRENT_SENSOR_LIMIT || lowCurrentSensor <= LOW_CURRENT_SENSOR_LIMIT){
+    if (lowCurrentSensor >= LOW_CURRENT_SENSOR_LIMIT || lowCurrentSensor <= LOW_CURRENT_SENSOR_LIMIT)
+    {
       currentSensor = highCurrentSensor;
     }
 
     BatteryModel_UpdateMeasured(&battery_model, hbq.cellVoltages, hbq.cellTemperatures, &currentSensor);
     BatteryModel_UpdateEstimates(&battery_model);
-
 
     // We do communication at the end
     if (Align_CAN_Receive(&hfdcan1, &rxHeader, rxData))
@@ -288,22 +288,22 @@ int main(void)
       uint8_t packet_id = 0;
       uint8_t node_id = 0;
       Align_SplitCanId(can_id, &packet_id, &node_id, rxHeader.IdType == FDCAN_EXTENDED_ID);
-      
+
       switch (can_id)
       {
       // We first check for special IDs in case there are devices on the network which do not follow the DTI standard
       case 0x01: // Insert Charger ID here
         /* code */
         break;
-      
+
       default:
-        switch(node_id)
+        switch (node_id)
         {
 
-          case 0x01:
+        case 0x01:
 
-          default:
-            break;
+        default:
+          break;
         }
       }
     }
@@ -316,28 +316,24 @@ int main(void)
       Align_CAN_Send(&hfdcan1, can_id, data, 8, bms_config.CanExtended);
       can_timestamp = HAL_GetTick();
       toggle = !toggle;
-      BQ_SetGPIOAll(&hbq, 7, toggle); // Set GPIO8 to high
+      BQ_SetGPIOAll(&hbq, 7, toggle);      // Set GPIO8 to high
       CDC_Transmit_FS((uint8_t *)"A:", 2); // Send data to USB CDC
       char cellVoltage[10];
       sprintf(cellVoltage, "%f", hbq.cellVoltages[0]);
       HAL_Delay(1);
-      CDC_Transmit_FS((uint8_t *) cellVoltage, 10); // Send data to USB CDC
+      CDC_Transmit_FS((uint8_t *)cellVoltage, 10); // Send data to USB CDC
       HAL_Delay(1);
       CDC_Transmit_FS((uint8_t *)"\n", 1); // Send data to USB CDC
-
     }
-
   }
-
-
 
   /* USER CODE END 3 */
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
+ * @brief System Clock Configuration
+ * @retval None
+ */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -345,14 +341,13 @@ void SystemClock_Config(void)
   RCC_CRSInitTypeDef pInit = {0};
 
   /** Configure the main internal regulator output voltage
-  */
+   */
   HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1_BOOST);
 
   /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSI48
-                              |RCC_OSCILLATORTYPE_HSE;
+   * in the RCC_OscInitTypeDef structure.
+   */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_HSI48 | RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
@@ -370,9 +365,8 @@ void SystemClock_Config(void)
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+   */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
@@ -384,15 +378,15 @@ void SystemClock_Config(void)
   }
 
   /** Enable the SYSCFG APB clock
-  */
+   */
   __HAL_RCC_CRS_CLK_ENABLE();
 
   /** Configures CRS
-  */
+   */
   pInit.Prescaler = RCC_CRS_SYNC_DIV1;
   pInit.Source = RCC_CRS_SYNC_SOURCE_USB;
   pInit.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
-  pInit.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000,1000);
+  pInit.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000, 1000);
   pInit.ErrorLimitValue = 34;
   pInit.HSI48CalibrationValue = 32;
 
@@ -404,13 +398,13 @@ void SystemClock_Config(void)
 /* USER CODE END 4 */
 
 /**
-  * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM1 interrupt took place, inside
-  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
-  * a global variable "uwTick" used as application time base.
-  * @param  htim : TIM handle
-  * @retval None
-  */
+ * @brief  Period elapsed callback in non blocking mode
+ * @note   This function is called  when TIM1 interrupt took place, inside
+ * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+ * a global variable "uwTick" used as application time base.
+ * @param  htim : TIM handle
+ * @retval None
+ */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
@@ -426,9 +420,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 }
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -440,14 +434,14 @@ void Error_Handler(void)
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
+ * @brief  Reports the name of the source file and the source line number
+ *         where the assert_param error has occurred.
+ * @param  file: pointer to the source file name
+ * @param  line: assert_param error line source number
+ * @retval None
+ */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */

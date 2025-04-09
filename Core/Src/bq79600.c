@@ -19,6 +19,16 @@ void BQ_BindMemory(BQ_HandleTypeDef* hbq, uint8_t num_of_slave_chips, uint8_t *b
         Error_Handler();
     }
 
+    if(num_of_cells_each > BQ_MAX_AMOUNT_OF_CELLS_EACH){
+        // If this occurs, you have to change the BQ_MAX_AMOUNT_OF_CELLS_EACH in bq79600.h
+        Error_Handler();
+    }
+
+    if(num_of_temps_each > BQ_MAX_AMOUNT_OF_TEMPS_EACH){
+        // If this occurs, you have to change the BQ_MAX_AMOUNT_OF_TEMPS_EACH in bq79600.h
+        Error_Handler();
+    }
+
     // Point the handle to the memory pools
     hbq->numOfChips = num_of_slave_chips + 1; // Including master
     hbq->numOfSlaves = num_of_slave_chips; // Not including master
@@ -26,23 +36,23 @@ void BQ_BindMemory(BQ_HandleTypeDef* hbq, uint8_t num_of_slave_chips, uint8_t *b
     hbq->numOfTempsEach = num_of_temps_each;
 
     hbq->bqOutputBuffer = bq_output_buffer;
-    if(hbq->bqOutputBuffer == NULL || sizeof(hbq->bqOutputBuffer) < 128*(hbq->numOfChips)){
+    if(hbq->bqOutputBuffer == NULL){
         // Handle memory allocation error
         Error_Handler();
     }
 
     hbq->cellVoltages = cell_voltages_memory_pool;
-    if(hbq->cellVoltages == NULL || sizeof(hbq->cellVoltages) < sizeof(float)*num_of_cells_each*hbq->numOfChips){
+    if(hbq->cellVoltages == NULL){
         // Handle memory allocation error
         Error_Handler();
     }
     hbq->bqDieTemperatures = bq_die_temperature_memory_pool;
-    if(hbq->bqDieTemperatures == NULL || sizeof(hbq->bqDieTemperatures) < sizeof(float)*2*(hbq->numOfChips)){
+    if(hbq->bqDieTemperatures == NULL){
         // Handle memory allocation error
         Error_Handler();
     }
     hbq->cellTemperatures = cell_temperature_memory_pool;
-    if(hbq->cellTemperatures == NULL || sizeof(hbq->cellTemperatures) < sizeof(float)*num_of_temps_each*hbq->numOfChips){
+    if(hbq->cellTemperatures == NULL){
         // Handle memory allocation error
         Error_Handler();
     }
@@ -272,7 +282,7 @@ BQ_StatusTypeDef BQ_ConfigureGPIO(BQ_HandleTypeDef* hbq){
 BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef* hbq){
     // Cleanup
     memset(hbq->bqOutputBuffer, 0x00, 128*(hbq->numOfChips));
-    memset(hbq->cellVoltages, 0x00, sizeof(float)*hbq->numOfCellsEach*hbq->numOfChips); // Clear the cell voltages
+    memset(hbq->cellVoltages, 0x00, sizeof(float)*hbq->numOfCellsEach*hbq->numOfSlaves); // Clear the cell voltages
 
     BQ_StatusTypeDef status;
     status = BQ_Read(hbq, hbq->bqOutputBuffer, 0, BQ16_VCELL16_HI +( 2*(16-hbq->numOfCellsEach)), hbq->numOfCellsEach*2, BQ_STACK_READ); // 2 registers for each cell

@@ -22,6 +22,8 @@
 #define DEFAULT_TOTAL_SLAVES (DEFAULT_TOTAL_CHIPS-1)     // Number of slaves in the system
 #define DEFAULT_CELLS_EACH 16       // Number of cells in series on each slave
 #define DEFAULT_TEMPS_EACH 14       // Number of temperature sensors on each slave
+#define DEFAULT_TEMP_MAP_VOLTAGE_POINTS 5 // Number of voltage points in each temperature map
+#define DEFAULT_TEMP_MAP_AMOUNT 3 // Number of temperature maps
 #define DEFAULT_CELLS_IN_PARALLEL 1 // Number of cells in parallel
 #define DEFAULT_CELLVOLTAGE_LIMIT_LOW 2000   // mV
 #define DEFAULT_CELLVOLTAGE_LIMIT_HIGH 4200  // mV

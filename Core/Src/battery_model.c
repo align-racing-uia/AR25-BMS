@@ -3,12 +3,16 @@
 
 void BatteryModel_Init(BatteryModel_HandleTypeDef *battery_model, CellModel_HandleTypeDef* cell_memory_pool, uint16_t cell_count, uint16_t cells_in_series, uint16_t cells_in_parallel)
 {
+    if(cell_count > CELL_MEMORY_POOL_SIZE){
+        // If this occurs, you have to change the CELL_MEMORY_POOL_SIZE in battery_model.h
+        Error_Handler();
+    }
     battery_model->CellCount = cell_count;
     battery_model->CellsInSeries = cells_in_series;
     battery_model->CellsInParallel = cells_in_parallel;
     battery_model->AverageTemperature = 20; // Default temperature for no apparent reason
     battery_model->Cells = cell_memory_pool;
-    if (battery_model->Cells == NULL || sizeof(battery_model->Cells) < cell_count * sizeof(CellModel_HandleTypeDef))
+    if (battery_model->Cells == NULL)
     {
         Error_Handler();
     }
@@ -79,11 +83,11 @@ void BatteryModel_InitOCVMaps(BatteryModel_HandleTypeDef *battery_model, uint16_
     battery_model->OCV.TemperatureMaps = temp_map_memory_pool;
     battery_model->OCV.SOCPoints = soc_point_memory_pool;
     // Check if the actual memory pool is large enough
-    if (battery_model->OCV.TemperatureMaps == NULL || sizeof(battery_model->OCV.TemperatureMaps) < num_of_maps * sizeof(TempMap_HandleTypeDef))
+    if (battery_model->OCV.TemperatureMaps == NULL)
     {
         Error_Handler();
     }
-    if (battery_model->OCV.SOCPoints == NULL || sizeof(battery_model->OCV.SOCPoints) < num_of_maps * sizeof(float))
+    if (battery_model->OCV.SOCPoints == NULL )
     {
         Error_Handler();
     }
