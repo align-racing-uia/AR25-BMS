@@ -54,6 +54,7 @@
 /* USER CODE BEGIN PD */
 // TODO: Find actual limit
 #define LOW_CURRENT_SENSOR_LIMIT 100 // Amps
+#define USB_LOGGING 1 // Enable USB logging
 
 /* USER CODE END PD */
 
@@ -163,13 +164,15 @@ int main(void)
     // Someone mustve pulled the chip out, or something else went wrong
   }
 
+
+
   // Check if memory contains a config, and that it is a valid
-  if (strcmp(bms_config.MemoryCheck, "align") == 0)
+  if (strncmp(bms_config.MemoryCheck, "align", 5) == 0)
   {
 
     // Verify checksum:
     // TODO Implement a good checksum
-
+    // BMS_Config_UpdateFromFlash(&bms_config, (uint8_t *)&bms_config, sizeof(BMS_ConfigTypeDef));
     valid_config = true;
   }
 
@@ -260,6 +263,8 @@ int main(void)
 
   uint32_t can_timestamp = HAL_GetTick();
   uint32_t usb_timestamp = HAL_GetTick();
+  USB_LogFrameTypeDef usb_log = {0};
+
 
   while (1)
   {
@@ -304,8 +309,12 @@ int main(void)
         switch (node_id)
         {
 
-        case 0x01:
+        case 12:
+          if(packet_id == 0x1F){
+            // BMS_Config_WriteToFlash(&bms_config, );
 
+          }
+          BMS_Config_HandleCanMessage(&bms_config, packet_id, rxData);
         default:
           break;
         }
@@ -322,12 +331,10 @@ int main(void)
       toggle = !toggle;
       BQ_SetGPIOAll(&hbq, 7, toggle);      // Set GPIO8 to high
     }
-
-    if((usb_timestamp + 10) <= HAL_GetTick()){
+    
+    if((usb_timestamp + 10) <= HAL_GetTick() && USB_LOGGING){
       // Every second
-      uint8_t data[40] = {0};
-      memcpy(data, bq_cell_voltages, 8); // Copy the cell voltages to the data buffer
-      CDC_Transmit_FS(data, 4); // Send data to USB CDC
+      CDC_Transmit_FS((uint8_t*) &usb_log, sizeof(usb_log)); // Send data to USB CDC
       usb_timestamp = HAL_GetTick();
     }
   }

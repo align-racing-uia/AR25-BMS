@@ -66,8 +66,18 @@ typedef struct
 
 } BMS_ConfigTypeDef;
 
-void BMS_Config_WriteToFlash(BMS_ConfigTypeDef *bms_config, uint8_t* data, uint16_t size);
-void BMS_Config_ReadFromFlash(BMS_ConfigTypeDef *bms_config, uint8_t* data, uint16_t size);
+typedef enum
+{
+    BMS_OK,
+    BMS_ERROR,
+    BMS_TIMEOUT,
+    BMS_INVALID_CONFIG,
+    BMS_INVALID_VALUE,
+    BMS_INVALID_PACKET,
+} BMS_StatusTypeDef;
+
+BMS_StatusTypeDef BMS_Config_WriteToFlash(BMS_ConfigTypeDef *bms_config, uint8_t *eeprom, size_t size);
+BMS_StatusTypeDef BMS_Config_UpdateFromFlash(BMS_ConfigTypeDef *bms_config, uint8_t *eeprom, size_t size);
 
 
 #endif // __BMS_CONFIG_H
