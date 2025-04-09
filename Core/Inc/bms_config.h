@@ -10,13 +10,16 @@
 #define TEMP_MAP_POOL_MAX_POINTS 15 // Size of the OCV map pool, defaults to a maximum of 5 temperature maps with 15 points each
 #define TEMP_MAP_POOL_AMOUNT 5 // Size of the temperature map pool, defaults to a maximum of 5 temperature maps with 15 points each
 
-#define BQ_MAX_AMOUNT_OF_CHIPS 14 // The maximum amount of BQ79616 chips in the system
+#define BQ_MAX_AMOUNT_OF_CHIPS 15 // The maximum amount of BQ79616 chips in the system
+#define BQ_MAX_AMOUNT_OF_SLAVES (BQ_MAX_AMOUNT_OF_CHIPS-1) // The maximum amount of BQ79616 chips in the system
 #define BQ_MAX_AMOUNT_OF_CELLS_EACH 16 // The maximum amount of cells in series on each board
 #define BQ_MAX_AMOUNT_OF_TEMPS_EACH 14 // The maximum amount of temperature sensors on each board
 
 
 // Default values for compiled programs can be set in this header
+// These values are only used if the EEPROM is empty, corrupt, or not present
 #define DEFAULT_TOTAL_CHIPS 2       // Including master
+#define DEFAULT_TOTAL_SLAVES (DEFAULT_TOTAL_CHIPS-1)     // Number of slaves in the system
 #define DEFAULT_CELLS_EACH 16       // Number of cells in series on each slave
 #define DEFAULT_TEMPS_EACH 14       // Number of temperature sensors on each slave
 #define DEFAULT_CELLS_IN_PARALLEL 1 // Number of cells in parallel
@@ -30,8 +33,8 @@
 #define DEFAULT_CAN_EXTENDED 0 // Should the CAN ID be extended or not
 #define DEFAULT_BROADCAST_PACKET 0x01
 
-#define DEFAULT_TOTAL_CELLS (DEFAULT_TOTAL_CHIPS * DEFAULT_CELLS_EACH * DEFAULT_CELLS_IN_PARALLEL)
-#define DEFAULT_TOTAL_CELLS_IN_SERIES (DEFAULT_TOTAL_CHIPS * DEFAULT_CELLS_EACH)
+#define DEFAULT_TOTAL_CELLS (DEFAULT_TOTAL_SLAVES * DEFAULT_CELLS_EACH * DEFAULT_CELLS_IN_PARALLEL)
+#define DEFAULT_TOTAL_CELLS_IN_SERIES (DEFAULT_TOTAL_SLAVES * DEFAULT_CELLS_EACH)
 
 // All of these parameters can be set through serial, and will be stored on the flash
 typedef struct

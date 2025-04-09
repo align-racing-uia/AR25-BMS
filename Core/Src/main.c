@@ -81,9 +81,9 @@ float temp_map_soc_points[TEMP_MAP_POOL_MAX_POINTS];
 TempMap_HandleTypeDef temp_map_pool[TEMP_MAP_POOL_AMOUNT];
 
 uint8_t bq_output_buffer[BQ_MAX_AMOUNT_OF_CHIPS * 128]; // This is the memory pool for the BQ79600 output buffer
-float bq_cell_voltages[BQ_MAX_AMOUNT_OF_CHIPS * BQ_MAX_AMOUNT_OF_CELLS_EACH]; // This is the memory pool for the cell voltages
-float bq_die_temperature_pool[2*BQ_MAX_AMOUNT_OF_CHIPS]; // This is the memory pool for the die temperatures
-float bq_cell_temperature_pool[BQ_MAX_AMOUNT_OF_CHIPS * BQ_MAX_AMOUNT_OF_TEMPS_EACH]; // This is the memory pool for the cell temperatures
+float bq_cell_voltages[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_CELLS_EACH]; // This is the memory pool for the cell voltages
+float bq_die_temperature_pool[2*BQ_MAX_AMOUNT_OF_SLAVES]; // This is the memory pool for the die temperatures
+float bq_cell_temperature_pool[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_TEMPS_EACH]; // This is the memory pool for the cell temperatures
 
 
 /* USER CODE END PV */
@@ -257,6 +257,7 @@ int main(void)
 
   while (1)
   {
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

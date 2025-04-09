@@ -14,6 +14,11 @@ void BQ_BindMemory(BQ_HandleTypeDef* hbq, uint8_t num_of_slave_chips, uint8_t *b
         Error_Handler();
     }
     
+    if(num_of_slave_chips > BQ_MAX_AMOUNT_OF_CHIPS){
+        // If this occurs, you have to change the BQ_MAX_AMOUNT_OF_CHIPS in bq79600.h
+        Error_Handler();
+    }
+
     // Point the handle to the memory pools
     hbq->numOfChips = num_of_slave_chips + 1; // Including master
     hbq->numOfSlaves = num_of_slave_chips; // Not including master
