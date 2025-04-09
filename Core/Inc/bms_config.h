@@ -4,11 +4,22 @@
 #include "stdint.h"
 #include "stdbool.h"
 
+// These are absolute maxes for the battery model, not the actual values
+// The actual values are set in the battery model init function
+#define CELL_MEMORY_POOL_SIZE 300 // Size of the cell memory pool, defaults to a maximum of 300 cells
+#define TEMP_MAP_POOL_MAX_POINTS 15 // Size of the OCV map pool, defaults to a maximum of 5 temperature maps with 15 points each
+#define TEMP_MAP_POOL_AMOUNT 5 // Size of the temperature map pool, defaults to a maximum of 5 temperature maps with 15 points each
+
+#define BQ_MAX_AMOUNT_OF_CHIPS 14 // The maximum amount of BQ79616 chips in the system
+#define BQ_MAX_AMOUNT_OF_CELLS_EACH 16 // The maximum amount of cells in series on each board
+#define BQ_MAX_AMOUNT_OF_TEMPS_EACH 14 // The maximum amount of temperature sensors on each board
+
+
 // Default values for compiled programs can be set in this header
-#define DEFAULT_TOTALBOARDS 2       // Including base
-#define DEFAULT_CELLS_IN_SERIES 16  // On each board
+#define DEFAULT_TOTAL_CHIPS 2       // Including master
+#define DEFAULT_CELLS_EACH 16       // Number of cells in series on each slave
+#define DEFAULT_TEMPS_EACH 14       // Number of temperature sensors on each slave
 #define DEFAULT_CELLS_IN_PARALLEL 1 // Number of cells in parallel
-#define DEFAULT_TEMPERATURE_SENSOR_COUNT 14 // Number of temperature sensors on each BQ79616
 #define DEFAULT_CELLVOLTAGE_LIMIT_LOW 2000   // mV
 #define DEFAULT_CELLVOLTAGE_LIMIT_HIGH 4200  // mV
 #define DEFAULT_CELLTEMPERATURE_LIMIT_LOW 0 // C
@@ -19,24 +30,28 @@
 #define DEFAULT_CAN_EXTENDED 0 // Should the CAN ID be extended or not
 #define DEFAULT_BROADCAST_PACKET 0x01
 
-#define DEFAULT_TOTAL_CELLS (DEFAULT_TOTALBOARDS * DEFAULT_CELLS_IN_SERIES) // Counts cells in parallel as one
+#define DEFAULT_TOTAL_CELLS (DEFAULT_TOTAL_CHIPS * DEFAULT_CELLS_EACH * DEFAULT_CELLS_IN_PARALLEL)
+#define DEFAULT_TOTAL_CELLS_IN_SERIES (DEFAULT_TOTAL_CHIPS * DEFAULT_CELLS_EACH)
 
 // All of these parameters can be set through serial, and will be stored on the flash
 typedef struct
 {
     uint16_t ConfigVersion;            // This number will automatically increment when the config changes
     char MemoryCheck[5];               // Inital check of config, should default to "align"
-    uint8_t NumOfBoards;                // The number of boards in the system, including the base
+    uint8_t NumOfChips;                // The number of chips in the system
     uint16_t CellCount;                // Total number of cells
-    // TODO: Make sure that the voltage readings are based on this
-    uint8_t  ChipCount;              // The number of chips in the system, not including the base 
-    uint16_t TemperatureSensorCount;        // Total number of temperature sensors for each BQ79616
-    uint16_t CellCountInSeries;        // Number of cells in series
+    uint8_t  NumOfSlaves;              // The number of slaves in the system
+    uint8_t  CellsEach;
+    uint8_t  TempsEach;
+    uint16_t TotalCellCountInSeries;   // Total number of cells in series
     uint16_t CellCountInParallel;      // Number of cells in parallel
     uint16_t CellVoltageLimitLow;      // The minimum voltage of a cell
     uint16_t CellVoltageLimitHigh;     // The maximum voltage of a cell
     uint16_t CellTemperatureLimitLow;  // The minimum temperature of a cell
     uint16_t CellTemperatureLimitHigh; // The maximum temperature of a cell
+
+    uint8_t TempMapAmount; // The number of temperature maps
+    uint8_t TempMapVoltagePoints; // The number of voltage points in each temperature map
 
     uint8_t CanNodeID;       // This follows the CAN ID format specified by DTI
     uint16_t CanBaudrate;    // The baudrate of the CAN bus

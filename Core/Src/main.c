@@ -55,9 +55,7 @@
 // TODO: Find actual limit
 #define LOW_CURRENT_SENSOR_LIMIT 100 // Amps
 
-#define CELL_MEMORY_POOL_SIZE 300 // Size of the cell memory pool, defaults to a maximum of 300 cells
-#define TEMP_MAP_POOL_MAX_POINTS 15 // Size of the OCV map pool, defaults to a maximum of 5 temperature maps with 15 points each
-#define TEMP_MAP_POOL_SIZE 5 // Size of the temperature map pool, defaults to a maximum of 5 temperature maps with 15 points each
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -74,9 +72,18 @@ uint32_t adc2Buffer[1];
 float lowCurrentSensor;
 float highCurrentSensor;
 
+
 // Create memory pools for the battery models
-CellModel_HandleTypeDef cell_memory_pool[CELL_MEMORY_POOL_SIZE]; 
-float temp_map_voltage_points[TEMP_MAP_POOL_MAX_POINTS * TEMP_MAP_POOL_SIZE];
+// This is done here to make it transparent to the user
+CellModel_HandleTypeDef cell_model_memory_pool[CELL_MEMORY_POOL_SIZE]; 
+float temp_map_voltage_points[TEMP_MAP_POOL_MAX_POINTS * TEMP_MAP_POOL_AMOUNT];
+float temp_map_soc_points[TEMP_MAP_POOL_MAX_POINTS];
+TempMap_HandleTypeDef temp_map_pool[TEMP_MAP_POOL_AMOUNT];
+
+uint8_t bq_output_buffer[BQ_MAX_AMOUNT_OF_CHIPS * 128]; // This is the memory pool for the BQ79600 output buffer
+float bq_cell_voltages[BQ_MAX_AMOUNT_OF_CHIPS * BQ_MAX_AMOUNT_OF_CELLS_EACH]; // This is the memory pool for the cell voltages
+float bq_die_temperature_pool[2*BQ_MAX_AMOUNT_OF_CHIPS]; // This is the memory pool for the die temperatures
+float bq_cell_temperature_pool[BQ_MAX_AMOUNT_OF_CHIPS * BQ_MAX_AMOUNT_OF_TEMPS_EACH]; // This is the memory pool for the cell temperatures
 
 
 /* USER CODE END PV */
@@ -170,9 +177,11 @@ int main(void)
     bms_config.ConfigVersion = 1;
     bms_config.BroadcastPacket = DEFAULT_CAN_BROADCAST_PACKET;
     bms_config.CellCount = DEFAULT_TOTAL_CELLS;
-    bms_config.TemperatureSensorCount = DEFAULT_TEMPERATURE_SENSOR_COUNT;
-    bms_config.NumOfBoards = DEFAULT_TOTALBOARDS;
-    bms_config.CellCountInSeries = DEFAULT_CELLS_IN_SERIES;
+    bms_config.NumOfChips = DEFAULT_TOTAL_CHIPS;
+    bms_config.NumOfSlaves = DEFAULT_TOTAL_CHIPS - 1; // The master is not counted as a slave
+    bms_config.CellsEach = DEFAULT_CELLS_EACH;
+    bms_config.TempsEach = DEFAULT_TEMPS_EACH;
+    bms_config.TotalCellCountInSeries = DEFAULT_TOTAL_CELLS_IN_SERIES;
     bms_config.CellCountInParallel = DEFAULT_CELLS_IN_PARALLEL;
     bms_config.CellVoltageLimitLow = DEFAULT_CELLVOLTAGE_LIMIT_LOW;
     bms_config.CellVoltageLimitHigh = DEFAULT_CELLVOLTAGE_LIMIT_HIGH;
@@ -195,9 +204,8 @@ int main(void)
   hbq.nFaultGPIOx = GPIOA;
   hbq.nFaultPin = GPIO_PIN_8;
   hbq.gpioADC = 0x7F; // All GPIOs are ADCs, except GPIO8, which is an output
-  hbq.bms_config = &bms_config;
 
-  BQ_AllocateMemory(&hbq); // Allocate memory for the BQ79600 cell voltages
+  BQ_BindMemory(&hbq, bms_config.NumOfChips, bq_output_buffer, bq_cell_voltages, bms_config.CellsEach, bq_cell_temperature_pool, bms_config.TempsEach, bq_die_temperature_pool); // Bind memory pools for the BQ79600 cell voltages
 
   // Init BQ79600 (Could be wrapped into one function)
   BQ_StatusTypeDef status;
@@ -230,7 +238,8 @@ int main(void)
   HAL_ADC_Start_DMA(&hadc2, adc2Buffer, 1);
 
   BatteryModel_HandleTypeDef battery_model;
-  BatteryModel_Init(&battery_model, cell_memory_pool, bms_config.CellCount, bms_config.CellCountInSeries, bms_config.CellCountInParallel);
+  BatteryModel_Init(&battery_model, cell_model_memory_pool, bms_config.CellCount, bms_config.TotalCellCountInSeries, bms_config.CellCountInParallel);
+  BatteryModel_InitOCVMaps(&battery_model, bms_config.TempMapVoltagePoints, temp_map_voltage_points, temp_map_soc_points, temp_map_pool, bms_config.TempMapAmount);
 
   Align_CAN_Init(&hfdcan1, ALIGN_CAN_SPEED_500KBPS, FDCAN1);
 

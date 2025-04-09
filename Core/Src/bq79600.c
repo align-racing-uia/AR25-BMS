@@ -6,43 +6,46 @@
 #include "math.h"
 #include "stdlib.h"
 
-void BQ_AllocateMemory(BQ_HandleTypeDef* hbq){
-    // Allocate memory for the output buffer
-    // For not enough memory allocation errors, we could return a status type, but this is such a substantial error that we just want to stop the program
-    hbq->bqOutputBuffer = (uint8_t*)malloc(128*(hbq->bms_config->NumOfBoards));
-    if(hbq->bqOutputBuffer == NULL){
+// The use of floats here is to be able to take advantage of the FPU, and to make the maths in later stages simpler
+void BQ_BindMemory(BQ_HandleTypeDef* hbq, uint8_t num_of_slave_chips, uint8_t *bq_output_buffer, float *cell_voltages_memory_pool, uint8_t num_of_cells_each, float *cell_temperature_memory_pool, uint8_t num_of_temps_each, float *bq_die_temperature_memory_pool){
+    
+    if(hbq == NULL){
+        // If this occurs, youve done something very wrong
+        Error_Handler();
+    }
+    
+    // Point the handle to the memory pools
+    hbq->numOfChips = num_of_slave_chips + 1; // Including master
+    hbq->numOfSlaves = num_of_slave_chips; // Not including master
+    hbq->numOfCellsEach = num_of_cells_each;
+    hbq->numOfTempsEach = num_of_temps_each;
+
+    hbq->bqOutputBuffer = bq_output_buffer;
+    if(hbq->bqOutputBuffer == NULL || sizeof(hbq->bqOutputBuffer) < 128*(hbq->numOfChips)){
         // Handle memory allocation error
         Error_Handler();
     }
 
-    hbq->cellVoltages = (float*)malloc((hbq->bms_config->CellCount)*sizeof(float));
-    if(hbq->cellVoltages == NULL){
+    hbq->cellVoltages = cell_voltages_memory_pool;
+    if(hbq->cellVoltages == NULL || sizeof(hbq->cellVoltages) < sizeof(float)*num_of_cells_each*hbq->numOfChips){
         // Handle memory allocation error
         Error_Handler();
     }
-    hbq->bqDieTemperatures = (float*)malloc((2*(hbq->bms_config->NumOfBoards-1))*sizeof(float));
-    if(hbq->bqDieTemperatures == NULL){
+    hbq->bqDieTemperatures = bq_die_temperature_memory_pool;
+    if(hbq->bqDieTemperatures == NULL || sizeof(hbq->bqDieTemperatures) < sizeof(float)*2*(hbq->numOfChips)){
         // Handle memory allocation error
         Error_Handler();
     }
-    hbq->cellTemperatures = (float*)malloc(hbq->bms_config->ChipCount*hbq->bms_config->TemperatureSensorCount*sizeof(float));
-    if(hbq->cellTemperatures == NULL){
+    hbq->cellTemperatures = cell_temperature_memory_pool;
+    if(hbq->cellTemperatures == NULL || sizeof(hbq->cellTemperatures) < sizeof(float)*num_of_temps_each*hbq->numOfChips){
         // Handle memory allocation error
         Error_Handler();
     }
-    // Set to default values
-    for(int i=0; i<128*(hbq->bms_config->NumOfBoards); i++){
-        hbq->bqOutputBuffer[i] = 0;
-    }
-    for(int i=0; i<hbq->bms_config->CellCount; i++){
-        hbq->cellVoltages[i] = 0;
-    }
-    for(int i=0; i<2*(hbq->bms_config->NumOfBoards-1); i++){
-        hbq->bqDieTemperatures[i] = 0;
-    }
-    for(int i=0; i<hbq->bms_config->TemperatureSensorCount; i++){
-        hbq->cellTemperatures[i] = 0;
-    }
+    // Clear the used memory region
+    memset(hbq->bqOutputBuffer, 0x00, 128*(hbq->numOfChips)); // Clear the output buffer
+    memset(hbq->cellVoltages, 0x00, sizeof(float)*num_of_cells_each*hbq->numOfChips); // Clear the cell voltages
+    memset(hbq->bqDieTemperatures, 0x00, sizeof(float)*2*(hbq->numOfChips)); // Clear the die temperatures
+    memset(hbq->cellTemperatures, 0x00, sizeof(float)*num_of_temps_each*hbq->numOfChips); // Clear the cell temperatures
 }
 
 // We sometimes need full control of the MOSI Pin in GPIO between SPI commands
@@ -152,7 +155,7 @@ BQ_StatusTypeDef BQ_AutoAddress(BQ_HandleTypeDef* hbq){
     if(status != BQ_STATUS_OK){
         return status;
     }
-    for(int i=0; i<hbq->bms_config->NumOfBoards; i++){
+    for(int i=0; i<hbq->numOfChips; i++){
         data[0] = i;
         status = BQ_Write(hbq, data, BQ_SELF_ID, BQ_DIR0_ADDR, 1, BQ_BROAD_WRITE);
         if(status != BQ_STATUS_OK){
@@ -163,14 +166,14 @@ BQ_StatusTypeDef BQ_AutoAddress(BQ_HandleTypeDef* hbq){
     data[0] = 0x02;
     status = BQ_Write(hbq, data, BQ_SELF_ID, BQ_COMM_CTRL, 1, BQ_BROAD_WRITE);
     data[0] = 0x03;
-    status = BQ_Write(hbq, data, hbq->bms_config->NumOfBoards-1, BQ_COMM_CTRL, 1, BQ_DEVICE_WRITE);
+    status = BQ_Write(hbq, data, hbq->numOfSlaves, BQ_COMM_CTRL, 1, BQ_DEVICE_WRITE);
     if(status != BQ_STATUS_OK){ // The odds of one failing but not the other is very small, as the only possible error would be a SPI fault
         return status;
     }
 
-    memset(hbq->bqOutputBuffer, 0x00, 128*(hbq->bms_config->NumOfBoards)); // Clear the output buffer
+    memset(hbq->bqOutputBuffer, 0x00, 128*(hbq->numOfChips)); // Clear the output buffer
     for(int i=0; i<8; i++){
-        status = BQ_Read(hbq, hbq->bms_config->NumOfBoards, BQ_SELF_ID, BQ_OTP_ECC_DATAIN1+i, 1, BQ_STACK_READ);
+        status = BQ_Read(hbq, hbq->numOfChips, BQ_SELF_ID, BQ_OTP_ECC_DATAIN1+i, 1, BQ_STACK_READ);
         if(status != BQ_STATUS_OK){
             return status;
         }
@@ -183,7 +186,8 @@ BQ_StatusTypeDef BQ_AutoAddress(BQ_HandleTypeDef* hbq){
 // Num of cells correspond to the number of cells in series each IC should measure (max 16)
 BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq){
     // Activate on the whole stack
-    uint8_t data = hbq->bms_config->CellCountInSeries - 6; // 0x00 => 6 measured cells
+    // NB: If stuff suddenly stops working, this is not tested
+    uint8_t data = hbq->numOfSlaves * hbq->numOfCellsEach - 6; // 0x00 => 6 measured cells
     BQ_StatusTypeDef status;
     status = BQ_Write(hbq, &data, 0, BQ16_ACTIVE_CELLS, 1, BQ_STACK_WRITE);
     if(status != BQ_STATUS_OK){
@@ -192,7 +196,7 @@ BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq){
     data = BQ16_ADC_CTRL1_ADCCONT | BQ16_ADC_CTRL1_MAINGO;
     status = BQ_Write(hbq, &data, 0, BQ16_ADC_CTRL1, 1, BQ_BROAD_WRITE);
     // Wait for everyone to get the message
-    Align_DelayUs(192 + (5*hbq->bms_config->NumOfBoards));
+    Align_DelayUs(192 + (5*hbq->numOfChips));
     return status;
 }
 
@@ -213,7 +217,7 @@ BQ_StatusTypeDef BQ_SetGPIOAll(BQ_HandleTypeDef* hbq, uint8_t pin, bool logicSta
 
     BQ_StatusTypeDef status = BQ_Write(hbq, &(hbq->gpioconf[register_offset]), 0, BQ16_GPIO1_HI + register_offset, 1, BQ_BROAD_WRITE);
     // Wait for everyone to get the message
-    Align_DelayUs(192 + (5*hbq->bms_config->NumOfBoards));
+    Align_DelayUs(192 + (5*hbq->numOfChips));
     return status;
 
 }
@@ -243,7 +247,7 @@ BQ_StatusTypeDef BQ_ConfigureGPIO(BQ_HandleTypeDef* hbq){
 
         status = BQ_Write(hbq, data, 0, BQ16_GPIO_CONF1+i, 1, BQ_STACK_WRITE);
         // Wait for everyone to get the message
-        Align_DelayUs(192 + (5*hbq->bms_config->NumOfBoards));
+        Align_DelayUs(192 + (5*hbq->numOfChips));
         if(status != BQ_STATUS_OK){
             return status;
         }
@@ -253,7 +257,7 @@ BQ_StatusTypeDef BQ_ConfigureGPIO(BQ_HandleTypeDef* hbq){
     uint8_t data[1] = {BQ16_ADC_CTRL3_AUXCONT | BQ16_ADC_CTRL3_AUXGO};
     status = BQ_Write(hbq, data, 0, BQ16_ADC_CTRL3, 1, BQ_STACK_WRITE);
     // Wait for everyone to get the message
-    Align_DelayUs(192 + (5*hbq->bms_config->NumOfBoards));
+    Align_DelayUs(192 + (5*hbq->numOfChips));
     return status;
 
 }
@@ -262,18 +266,19 @@ BQ_StatusTypeDef BQ_ConfigureGPIO(BQ_HandleTypeDef* hbq){
 // TODO: Convert to a uint8_t return type, to define different error states, which can be handled properly
 BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef* hbq){
     // Cleanup
-    memset(hbq->bqOutputBuffer, 0x00, 128*(hbq->bms_config->NumOfBoards));
-    memset(hbq->cellVoltages, 0x00, hbq->bms_config->CellCount*sizeof(float));
+    memset(hbq->bqOutputBuffer, 0x00, 128*(hbq->numOfChips));
+    memset(hbq->cellVoltages, 0x00, sizeof(float)*hbq->numOfCellsEach*hbq->numOfChips); // Clear the cell voltages
+
     BQ_StatusTypeDef status;
-    status = BQ_Read(hbq, hbq->bqOutputBuffer, 0, BQ16_VCELL16_HI +( 2*(16-hbq->bms_config->CellCountInSeries)), hbq->bms_config->CellCountInSeries*2, BQ_STACK_READ); // 2 registers for each cell
+    status = BQ_Read(hbq, hbq->bqOutputBuffer, 0, BQ16_VCELL16_HI +( 2*(16-hbq->numOfCellsEach)), hbq->numOfCellsEach*2, BQ_STACK_READ); // 2 registers for each cell
 
     if(status != BQ_STATUS_OK){
         return status;
     }
 
-    uint8_t totalLen = 6 + hbq->bms_config->CellCountInSeries * 2; // Totalt expected message length
+    uint8_t totalLen = 6 + hbq->numOfCellsEach*hbq->numOfSlaves * 2; // Totalt expected message length
 
-    for(uint8_t i=0;i<hbq->bms_config->NumOfBoards-1;i++){ // Base board will not be part of the cell voltages
+    for(uint8_t i=0;i<hbq->numOfSlaves;i++){ // Base board will not be part of the cell voltages
 
         // For now, ignore all CRC checking and verifications, we want the data
         // TODO: Implement proper CRC verification
@@ -285,7 +290,7 @@ BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef* hbq){
 
         for(uint8_t y=0; y<len; y+=2){
             uint16_t rawAdc = (((uint16_t) hbq->bqOutputBuffer[i*totalLen+4+y]) << 8) | ((uint16_t) hbq->bqOutputBuffer[i*totalLen+5+y]);
-            hbq->cellVoltages[hbq->bms_config->CellCountInSeries*i+y/2] = (float) ((float) rawAdc * 0.00019073); // in mV
+            hbq->cellVoltages[hbq->numOfCellsEach*i+y/2] = (float) ((float) rawAdc * 0.00019073); // in mV
         }
 
 
@@ -311,8 +316,8 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef* hbq){
 
 BQ_StatusTypeDef BQ_GetDieTemperature(BQ_HandleTypeDef* hbq){
     // Cleanup
-    memset(hbq->bqOutputBuffer, 0x00, 128*(hbq->bms_config->NumOfBoards));
-    memset(hbq->bqDieTemperatures, 0x00, 2*(hbq->bms_config->NumOfBoards-1)*sizeof(float));
+    memset(hbq->bqOutputBuffer, 0x00, 128*(hbq->numOfChips));
+    memset(hbq->bqDieTemperatures, 0x00, 2*(hbq->numOfSlaves)*sizeof(float));
     BQ_StatusTypeDef status = BQ_STATUS_OK;
     status = BQ_Read(hbq, hbq->bqOutputBuffer, 0, BQ16_DIETEMP1_HI, 2, BQ_STACK_READ);
 
@@ -320,7 +325,7 @@ BQ_StatusTypeDef BQ_GetDieTemperature(BQ_HandleTypeDef* hbq){
         return status;
     }
     uint8_t totalLen = 8; // pr board
-    for(uint8_t i=0; i<hbq->bms_config->NumOfBoards-1; i++){
+    for(uint8_t i=0; i<hbq->numOfSlaves; i++){
 
         // For now, ignore all CRC checking and verifications, we want the data
         // TODO: Implement proper CRC verification
@@ -331,7 +336,7 @@ BQ_StatusTypeDef BQ_GetDieTemperature(BQ_HandleTypeDef* hbq){
 
     }
 
-    memset(hbq->bqOutputBuffer, 0x00, 128*(hbq->bms_config->NumOfBoards));
+    memset(hbq->bqOutputBuffer, 0x00, 128*(hbq->numOfChips));
 
     return BQ_Read(hbq, hbq->bqOutputBuffer, 0, BQ16_DIETEMP2_HI, 2, BQ_STACK_READ);
 
@@ -403,9 +408,9 @@ BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *pOut, uint8_t deviceId,
     if(readType == BQ_DEVICE_READ){
         maxBytes = dataLength + 6;
     }else if(readType == BQ_STACK_READ){
-        maxBytes = (dataLength + 6) * (hbq->bms_config->NumOfBoards - 1);
+        maxBytes = (dataLength + 6) * (hbq->numOfSlaves);
     }else if(readType == BQ_BROAD_READ){
-        maxBytes = (dataLength + 6) * (hbq->bms_config->NumOfBoards);
+        maxBytes = (dataLength + 6) * (hbq->numOfChips);
     }
 
     uint16_t fullBuffers = (uint16_t) (maxBytes/128);

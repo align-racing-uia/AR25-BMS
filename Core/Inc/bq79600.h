@@ -84,9 +84,10 @@ typedef struct
     // Each board except the master has 2 internal temperature sensors, one on each chip
     float *bqDieTemperatures;
     uint8_t *bqOutputBuffer;
-
-    BMS_ConfigTypeDef *bms_config;
-
+    uint8_t numOfChips;
+    uint8_t numOfSlaves;
+    uint8_t numOfCellsEach;
+    uint8_t numOfTempsEach;
 } BQ_HandleTypeDef;
 
 typedef enum
@@ -103,7 +104,7 @@ void BQ_Init(BQ_HandleTypeDef *hbq);
 void BQ_WakePing(BQ_HandleTypeDef *hbq);
 void BQ_ClearComm(BQ_HandleTypeDef *hbq);
 bool BQ_SpiRdy(BQ_HandleTypeDef *hbq);
-void BQ_AllocateMemory(BQ_HandleTypeDef* hbq);
+void BQ_BindMemory(BQ_HandleTypeDef* hbq, uint8_t num_of_slave_chips, uint8_t *bq_output_buffer, float *cell_voltages_memory_pool, uint8_t num_of_cells_each, float *cell_temperature_memory_pool, uint8_t num_of_temps_each, float *bq_die_temperature_memory_pool);
 BQ_StatusTypeDef BQ_SetGPIOAll(BQ_HandleTypeDef *hbq, uint8_t pin, bool logicState);
 BQ_StatusTypeDef BQ_WakeMsg(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef *hbq);

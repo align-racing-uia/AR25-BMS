@@ -64,5 +64,36 @@ void BatteryModel_UpdateEstimates(BatteryModel_HandleTypeDef *battery_model){
     }
 }
 
-void BatteryModel_InitOCVMaps(BatteryModel_HandleTypeDef *battery_model, float *SOCPoints, uint16_t size, float* voltage_point_memory_pool, uint8_t numOfMaps){
+void BatteryModel_InitOCVMaps(BatteryModel_HandleTypeDef *battery_model, uint16_t amount_of_voltage_points, float* voltage_point_memory_pool, float* soc_point_memory_pool, TempMap_HandleTypeDef* temp_map_memory_pool, uint8_t num_of_maps){
+
+    // Check if the amount of points set are too many
+    if(amount_of_voltage_points > TEMP_MAP_POOL_MAX_POINTS || amount_of_voltage_points < 1){
+        Error_Handler(); // Hard stop if this fails
+    }
+    // Check if there are too many maps configured
+    if(num_of_maps > TEMP_MAP_POOL_AMOUNT || num_of_maps < 1){
+        Error_Handler(); // Hard stop if this fails
+    }
+
+    battery_model->OCV.Size = amount_of_voltage_points;
+    battery_model->OCV.TemperatureMaps = temp_map_memory_pool;
+    battery_model->OCV.SOCPoints = soc_point_memory_pool;
+    // Check if the actual memory pool is large enough
+    if (battery_model->OCV.TemperatureMaps == NULL || sizeof(battery_model->OCV.TemperatureMaps) < num_of_maps * sizeof(TempMap_HandleTypeDef))
+    {
+        Error_Handler();
+    }
+    if (battery_model->OCV.SOCPoints == NULL || sizeof(battery_model->OCV.SOCPoints) < num_of_maps * sizeof(float))
+    {
+        Error_Handler();
+    }
+    // Map the memory for the temperature maps
+    for (int i = 0; i <  num_of_maps; i++)
+    {
+        battery_model->OCV.TemperatureMaps[i] = &temp_map_memory_pool[i];
+        battery_model->OCV.TemperatureMaps[i]->VoltagePoints = voltage_point_memory_pool + (i*amount_of_voltage_points);
+        battery_model->OCV.TemperatureMaps[i]->Size = amount_of_voltage_points;
+        battery_model->OCV.TemperatureMaps[i]->Temperature = 0; // Set the temperature for the map
+    }
+    battery_model->OCV.NumOfMaps = amount_of_voltage_points;
 }
