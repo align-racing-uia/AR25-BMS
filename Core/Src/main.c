@@ -230,7 +230,7 @@ int main(void)
   HAL_ADC_Start_DMA(&hadc2, adc2Buffer, 1);
 
   BatteryModel_HandleTypeDef battery_model;
-  BatteryModel_Init(&battery_model, bms_config.CellCount, cell_memory_pool, bms_config.CellCountInSeries, bms_config.CellCountInParallel);
+  BatteryModel_Init(&battery_model, cell_memory_pool, bms_config.CellCount, bms_config.CellCountInSeries, bms_config.CellCountInParallel);
 
   Align_CAN_Init(&hfdcan1, ALIGN_CAN_SPEED_500KBPS, FDCAN1);
 
