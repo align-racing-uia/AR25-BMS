@@ -88,9 +88,9 @@ void UpdateCurrentSensor(void);
 /* USER CODE END 0 */
 
 /**
- * @brief  The application entry point.
- * @retval int
- */
+  * @brief  The application entry point.
+  * @retval int
+  */
 int main(void)
 {
 
@@ -131,7 +131,6 @@ int main(void)
   // Initialize timer for align delay
   HAL_TIM_Base_Start(&htim2);
 
-
   // Initialize w25q32
   W25Q_STATE res = W25Q_Init();
   if(res != W25Q_OK){
@@ -163,6 +162,8 @@ int main(void)
     bms_config.ConfigVersion = 1;
     bms_config.BroadcastPacket = DEFAULT_CAN_BROADCAST_PACKET;
     bms_config.CellCount = DEFAULT_TOTAL_CELLS;
+    bms_config.TemperatureSensorCount = DEFAULT_TEMPERATURE_SENSOR_COUNT;
+    bms_config.NumOfBoards = DEFAULT_TOTALBOARDS;
     bms_config.CellCountInSeries = DEFAULT_CELLS_IN_SERIES;
     bms_config.CellCountInParallel = DEFAULT_CELLS_IN_PARALLEL;
     bms_config.CellVoltageLimitLow = DEFAULT_CELLVOLTAGE_LIMIT_LOW;
@@ -186,6 +187,7 @@ int main(void)
   hbq.nFaultGPIOx = GPIOA;
   hbq.nFaultPin = GPIO_PIN_8;
   hbq.gpioADC = 0x7F; // All GPIOs are ADCs, except GPIO8, which is an output
+  hbq.bms_config = &bms_config;
 
   BQ_AllocateMemory(&hbq); // Allocate memory for the BQ79600 cell voltages
 
@@ -210,6 +212,12 @@ int main(void)
     Error_Handler(); // Hard stop if this fails
   }
 
+  BQ_ActivateSlaveADC(&hbq); // Activate the ADC on all slaves
+  if (status != BQ_STATUS_OK)
+  {
+    Error_Handler(); // Hard stop if this fails
+  }
+
   HAL_ADC_Start_DMA(&hadc1, adc1Buffer, 1);
   HAL_ADC_Start_DMA(&hadc2, adc2Buffer, 1);
 
@@ -223,7 +231,7 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-
+  bool toggle = false;
 
   FDCAN_RxHeaderTypeDef rxHeader;
   uint8_t rxData[8];
@@ -240,7 +248,7 @@ int main(void)
 
     BQ_GetCellTemperatures(&hbq);
 
-    UpdateCurrentSensor();
+    // UpdateCurrentSensor();
   
     float currentSensor = lowCurrentSensor;
     // We rely on the low current sensor to be the most accurate, and the high current sensor when we are in the high current region
@@ -286,15 +294,29 @@ int main(void)
       uint32_t can_id = Align_CombineCanId(bms_config.CanNodeID, bms_config.BroadcastPacket, bms_config.CanExtended);
       Align_CAN_Send(&hfdcan1, can_id, data, 8, bms_config.CanExtended);
       can_timestamp = HAL_GetTick();
+      toggle = !toggle;
+      BQ_SetGPIOAll(&hbq, 7, toggle); // Set GPIO8 to high
+      CDC_Transmit_FS((uint8_t *)"A:", 2); // Send data to USB CDC
+      char cellVoltage[10];
+      sprintf(cellVoltage, "%f", hbq.cellVoltages[0]);
+      HAL_Delay(1);
+      CDC_Transmit_FS((uint8_t *) cellVoltage, 10); // Send data to USB CDC
+      HAL_Delay(1);
+      CDC_Transmit_FS((uint8_t *)"\n", 1); // Send data to USB CDC
+
     }
+
   }
+
+
+
   /* USER CODE END 3 */
 }
 
 /**
- * @brief System Clock Configuration
- * @retval None
- */
+  * @brief System Clock Configuration
+  * @retval None
+  */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -302,13 +324,14 @@ void SystemClock_Config(void)
   RCC_CRSInitTypeDef pInit = {0};
 
   /** Configure the main internal regulator output voltage
-   */
+  */
   HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1_BOOST);
 
   /** Initializes the RCC Oscillators according to the specified parameters
-   * in the RCC_OscInitTypeDef structure.
-   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_HSI48 | RCC_OSCILLATORTYPE_HSE;
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSI48
+                              |RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
@@ -318,11 +341,17 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV3;
   RCC_OscInitStruct.PLL.PLLN = 85;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-
+  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
+  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
 
   /** Initializes the CPU, AHB and APB buses clocks
-   */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
@@ -334,15 +363,15 @@ void SystemClock_Config(void)
   }
 
   /** Enable the SYSCFG APB clock
-   */
+  */
   __HAL_RCC_CRS_CLK_ENABLE();
 
   /** Configures CRS
-   */
+  */
   pInit.Prescaler = RCC_CRS_SYNC_DIV1;
   pInit.Source = RCC_CRS_SYNC_SOURCE_USB;
   pInit.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
-  pInit.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000, 1000);
+  pInit.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000,1000);
   pInit.ErrorLimitValue = 34;
   pInit.HSI48CalibrationValue = 32;
 
@@ -354,13 +383,13 @@ void SystemClock_Config(void)
 /* USER CODE END 4 */
 
 /**
- * @brief  Period elapsed callback in non blocking mode
- * @note   This function is called  when TIM1 interrupt took place, inside
- * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
- * a global variable "uwTick" used as application time base.
- * @param  htim : TIM handle
- * @retval None
- */
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM1 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
@@ -376,9 +405,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 }
 
 /**
- * @brief  This function is executed in case of error occurrence.
- * @retval None
- */
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -390,22 +419,14 @@ void Error_Handler(void)
   /* USER CODE END Error_Handler_Debug */
 }
 
-void UpdateCurrentSensor(void)
-{
-  // Read the current sensors
-  lowCurrentSensor = adc1Buffer[0];
-
-  highCurrentSensor = adc2Buffer[0];
-}
-
-#ifdef USE_FULL_ASSERT
+#ifdef  USE_FULL_ASSERT
 /**
- * @brief  Reports the name of the source file and the source line number
- *         where the assert_param error has occurred.
- * @param  file: pointer to the source file name
- * @param  line: assert_param error line source number
- * @retval None
- */
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */

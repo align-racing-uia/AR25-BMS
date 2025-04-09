@@ -296,11 +296,11 @@ BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef* hbq){
 
 BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef* hbq){
 
-    BQ_SetGPIOAll(hbq, 7, true); // Set GPIO8 to high
+    // BQ_SetGPIOAll(hbq, 7, true); // Set GPIO8 to high
 
-    // TODO Implement temperature reading
+    // // TODO Implement temperature reading
 
-    BQ_SetGPIOAll(hbq, 8, false); // Set GPIO8 to low
+    // BQ_SetGPIOAll(hbq, 7, false); // Set GPIO8 to low
 
     // TODO Implement temperature reading
 

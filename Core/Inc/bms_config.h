@@ -8,6 +8,7 @@
 #define DEFAULT_TOTALBOARDS 2       // Including base
 #define DEFAULT_CELLS_IN_SERIES 16  // On each board
 #define DEFAULT_CELLS_IN_PARALLEL 1 // Number of cells in parallel
+#define DEFAULT_TEMPERATURE_SENSOR_COUNT 14 // Number of temperature sensors on each BQ79616
 #define DEFAULT_CELLVOLTAGE_LIMIT_LOW 2000   // mV
 #define DEFAULT_CELLVOLTAGE_LIMIT_HIGH 4200  // mV
 #define DEFAULT_CELLTEMPERATURE_LIMIT_LOW 0 // C
