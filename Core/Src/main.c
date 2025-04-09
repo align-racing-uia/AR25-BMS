@@ -80,6 +80,8 @@ float temp_map_voltage_points[TEMP_MAP_POOL_MAX_POINTS * TEMP_MAP_POOL_AMOUNT];
 float temp_map_soc_points[TEMP_MAP_POOL_MAX_POINTS];
 TempMap_HandleTypeDef temp_map_pool[TEMP_MAP_POOL_AMOUNT];
 
+// Memory pools for the BQ79600
+// This is done here to make it transparent to the user
 uint8_t bq_output_buffer[BQ_MAX_AMOUNT_OF_CHIPS * 128]; // This is the memory pool for the BQ79600 output buffer
 float bq_cell_voltages[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_CELLS_EACH]; // This is the memory pool for the cell voltages
 float bq_die_temperature_pool[2*BQ_MAX_AMOUNT_OF_SLAVES]; // This is the memory pool for the die temperatures
