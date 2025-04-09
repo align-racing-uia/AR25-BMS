@@ -201,18 +201,28 @@ BQ_StatusTypeDef BQ_AutoAddress(BQ_HandleTypeDef* hbq){
 // Num of cells correspond to the number of cells in series each IC should measure (max 16)
 BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq){
     // Activate on the whole stack
-    // NB: If stuff suddenly stops working, this is not tested
-    uint8_t data = hbq->numOfSlaves * hbq->numOfCellsEach - 6; // 0x00 => 6 measured cells
+    uint8_t data = hbq->numOfCellsEach - 6; // 0x00 => 6 measured cells
     BQ_StatusTypeDef status;
     status = BQ_Write(hbq, &data, 0, BQ16_ACTIVE_CELLS, 1, BQ_STACK_WRITE);
     if(status != BQ_STATUS_OK){
         return status;
     }
     data = BQ16_ADC_CTRL1_ADCCONT | BQ16_ADC_CTRL1_MAINGO;
-    status = BQ_Write(hbq, &data, 0, BQ16_ADC_CTRL1, 1, BQ_BROAD_WRITE);
+    status = BQ_Write(hbq, &data, 0, BQ16_ADC_CTRL1, 1, BQ_STACK_WRITE);
     // Wait for everyone to get the message
     Align_DelayUs(192 + (5*hbq->numOfChips));
     return status;
+}
+
+BQ_StatusTypeDef BQ_ActivateAuxADC(BQ_HandleTypeDef* hbq){
+
+
+    uint8_t data[1] = {BQ16_ADC_CTRL3_AUXCONT | BQ16_ADC_CTRL3_AUXGO};
+    BQ_StatusTypeDef status = BQ_Write(hbq, data, 0, BQ16_ADC_CTRL3, 1, BQ_STACK_WRITE);
+    // Wait for everyone to get the message
+    Align_DelayUs(192 + (5*hbq->numOfChips));
+    return status;
+    
 }
 
 // This sets the selected GPIO of all the slaves the GPIO are 0 indexed
@@ -271,11 +281,8 @@ BQ_StatusTypeDef BQ_ConfigureGPIO(BQ_HandleTypeDef* hbq){
         hbq->gpioconf[i] = data[0]; // Save the config for later
     }
 
-    uint8_t data[1] = {BQ16_ADC_CTRL3_AUXCONT | BQ16_ADC_CTRL3_AUXGO};
-    status = BQ_Write(hbq, data, 0, BQ16_ADC_CTRL3, 1, BQ_STACK_WRITE);
-    // Wait for everyone to get the message
-    Align_DelayUs(192 + (5*hbq->numOfChips));
     return status;
+
 
 }
 
@@ -417,7 +424,7 @@ BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *pOut, uint8_t deviceId,
     HAL_SPI_Transmit(hbq->hspi, writeData, writeSize, BQ_TIMEOUT);
     Align_DelayUs(10); // Safety margin
     HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
-    
+
 
     // How many bytes do we expect?
     uint16_t maxBytes = 0;
