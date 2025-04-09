@@ -219,10 +219,12 @@ BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq){
 BQ_StatusTypeDef BQ_SetGPIOAll(BQ_HandleTypeDef* hbq, uint8_t pin, bool logicState){
 
     uint8_t data[1] = {0};
-    uint8_t register_offset = pin / 2;
     uint8_t pin_offset = pin % 2;
+    uint8_t register_offset = pin / 2;
 
     // I really wish there was an atomic write for this.. But we need to rely on the local data instead
+    hbq->gpioconf[register_offset] |= (1 << (pin_offset*3 + 2)); // Set the GPIO to output
+    hbq->gpioconf[register_offset] &= ~(1 << (pin_offset*3 + 1)); // Set the GPIO to output
     if(logicState){
         hbq->gpioconf[register_offset] |= (1 << (pin_offset*3));
     }else{
@@ -230,7 +232,7 @@ BQ_StatusTypeDef BQ_SetGPIOAll(BQ_HandleTypeDef* hbq, uint8_t pin, bool logicSta
     }
 
 
-    BQ_StatusTypeDef status = BQ_Write(hbq, &(hbq->gpioconf[register_offset]), 0, BQ16_GPIO1_HI + register_offset, 1, BQ_BROAD_WRITE);
+    BQ_StatusTypeDef status = BQ_Write(hbq, &(hbq->gpioconf[register_offset]), 0, BQ16_GPIO_CONF1 + register_offset, 1, BQ_STACK_WRITE);
     // Wait for everyone to get the message
     Align_DelayUs(192 + (5*hbq->numOfChips));
     return status;

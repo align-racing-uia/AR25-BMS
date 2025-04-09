@@ -40,8 +40,8 @@
 #include "w25q_mem.h"
 #include "string.h"
 #include "battery_model.h"
-
 #include "icm.h"
+#include "usb_logging.h"
 
 /* USER CODE END Includes */
 
@@ -213,6 +213,7 @@ int main(void)
   BQ_StatusTypeDef status;
   BQ_WakePing(&hbq);
   BQ_WakePing(&hbq);
+
   status = BQ_WakeMsg(&hbq);
   if (status != BQ_STATUS_OK)
   {
@@ -242,6 +243,7 @@ int main(void)
   BatteryModel_HandleTypeDef battery_model;
   BatteryModel_Init(&battery_model, cell_model_memory_pool, bms_config.CellCount, bms_config.TotalCellCountInSeries, bms_config.CellCountInParallel);
   BatteryModel_InitOCVMaps(&battery_model, bms_config.TempMapVoltagePoints, temp_map_voltage_points, temp_map_soc_points, temp_map_pool, bms_config.TempMapAmount);
+  BatteryModel_LoadCellData(&battery_model, 0, 0, 0, 0 ,0, 0, 0, 0); // Load the cell data into the battery model
 
   Align_CAN_Init(&hfdcan1, ALIGN_CAN_SPEED_500KBPS, FDCAN1);
 
@@ -256,6 +258,7 @@ int main(void)
   uint8_t rxData[8];
 
   uint32_t can_timestamp = HAL_GetTick();
+  uint32_t usb_timestamp = HAL_GetTick();
 
   while (1)
   {
@@ -317,13 +320,14 @@ int main(void)
       can_timestamp = HAL_GetTick();
       toggle = !toggle;
       BQ_SetGPIOAll(&hbq, 7, toggle);      // Set GPIO8 to high
-      CDC_Transmit_FS((uint8_t *)"A:", 2); // Send data to USB CDC
-      char cellVoltage[10];
-      sprintf(cellVoltage, "%f", hbq.cellVoltages[0]);
-      HAL_Delay(1);
-      CDC_Transmit_FS((uint8_t *)cellVoltage, 10); // Send data to USB CDC
-      HAL_Delay(1);
-      CDC_Transmit_FS((uint8_t *)"\n", 1); // Send data to USB CDC
+    }
+
+    if((usb_timestamp + 10) <= HAL_GetTick()){
+      // Every second
+      uint8_t data[40] = {0};
+      memcpy(data, bq_cell_voltages, 8); // Copy the cell voltages to the data buffer
+      CDC_Transmit_FS(data, 4); // Send data to USB CDC
+      usb_timestamp = HAL_GetTick();
     }
   }
 

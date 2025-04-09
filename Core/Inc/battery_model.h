@@ -19,6 +19,7 @@ typedef struct {
     float EstimatedVoltageError;
     float EstimatedSOC;
     float EstimatedCapacity;
+    float SpentEnergy;
     float MeasuredVoltage;
     float MeasuredRestingVoltage; // Last measured voltage with no current draw
     float MeasuredTemperature;
