@@ -254,12 +254,15 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 
   bool toggle = false;
+  bool charger_connected = false;
 
   FDCAN_RxHeaderTypeDef rxHeader;
   uint8_t rxData[8];
 
   uint32_t can_timestamp = HAL_GetTick();
   uint32_t usb_timestamp = HAL_GetTick();
+  uint32_t charger_timestamp = HAL_GetTick();
+  uint32_t charger_timeout = HAL_GetTick();
 
   while (1)
   {
@@ -296,8 +299,10 @@ int main(void)
       switch (can_id)
       {
       // We first check for special IDs in case there are devices on the network which do not follow the DTI standard
-      case 0x01: // Insert Charger ID here
+      case 0x1806E5F4: // Insert Charger ID here
         /* code */
+        charger_connected = true;
+        charger_timeout = HAL_GetTick();
         break;
 
       default:
@@ -329,6 +334,16 @@ int main(void)
       memcpy(data, bq_cell_voltages, 8); // Copy the cell voltages to the data buffer
       CDC_Transmit_FS(data, 4); // Send data to USB CDC
       usb_timestamp = HAL_GetTick();
+    }
+
+    if(charger_connected && ((charger_timestamp + 1000) <= HAL_GetTick())){
+      // Every second
+      if(charger_timeout + 5000 <= HAL_GetTick()){
+        // Charger timeout
+        charger_connected = false;
+        charger_timeout = HAL_GetTick();
+      }
+      charger_timestamp = HAL_GetTick();
     }
   }
 
