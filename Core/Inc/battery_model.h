@@ -47,6 +47,9 @@ typedef struct {
 typedef struct {
 
     float AverageTemperature;
+    float EstimatedSOC;
+    float EstimatedEnergy;
+    float AverageEnergyConsumption;
     uint16_t PackVoltage;
     int16_t PackCurrent; 
     uint16_t CellCount;

@@ -259,10 +259,18 @@ int main(void)
   bool toggle = false;
   bool charger_connected = false;
 
+  uint16_t dc_limit = 0; // DC limit in A * 10
+  uint16_t cc_limit = 0; // CC limit in A * 10
+  uint16_t high_cell_temp = 0; // highest cell temperature in C * 10
+  uint16_t low_cell_temp = 0; // lowest cell temperature in C * 10
+  uint16_t soc = 0; // State of charge in % * 10
+
   FDCAN_RxHeaderTypeDef rxHeader;
   uint8_t rxData[8];
 
-  uint32_t can_timestamp = HAL_GetTick();
+  uint32_t broadcast_timestamp = HAL_GetTick();
+  uint32_t cell_temp_timestamp = HAL_GetTick();
+  uint32_t cell_voltage_timestamp = HAL_GetTick();
   uint32_t usb_timestamp = HAL_GetTick();
   uint32_t charger_timestamp = HAL_GetTick();
   uint32_t charger_timeout = HAL_GetTick();
@@ -280,6 +288,9 @@ int main(void)
 
     BQ_GetCellTemperatures(&hbq);
 
+    high_cell_temp = (uint16_t) (hbq.highestCellTemperature * 10); // Convert to C * 10
+    low_cell_temp = (uint16_t) (hbq.lowestCellTemperature * 10); // Convert to C * 10
+    
     // UpdateCurrentSensor();
 
     float currentSensor = lowCurrentSensor;
@@ -291,6 +302,9 @@ int main(void)
 
     BatteryModel_UpdateMeasured(&battery_model, hbq.cellVoltages, hbq.cellTemperatures, &currentSensor);
     BatteryModel_UpdateEstimates(&battery_model);
+    soc = (uint16_t) (battery_model.EstimatedSOC * 10); // Convert to % * 10
+
+    
 
     // We do communication at the end
     if (Align_CAN_Receive(&hfdcan1, &rxHeader, rxData))
@@ -326,13 +340,22 @@ int main(void)
       }
     }
 
-    if ((can_timestamp + 1000) <= HAL_GetTick())
+    // Send general BMS status here
+    if ((broadcast_timestamp + 200) <= HAL_GetTick())
     {
       // Every second
-      uint8_t data[8] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
+      uint8_t bms_data[8] = {0};
+      bms_data[0] = (dc_limit >> 8) & 0xFF; // Should be DC_limit x 10
+      bms_data[1] = dc_limit & 0xFF;        // Should be DC_limit x 10
+      bms_data[2] = (cc_limit >> 8) & 0xFF; // Should be CC_limit x 10
+      bms_data[3] = cc_limit & 0xFF;        // Should be CC_limit x 10
+      bms_data[4] = (high_cell_temp >> 8) & 0xFF; // Should be avg_cell_temp x 10
+      bms_data[5] = high_cell_temp & 0xFF;        // Should be avg_cell_temp x 10
+      bms_data[6] = (soc >> 8) & 0xFF; // Should be soc x 10
+      bms_data[7] = soc & 0xFF;        // Should be soc x 10
       uint32_t can_id = Align_CombineCanId(bms_config.CanNodeID, bms_config.BroadcastPacket, bms_config.CanExtended);
-      Align_CAN_Send(&hfdcan1, can_id, data, 8, bms_config.CanExtended);
-      can_timestamp = HAL_GetTick();
+      Align_CAN_Send(&hfdcan1, can_id, bms_data, 8, bms_config.CanExtended);
+      broadcast_timestamp = HAL_GetTick();
       toggle = !toggle;
       BQ_SetGPIOAll(&hbq, 7, toggle);      // Set GPIO8 to high
     }

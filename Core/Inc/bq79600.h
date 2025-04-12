@@ -79,6 +79,8 @@ typedef struct
     uint8_t gpioADC;
     uint8_t gpioconf[4]; // This is to skip the need to read the GPIO config registers when setting the GPIOs
 
+    float highestCellTemperature;
+    float lowestCellTemperature;
     float *cellVoltages;
     float *cellTemperatures;
     // Each board except the master has 2 internal temperature sensors, one on each chip
