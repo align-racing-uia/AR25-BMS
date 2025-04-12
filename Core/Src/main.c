@@ -304,7 +304,7 @@ int main(void)
       switch (can_id)
       {
       // We first check for special IDs in case there are devices on the network which do not follow the DTI standard
-      case 0x1806E5F4: // Insert Charger ID here
+      case 0x18FF50E5: // Insert Charger ID here
         /* code */
         charger_connected = true;
         charger_timeout = HAL_GetTick();
@@ -345,6 +345,19 @@ int main(void)
 
     if(charger_connected && ((charger_timestamp + 1000) <= HAL_GetTick())){
       // Every second
+
+      uint16_t max_charing_voltage = 5880; // 588.0 V
+      uint16_t max_charing_current = 100;  // 10.0 A
+      uint8_t  charger_enabed = 1; // 1 = disabled, 0 = enabled
+      uint8_t charger_data[8] = {0};
+      charger_data[0] = (max_charing_voltage >> 8) & 0xFF; // High byte
+      charger_data[1] = max_charing_voltage & 0xFF;        // Low byte
+      charger_data[2] = (max_charing_current >> 8) & 0xFF; // High byte
+      charger_data[3] = max_charing_current & 0xFF;        // Low byte
+      charger_data[4] = charger_enabed;                   // Enable charger
+
+      Align_CAN_Send(&hfdcan1, 0x1806E5F4, charger_data, 8, true); // Send data to the charger
+
       if(charger_timeout + 5000 <= HAL_GetTick()){
         // Charger timeout
         charger_connected = false;
