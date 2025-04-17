@@ -202,6 +202,11 @@ int main(void)
     bms_config.CanNodeID = DEFAULT_CAN_NODE_ID;
     bms_config.CanBaudrate = DEFAULT_CAN_BAUDRATE;
     bms_config.UsbLoggingEnabled = DEFAULT_USB_LOGGING_ENABLED;
+    bms_config.CanBroadcastInterval = DEFAULT_CAN_BROADCAST_INTERVAL; // 100ms
+    bms_config.CanTempBroadcastInterval = DEFAULT_CAN_TEMP_BROADCAST_INTERVAL; // 1s
+    bms_config.UsbLoggingInterval = DEFAULT_USB_LOGGING_INTERVAL; // 1s
+    bms_config.CanChargerBroadcastInterval = DEFAULT_CAN_CHARGER_BROADCAST_INTERVAL; // 1s
+    bms_config.CanChargerBroadcastTimeout = DEFAULT_CAN_CHARGER_BROADCAST_TIMEOUT; // 5s
     bms_config.Checksum = 0x00; // TODO: Implement a good checksum
   }
 
@@ -242,7 +247,7 @@ int main(void)
     Error_Handler(); // Hard stop if this fails
   }
 
-  BQ_ActivateSlaveADC(&hbq); // Activate the ADC on all slaves
+  status = BQ_ActivateSlaveADC(&hbq); // Activate the ADC on all slaves
   if (status != BQ_STATUS_OK)
   {
     Error_Handler(); // Hard stop if this fails
@@ -318,8 +323,8 @@ int main(void)
     {
       // Process the received data
       uint32_t can_id = rxHeader.Identifier;
-      uint8_t packet_id = 0;
-      uint8_t node_id = 0;
+      uint16_t packet_id = 0;
+      uint16_t node_id = 0;
       Align_SplitCanId(can_id, &packet_id, &node_id, rxHeader.IdType == FDCAN_EXTENDED_ID);
 
       switch (can_id)
@@ -348,7 +353,7 @@ int main(void)
     }
 
     // Send general BMS status here
-    if ((broadcast_timestamp + 200) <= HAL_GetTick())
+    if ((broadcast_timestamp + bms_config.CanBroadcastInterval) <= HAL_GetTick())
     {
       // Every second
       uint8_t bms_data[8] = {0};
@@ -367,14 +372,14 @@ int main(void)
       BQ_SetGPIOAll(&hbq, 7, toggle);      // Set GPIO8 to high
     }
     
-    if((usb_timestamp + 10) <= HAL_GetTick() && bms_config.UsbLoggingEnabled){
+    if((usb_timestamp + bms_config.UsbLoggingInterval) <= HAL_GetTick() && bms_config.UsbLoggingEnabled){
       // Every second
       CDC_Transmit_FS((uint8_t*) &usb_log, sizeof(usb_log)); // Send data to USB CDC
 
       usb_timestamp = HAL_GetTick();
     }
 
-    if(charger_connected && ((charger_timestamp + 1000) <= HAL_GetTick())){
+    if(charger_connected && ((charger_timestamp + bms_config.CanChargerBroadcastInterval) <= HAL_GetTick())){
       // Every second
 
       uint16_t max_charing_voltage = 5880; // 588.0 V
@@ -389,7 +394,7 @@ int main(void)
 
       Align_CAN_Send(&hfdcan1, 0x1806E5F4, charger_data, 8, true); // Send data to the charger
 
-      if(charger_timeout + 5000 <= HAL_GetTick()){
+      if(charger_timeout + bms_config.CanChargerBroadcastTimeout <= HAL_GetTick()){
         // Charger timeout
         charger_connected = false;
         charger_timeout = HAL_GetTick();
