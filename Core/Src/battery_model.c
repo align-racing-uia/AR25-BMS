@@ -24,7 +24,6 @@ void BatteryModel_Init(BatteryModel_HandleTypeDef *battery_model, CellModel_Hand
         battery_model->Cells[i].EstimatedVoltage = 0;
         battery_model->Cells[i].MeasuredVoltage = 0;
         battery_model->Cells[i].MeasuredTemperature = 0;
-        ekf_initialize(&battery_model->Cells[i].ekf_soc, pdiag);
     }
 }
 

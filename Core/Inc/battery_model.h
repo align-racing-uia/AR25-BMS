@@ -5,14 +5,7 @@
 #include "bq79600.h"
 #include "bms_config.h"
 
-// Size of State Space
-#define EKF_N 8
 
-// Size of Measurement Space
-#define EKF_M 4
-
-
-#include "tinyekf.h"
 
 
 // A battery model implemented based on the model used in the following paper:
@@ -36,7 +29,6 @@ typedef struct {
     float MeasuredResistance;
     float NominalCapacity; // Nominal capacity of the cell
     float NominalVoltage; // Nominal voltage of the cell
-    ekf_t ekf_soc; // Extended Kalman filter for SOC
 
 } CellModel_HandleTypeDef;
 

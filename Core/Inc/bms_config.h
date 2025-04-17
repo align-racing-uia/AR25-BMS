@@ -18,9 +18,9 @@
 
 // Default values for compiled programs can be set in this header
 // These values are only used if the EEPROM is empty, corrupt, or not present
-#define DEFAULT_TOTAL_CHIPS 2       // Including master
+#define DEFAULT_TOTAL_CHIPS 11       // Including master
 #define DEFAULT_TOTAL_SLAVES (DEFAULT_TOTAL_CHIPS-1)     // Number of slaves in the system
-#define DEFAULT_CELLS_EACH 16       // Number of cells in series on each slave
+#define DEFAULT_CELLS_EACH 14       // Number of cells in series on each slave
 #define DEFAULT_TEMPS_EACH 14       // Number of temperature sensors on each slave
 #define DEFAULT_TEMP_MAP_VOLTAGE_POINTS 5 // Number of voltage points in each temperature map
 #define DEFAULT_TEMP_MAP_AMOUNT 3 // Number of temperature maps
