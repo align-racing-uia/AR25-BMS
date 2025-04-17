@@ -149,8 +149,8 @@ int main(void)
 
   
   // Initialize timer used for PWM generation
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2); // Start the timer for PWM generation
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3); // Start the timer for PWM generation
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4); // Start the timer for PWM generation
 
 
   // Initialize w25q32
