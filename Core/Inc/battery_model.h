@@ -5,6 +5,16 @@
 #include "bq79600.h"
 #include "bms_config.h"
 
+// Size of State Space
+#define EKF_N 8
+
+// Size of Measurement Space
+#define EKF_M 4
+
+
+#include "tinyekf.h"
+
+
 // A battery model implemented based on the model used in the following paper:
 // https://www.sciencedirect.com/science/article/pii/S0360544211002271#sec2
 
@@ -12,7 +22,6 @@
 
 
 typedef struct {
-    
     uint16_t CellID; // No battery in align until this point has had more than 255 cells
     uint16_t TemperatureID; // What sensor to listen to for temperature
     float EstimatedVoltage;
@@ -27,6 +36,8 @@ typedef struct {
     float MeasuredResistance;
     float NominalCapacity; // Nominal capacity of the cell
     float NominalVoltage; // Nominal voltage of the cell
+    ekf_t ekf_soc; // Extended Kalman filter for SOC
+
 } CellModel_HandleTypeDef;
 
 

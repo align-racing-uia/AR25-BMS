@@ -333,7 +333,7 @@ int main(void)
             // BMS_Config_WriteToFlash(&bms_config, );
 
           }
-          BMS_Config_HandleCanMessage(&bms_config, packet_id, rxData);
+          // BMS_Config_HandleCanMessage(&bms_config, packet_id, rxData);
         default:
           break;
         }
