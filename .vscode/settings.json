@@ -4,7 +4,10 @@
         "battery_model.h": "c",
         "w25q_mem.h": "c",
         "bq79600.h": "c",
-        "float.h": "c"
+        "float.h": "c",
+        "stdint.h": "c",
+        "stdbool.h": "c",
+        "tim.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": false
 }

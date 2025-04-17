@@ -90,6 +90,7 @@ typedef struct
     uint8_t numOfSlaves;
     uint8_t numOfCellsEach;
     uint8_t numOfTempsEach;
+    TIM_HandleTypeDef *htim; // The timer used for the delays
 } BQ_HandleTypeDef;
 
 typedef enum

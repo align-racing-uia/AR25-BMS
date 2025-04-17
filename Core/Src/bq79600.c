@@ -103,10 +103,10 @@ void BQ_ClearComm(BQ_HandleTypeDef* hbq){
     BQ_SetMosiSPI(hbq);
 
     HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_RESET);
-    Align_DelayUs(100);
+    Align_DelayUs(hbq->htim,100);
     uint8_t data[1] = {0};
     HAL_SPI_Transmit(hbq->hspi, data, 1, BQ_TIMEOUT);
-    Align_DelayUs(100);
+    Align_DelayUs(hbq->htim,100);
     HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
 
     BQ_SetMosiIdle(hbq); // Should always set Mosi Idle when not sending commands
@@ -118,13 +118,13 @@ void BQ_WakePing(BQ_HandleTypeDef* hbq){
     BQ_SetMosiGPIO(hbq);
 
     HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_RESET);
-    Align_DelayUs(2); // Atleast 2 us
+    Align_DelayUs(hbq->htim,2); // Atleast 2 us
 
     HAL_GPIO_WritePin(hbq->mosiGPIOx, hbq->mosiPin, GPIO_PIN_RESET);
-    Align_DelayUs(2500); // Atleast 2.5 ms
+    Align_DelayUs(hbq->htim,2500); // Atleast 2.5 ms
     HAL_GPIO_WritePin(hbq->mosiGPIOx, hbq->mosiPin, GPIO_PIN_SET);
     
-    Align_DelayUs(2); // Atleast 2 us
+    Align_DelayUs(hbq->htim,2); // Atleast 2 us
 
     HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
 
@@ -210,7 +210,7 @@ BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef* hbq){
     data = BQ16_ADC_CTRL1_ADCCONT | BQ16_ADC_CTRL1_MAINGO;
     status = BQ_Write(hbq, &data, 0, BQ16_ADC_CTRL1, 1, BQ_STACK_WRITE);
     // Wait for everyone to get the message
-    Align_DelayUs(192 + (5*hbq->numOfChips));
+    Align_DelayUs(hbq->htim,192 + (5*hbq->numOfChips));
     return status;
 }
 
@@ -220,7 +220,7 @@ BQ_StatusTypeDef BQ_ActivateAuxADC(BQ_HandleTypeDef* hbq){
     uint8_t data[1] = {BQ16_ADC_CTRL3_AUXCONT | BQ16_ADC_CTRL3_AUXGO};
     BQ_StatusTypeDef status = BQ_Write(hbq, data, 0, BQ16_ADC_CTRL3, 1, BQ_STACK_WRITE);
     // Wait for everyone to get the message
-    Align_DelayUs(192 + (5*hbq->numOfChips));
+    Align_DelayUs(hbq->htim,192 + (5*hbq->numOfChips));
     return status;
     
 }
@@ -244,7 +244,7 @@ BQ_StatusTypeDef BQ_SetGPIOAll(BQ_HandleTypeDef* hbq, uint8_t pin, bool logicSta
 
     BQ_StatusTypeDef status = BQ_Write(hbq, &(hbq->gpioconf[register_offset]), 0, BQ16_GPIO_CONF1 + register_offset, 1, BQ_STACK_WRITE);
     // Wait for everyone to get the message
-    Align_DelayUs(192 + (5*hbq->numOfChips));
+    Align_DelayUs(hbq->htim,192 + (5*hbq->numOfChips));
     return status;
 
 }
@@ -274,7 +274,7 @@ BQ_StatusTypeDef BQ_ConfigureGPIO(BQ_HandleTypeDef* hbq){
 
         status = BQ_Write(hbq, data, 0, BQ16_GPIO_CONF1+i, 1, BQ_STACK_WRITE);
         // Wait for everyone to get the message
-        Align_DelayUs(192 + (5*hbq->numOfChips));
+        Align_DelayUs(hbq->htim,192 + (5*hbq->numOfChips));
         if(status != BQ_STATUS_OK){
             return status;
         }
@@ -420,9 +420,9 @@ BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *pOut, uint8_t deviceId,
 
     // Transmitting message
     HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_RESET);
-    Align_DelayUs(10); // Safety margin
+    Align_DelayUs(hbq->htim,10); // Safety margin
     HAL_SPI_Transmit(hbq->hspi, writeData, writeSize, BQ_TIMEOUT);
-    Align_DelayUs(10); // Safety margin
+    Align_DelayUs(hbq->htim,10); // Safety margin
     HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
 
 
@@ -452,17 +452,17 @@ BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef* hbq, uint8_t *pOut, uint8_t deviceId,
 
         if(fullBuffers>0){
             HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_RESET);
-            Align_DelayUs(10); // Safety margin
+            Align_DelayUs(hbq->htim,10); // Safety margin
             HAL_SPI_Receive(hbq->hspi, pOut, 128, BQ_TIMEOUT);
-            Align_DelayUs(10); // Safety margin
+            Align_DelayUs(hbq->htim,10); // Safety margin
             HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
             pOut += 128; // Move pointer 128 steps
             fullBuffers--;
         }else{
             HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_RESET);
-            Align_DelayUs(10); // Safety margin
+            Align_DelayUs(hbq->htim,10); // Safety margin
             HAL_SPI_Receive(hbq->hspi, pOut, remainingBytes, BQ_TIMEOUT);
-            Align_DelayUs(10); // Safety margin
+            Align_DelayUs(hbq->htim,10); // Safety margin
             HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
             remainingBytes = 0;
         }
@@ -523,11 +523,11 @@ BQ_StatusTypeDef BQ_Write(BQ_HandleTypeDef* hbq, uint8_t *inData, uint8_t device
     BQ_SetMosiSPI(hbq); // Getting ready to transmit
 
     HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_RESET);
-    Align_DelayUs(10); // Atleast 50ns, we dont have that kind of resolution
+    Align_DelayUs(hbq->htim,10); // Atleast 50ns, we dont have that kind of resolution
 
     HAL_SPI_Transmit(hbq->hspi, writeData, writeSize, BQ_TIMEOUT);
 
-    Align_DelayUs(10);
+    Align_DelayUs(hbq->htim,10);
     HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
 
     BQ_SetMosiIdle(hbq); // Mosi always needs to be idle during end of command
