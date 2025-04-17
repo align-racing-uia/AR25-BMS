@@ -20,6 +20,7 @@
 #include "main.h"
 #include "adc.h"
 #include "crc.h"
+#include "dma.h"
 #include "i2c.h"
 #include "quadspi.h"
 #include "spi.h"
@@ -54,8 +55,6 @@
 /* USER CODE BEGIN PD */
 // TODO: Find actual limit
 #define LOW_CURRENT_SENSOR_LIMIT 100 // Amps
-#define USB_LOGGING 1 // Enable USB logging
-
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -132,6 +131,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_QUADSPI1_Init();
   MX_SPI1_Init();
   MX_SPI2_Init();
@@ -147,11 +147,9 @@ int main(void)
   // Initialize timer for align delay
   Align_InitDelay(&htim3); // Initialize the delay function
 
-  
   // Initialize timer used for PWM generation
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3); // Start the timer for PWM generation
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4); // Start the timer for PWM generation
-
 
   // Initialize w25q32
   W25Q_STATE res = W25Q_Init();
@@ -203,6 +201,7 @@ int main(void)
     bms_config.CellTemperatureLimitHigh = DEFAULT_CELLTEMPERATURE_LIMIT_HIGH; // 85C
     bms_config.CanNodeID = DEFAULT_CAN_NODE_ID;
     bms_config.CanBaudrate = DEFAULT_CAN_BAUDRATE;
+    bms_config.UsbLoggingEnabled = DEFAULT_USB_LOGGING_ENABLED;
     bms_config.Checksum = 0x00; // TODO: Implement a good checksum
   }
 
@@ -368,9 +367,10 @@ int main(void)
       BQ_SetGPIOAll(&hbq, 7, toggle);      // Set GPIO8 to high
     }
     
-    if((usb_timestamp + 10) <= HAL_GetTick() && USB_LOGGING){
+    if((usb_timestamp + 10) <= HAL_GetTick() && bms_config.UsbLoggingEnabled){
       // Every second
       CDC_Transmit_FS((uint8_t*) &usb_log, sizeof(usb_log)); // Send data to USB CDC
+
       usb_timestamp = HAL_GetTick();
     }
 
