@@ -51,6 +51,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Core/Src/icm.c
     ${CMAKE_SOURCE_DIR}/Core/Src/battery_model.c
     ${CMAKE_SOURCE_DIR}/Core/Src/usb_logging.c
+    ${CMAKE_SOURCE_DIR}/Core/Src/bms_config.c
 
 
 )
