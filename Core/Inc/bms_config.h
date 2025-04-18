@@ -5,6 +5,8 @@
 #include "stddef.h"
 #include "stdbool.h"
 
+#define BMS_CONFIG_VERSION 1 // This number will automatically increment when the config changes
+
 // These are absolute maxes for the battery model, not the actual values
 // The actual values are set in the battery model init function
 
@@ -93,8 +95,8 @@ typedef enum
     BMS_INVALID_PACKET,
 } BMS_StatusTypeDef;
 
-BMS_StatusTypeDef BMS_Config_WriteToFlash(BMS_ConfigTypeDef *bms_config, uint8_t *eeprom, size_t size);
-BMS_StatusTypeDef BMS_Config_UpdateFromFlash(BMS_ConfigTypeDef *bms_config, uint8_t *eeprom, size_t size);
+BMS_StatusTypeDef BMS_Config_WriteToFlash(BMS_ConfigTypeDef *bms_config);
+BMS_StatusTypeDef BMS_Config_UpdateFromFlash(BMS_ConfigTypeDef *bms_config);
 BMS_StatusTypeDef BMS_Config_HandleCanMessage(BMS_ConfigTypeDef *bms_config, uint16_t packet_id, uint8_t *data);
 
 #endif // __BMS_CONFIG_H
