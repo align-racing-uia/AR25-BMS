@@ -20,6 +20,7 @@
 #include "main.h"
 #include "adc.h"
 #include "crc.h"
+#include "dma.h"
 #include "i2c.h"
 #include "quadspi.h"
 #include "spi.h"
@@ -71,6 +72,9 @@ uint32_t adc1Buffer[1];
 uint32_t adc2Buffer[1];
 float lowCurrentSensor;
 float highCurrentSensor;
+
+uint32_t pwmCh3Memory = 0;
+uint32_t pwmCh4Memory = 0;
 
 // Create memory pools for the battery models
 // This is done here to make it transparent to the user
@@ -132,6 +136,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_QUADSPI1_Init();
   MX_SPI1_Init();
   MX_SPI2_Init();
@@ -147,10 +152,9 @@ int main(void)
   // Initialize timer for align delay
   Align_InitDelay(&htim3); // Initialize the delay function
 
-  
   // Initialize timer used for PWM generation
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3); // Start the timer for PWM generation
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4); // Start the timer for PWM generation
+  HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_3, &pwmCh3Memory, 1); // Start the timer for PWM generation
+  HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, &pwmCh4Memory, 1); // Start the timer for PWM generation
 
 
   // Initialize w25q32
