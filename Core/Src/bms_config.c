@@ -48,9 +48,6 @@ BMS_Config_StatusTypeDef BMS_Config_UpdateFromFlash(BMS_Config_HandleTypeDef *bm
     {
         return BMS_CONFIG_INVALID_CONFIG;
     }
-    {
-        return BMS_CONFIG_INVALID_CONFIG;
-    }
     if (bms_config->NumOfSlaves == 0 || bms_config->CellCount == 0 || bms_config->CellsEach == 0 || bms_config->TempsEach == 0)
     {
         return BMS_CONFIG_INVALID_VALUE;
