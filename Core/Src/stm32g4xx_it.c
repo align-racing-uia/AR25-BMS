@@ -233,6 +233,8 @@ void DMA1_Channel2_IRQHandler(void)
 }
 
 /**
+<<<<<<< HEAD
+=======
   * @brief This function handles DMA1 channel3 global interrupt.
   */
 void DMA1_Channel3_IRQHandler(void)
@@ -261,6 +263,7 @@ void DMA1_Channel4_IRQHandler(void)
 }
 
 /**
+>>>>>>> 5c07df8544b39a7e8b6dfa9e6f2bd1fe0b22ec47
   * @brief This function handles USB low priority interrupt remap.
   */
 void USB_LP_IRQHandler(void)

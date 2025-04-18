@@ -73,7 +73,11 @@ Dma.TIM2_CH3.0.Mode=DMA_CIRCULAR
 Dma.TIM2_CH3.0.PeriphDataAlignment=DMA_PDATAALIGN_WORD
 Dma.TIM2_CH3.0.PeriphInc=DMA_PINC_DISABLE
 Dma.TIM2_CH3.0.Polarity=HAL_DMAMUX_REQ_GEN_RISING
+<<<<<<< HEAD
+Dma.TIM2_CH3.0.Priority=DMA_PRIORITY_HIGH
+=======
 Dma.TIM2_CH3.0.Priority=DMA_PRIORITY_MEDIUM
+>>>>>>> 5c07df8544b39a7e8b6dfa9e6f2bd1fe0b22ec47
 Dma.TIM2_CH3.0.RequestNumber=1
 Dma.TIM2_CH3.0.RequestParameters=Instance,Direction,PeriphInc,MemInc,PeriphDataAlignment,MemDataAlignment,Mode,Priority,SignalID,Polarity,RequestNumber,SyncSignalID,SyncPolarity,SyncEnable,EventEnable,SyncRequestNumber
 Dma.TIM2_CH3.0.SignalID=NONE
@@ -90,7 +94,11 @@ Dma.TIM2_CH4.1.Mode=DMA_NORMAL
 Dma.TIM2_CH4.1.PeriphDataAlignment=DMA_PDATAALIGN_WORD
 Dma.TIM2_CH4.1.PeriphInc=DMA_PINC_DISABLE
 Dma.TIM2_CH4.1.Polarity=HAL_DMAMUX_REQ_GEN_RISING
+<<<<<<< HEAD
+Dma.TIM2_CH4.1.Priority=DMA_PRIORITY_HIGH
+=======
 Dma.TIM2_CH4.1.Priority=DMA_PRIORITY_MEDIUM
+>>>>>>> 5c07df8544b39a7e8b6dfa9e6f2bd1fe0b22ec47
 Dma.TIM2_CH4.1.RequestNumber=1
 Dma.TIM2_CH4.1.RequestParameters=Instance,Direction,PeriphInc,MemInc,PeriphDataAlignment,MemDataAlignment,Mode,Priority,SignalID,Polarity,RequestNumber,SyncSignalID,SyncPolarity,SyncEnable,EventEnable,SyncRequestNumber
 Dma.TIM2_CH4.1.SignalID=NONE
@@ -179,8 +187,11 @@ MxDb.Version=DB.6.0.140
 NVIC.BusFault_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
 NVIC.DMA1_Channel1_IRQn=true\:0\:0\:false\:false\:true\:false\:true\:true
 NVIC.DMA1_Channel2_IRQn=true\:0\:0\:false\:false\:true\:false\:true\:true
+<<<<<<< HEAD
+=======
 NVIC.DMA1_Channel3_IRQn=true\:0\:0\:false\:false\:true\:false\:true\:true
 NVIC.DMA1_Channel4_IRQn=true\:0\:0\:false\:false\:true\:false\:true\:true
+>>>>>>> 5c07df8544b39a7e8b6dfa9e6f2bd1fe0b22ec47
 NVIC.DebugMonitor_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
 NVIC.ForceEnableDMAVector=true
 NVIC.HardFault_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
@@ -393,9 +404,11 @@ SYS.IPParameters=VoltageScaling
 SYS.VoltageScaling=SYSCFG_VREFBUF_VOLTAGE_SCALE2
 TIM2.Channel-PWM\ Generation3\ CH3=TIM_CHANNEL_3
 TIM2.Channel-PWM\ Generation4\ CH4=TIM_CHANNEL_4
-TIM2.IPParameters=Prescaler,PeriodNoDither,Channel-PWM Generation3 CH3,Channel-PWM Generation4 CH4
-TIM2.PeriodNoDither=4294967295
-TIM2.Prescaler=169
+TIM2.IPParameters=Prescaler,PeriodNoDither,Channel-PWM Generation3 CH3,Channel-PWM Generation4 CH4,PulseNoDither_4,PulseNoDither_3
+TIM2.PeriodNoDither=3000-1
+TIM2.Prescaler=0
+TIM2.PulseNoDither_3=1
+TIM2.PulseNoDither_4=1
 TIM3.IPParameters=Prescaler
 TIM3.Prescaler=169
 USB_DEVICE.CLASS_NAME_FS=CDC

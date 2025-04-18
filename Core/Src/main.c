@@ -49,6 +49,24 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
+typedef enum {
+  BMS_STATE_BOOTING,
+  BMS_STATE_IDLE,
+  BMS_STATE_CHARGING,
+  BMS_STATE_DISCHARGING,
+  BMS_STATE_BALANCING,
+  BMS_STATE_FAULT,
+} BMS_StateTypeDef;
+
+typedef enum {
+  BMS_ERROR_NONE,
+  BMS_ERROR_OVERCURRENT,
+  BMS_ERROR_UNDERVOLTAGE,
+  BMS_ERROR_OVERVOLTAGE,
+  BMS_ERROR_OVERTEMPERATURE,
+  BMS_ERROR_UNDERTEMPERATURE,
+} BMS_ErrorTypeDef;
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -72,8 +90,8 @@ uint32_t adc2Buffer[1];
 float lowCurrentSensor;
 float highCurrentSensor;
 
-// variables for the littlefs filesystem
-
+uint32_t pwmCh3Memory = 0;
+uint32_t pwmCh4Memory = 0;
 
 // Create memory pools for the battery models
 // This is done here to make it transparent to the user
@@ -151,8 +169,8 @@ int main(void)
   Align_InitDelay(&htim3); // Initialize the delay function
 
   // Initialize timer used for PWM generation
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3); // Start the timer for PWM generation
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4); // Start the timer for PWM generation
+  HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_3, &pwmCh3Memory, 1); // Start the timer for PWM generation
+  HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, &pwmCh4Memory, 1); // Start the timer for PWM generation
 
   // Initialize w25q32
   W25Q_STATE res = W25Q_Init();
@@ -162,10 +180,10 @@ int main(void)
   }
 
   // Initilalize the BMS Config
-  BMS_ConfigTypeDef bms_config;
+  BMS_Config_HandleTypeDef bms_config;
   bool valid_config = false;
 
-  if(BMS_Config_UpdateFromFlash(&bms_config) == BMS_OK){
+  if(BMS_Config_UpdateFromFlash(&bms_config) == BMS_CONFIG_OK){
     valid_config = true;
   }
 
@@ -201,7 +219,7 @@ int main(void)
     bms_config.CanChargerBroadcastInterval = DEFAULT_CAN_CHARGER_BROADCAST_INTERVAL; // 1s
     bms_config.CanChargerBroadcastTimeout = DEFAULT_CAN_CHARGER_BROADCAST_TIMEOUT;   // 5s
     bms_config.Checksum = 0x00;                                                     // TODO: Implement a good checksum
-    if(BMS_Config_WriteToFlash(&bms_config) != BMS_OK){
+    if(BMS_Config_WriteToFlash(&bms_config) != BMS_CONFIG_OK){
       Error_Handler(); // Hard stop if this fails
     } // Write the config to flash
   }
@@ -306,6 +324,7 @@ int main(void)
     if (lowCurrentSensor >= LOW_CURRENT_SENSOR_LIMIT || lowCurrentSensor <= LOW_CURRENT_SENSOR_LIMIT)
     {
       currentSensor = highCurrentSensor;
+<<<<<<< HEAD
     }
 
     BatteryModel_UpdateMeasured(&battery_model, hbq.cellVoltages, hbq.cellTemperatures, &currentSensor);
@@ -315,6 +334,9 @@ int main(void)
 
     // We do communication at the end
     if (Align_CAN_Receive(&hfdcan1, &rxHeader, rxData))
+=======
+    }CONFIG_1, &rxHeader, rxData))
+>>>>>>> 6ee30fc01642eeb802dfe4abd78fa5d4b89205d0
     {
       // Process the received data
       uint32_t can_id = rxHeader.Identifier;
