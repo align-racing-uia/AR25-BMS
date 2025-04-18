@@ -331,7 +331,15 @@ int main(void)
     if (lowCurrentSensor >= LOW_CURRENT_SENSOR_LIMIT || lowCurrentSensor <= LOW_CURRENT_SENSOR_LIMIT)
     {
       currentSensor = highCurrentSensor;
-    }CONFIG_1, &rxHeader, rxData))
+    }
+
+    BatteryModel_UpdateMeasured(&battery_model, hbq.cellVoltages, hbq.cellTemperatures, &currentSensor);
+    BatteryModel_UpdateEstimates(&battery_model);
+    soc = (uint16_t)(battery_model.EstimatedSOC * 10); // Convert to % * 10
+  #endif
+
+    // We do communication at the end
+    if (Align_CAN_Receive(&hfdcan1, &rxHeader, rxData))
     {
       // Process the received data
       uint32_t can_id = rxHeader.Identifier;
