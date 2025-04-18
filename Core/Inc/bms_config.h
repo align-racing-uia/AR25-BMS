@@ -81,20 +81,20 @@ typedef struct
 
     uint32_t Checksum;       // The checksum of the config
 
-} BMS_ConfigTypeDef;
+} BMS_Config_HandleTypeDef;
 
 typedef enum
 {
-    BMS_OK,
-    BMS_ERROR,
-    BMS_TIMEOUT,
-    BMS_INVALID_CONFIG,
-    BMS_INVALID_VALUE,
-    BMS_INVALID_PACKET,
-} BMS_StatusTypeDef;
+    BMS_CONFIG_OK,
+    BMS_CONFIG_ERROR,
+    BMS_CONFIG_TIMEOUT,
+    BMS_CONFIG_INVALID_CONFIG,
+    BMS_CONFIG_INVALID_VALUE,
+    BMS_CONFIG_INVALID_PACKET,
+} BMS_Config_StatusTypeDef;
 
-BMS_StatusTypeDef BMS_Config_WriteToFlash(BMS_ConfigTypeDef *bms_config, uint8_t *eeprom, size_t size);
-BMS_StatusTypeDef BMS_Config_UpdateFromFlash(BMS_ConfigTypeDef *bms_config, uint8_t *eeprom, size_t size);
-BMS_StatusTypeDef BMS_Config_HandleCanMessage(BMS_ConfigTypeDef *bms_config, uint16_t packet_id, uint8_t *data);
+BMS_Config_StatusTypeDef BMS_Config_WriteToFlash(BMS_Config_HandleTypeDef *bms_config, uint8_t *eeprom, size_t size);
+BMS_Config_StatusTypeDef BMS_Config_UpdateFromFlash(BMS_Config_HandleTypeDef *bms_config, uint8_t *eeprom, size_t size);
+BMS_Config_StatusTypeDef BMS_Config_HandleCanMessage(BMS_Config_HandleTypeDef *bms_config, uint16_t packet_id, uint8_t *data);
 
 #endif // __BMS_CONFIG_H

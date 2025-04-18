@@ -49,6 +49,24 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
+typedef enum {
+  BMS_STATE_BOOTING,
+  BMS_STATE_IDLE,
+  BMS_STATE_CHARGING,
+  BMS_STATE_DISCHARGING,
+  BMS_STATE_BALANCING,
+  BMS_STATE_FAULT,
+} BMS_StateTypeDef;
+
+typedef enum {
+  BMS_ERROR_NONE,
+  BMS_ERROR_OVERCURRENT,
+  BMS_ERROR_UNDERVOLTAGE,
+  BMS_ERROR_OVERVOLTAGE,
+  BMS_ERROR_OVERTEMPERATURE,
+  BMS_ERROR_UNDERTEMPERATURE,
+} BMS_ErrorTypeDef;
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -163,11 +181,11 @@ int main(void)
 
 
   // Initilalize the BMS Config
-  BMS_ConfigTypeDef bms_config;
+  BMS_Config_HandleTypeDef bms_config;
   bool valid_config = false;
 
   // Read the config from the flash: The max size is of the config is currently one page (256 bytes)
-  if (W25Q_ReadData((uint8_t *)&bms_config, sizeof(BMS_ConfigTypeDef), 0, 0) != W25Q_OK)
+  if (W25Q_ReadData((uint8_t *)&bms_config, sizeof(BMS_Config_HandleTypeDef), 0, 0) != W25Q_OK)
   {
     Error_Handler(); // Hard stop if this fails
     // Someone mustve pulled the chip out, or something else went wrong
@@ -179,7 +197,7 @@ int main(void)
 
     // Verify checksum:
     // TODO Implement a good checksum
-    // BMS_Config_UpdateFromFlash(&bms_config, (uint8_t *)&bms_config, sizeof(BMS_ConfigTypeDef));
+    // BMS_Config_UpdateFromFlash(&bms_config, (uint8_t *)&bms_config, sizeof(BMS_Config_HandleTypeDef));
     valid_config = true;
   }
 
@@ -313,15 +331,7 @@ int main(void)
     if (lowCurrentSensor >= LOW_CURRENT_SENSOR_LIMIT || lowCurrentSensor <= LOW_CURRENT_SENSOR_LIMIT)
     {
       currentSensor = highCurrentSensor;
-    }
-
-    BatteryModel_UpdateMeasured(&battery_model, hbq.cellVoltages, hbq.cellTemperatures, &currentSensor);
-    BatteryModel_UpdateEstimates(&battery_model);
-    soc = (uint16_t)(battery_model.EstimatedSOC * 10); // Convert to % * 10
-  #endif
-
-    // We do communication at the end
-    if (Align_CAN_Receive(&hfdcan1, &rxHeader, rxData))
+    }CONFIG_1, &rxHeader, rxData))
     {
       // Process the received data
       uint32_t can_id = rxHeader.Identifier;

@@ -7,7 +7,7 @@ typedef struct {
     float *cellVoltages;
     float *cellTemperatures;
     float *totalCurrent;
-    BMS_ConfigTypeDef *bms_config;
+    BMS_Config_HandleTypeDef *bms_config;
 
 } USB_LogFrameTypeDef;
 
