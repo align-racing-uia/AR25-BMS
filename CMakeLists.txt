@@ -53,14 +53,12 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Core/Src/usb_logging.c
     ${CMAKE_SOURCE_DIR}/Core/Src/bms_config.c
 
-
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
     ${CMAKE_SOURCE_DIR}/w25q/Library/
-    ${CMAKE_SOURCE_DIR}/TinyEKF/src/
 
 )
 

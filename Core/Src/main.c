@@ -123,9 +123,9 @@ void UpdateCurrentSensor(void);
 /* USER CODE END 0 */
 
 /**
- * @brief  The application entry point.
- * @retval int
- */
+  * @brief  The application entry point.
+  * @retval int
+  */
 int main(void)
 {
 
@@ -179,32 +179,23 @@ int main(void)
     Error_Handler(); // Hard stop if this fails
   }
 
-
   // Initilalize the BMS Config
   BMS_Config_HandleTypeDef bms_config;
   bool valid_config = false;
 
-  // Read the config from the flash: The max size is of the config is currently one page (256 bytes)
-  if (W25Q_ReadData((uint8_t *)&bms_config, sizeof(BMS_Config_HandleTypeDef), 0, 0) != W25Q_OK)
-  {
-    Error_Handler(); // Hard stop if this fails
-    // Someone mustve pulled the chip out, or something else went wrong
-  }
-
-  // Check if memory contains a config, and that it is a valid
-  if (strncmp(bms_config.MemoryCheck, "align", 5) == 0)
-  {
-
-    // Verify checksum:
-    // TODO Implement a good checksum
-    // BMS_Config_UpdateFromFlash(&bms_config, (uint8_t *)&bms_config, sizeof(BMS_Config_HandleTypeDef));
+  if(BMS_Config_UpdateFromFlash(&bms_config) == BMS_CONFIG_OK){
     valid_config = true;
   }
 
   if (!valid_config)
   {
     // If the config is not valid, we should set it to default values
-    bms_config.ConfigVersion = 1;
+    bms_config.ConfigVersion = BMS_CONFIG_VERSION;
+    bms_config.MemoryCheck[0] = 'a';
+    bms_config.MemoryCheck[1] = 'l';
+    bms_config.MemoryCheck[2] = 'i';
+    bms_config.MemoryCheck[3] = 'g';
+    bms_config.MemoryCheck[4] = 'n';
     bms_config.BroadcastPacket = DEFAULT_CAN_BROADCAST_PACKET;
     bms_config.CellCount = DEFAULT_TOTAL_CELLS;
     bms_config.NumOfChips = DEFAULT_TOTAL_CHIPS;
@@ -227,7 +218,10 @@ int main(void)
     bms_config.UsbLoggingInterval = DEFAULT_USB_LOGGING_INTERVAL;                    // 1s
     bms_config.CanChargerBroadcastInterval = DEFAULT_CAN_CHARGER_BROADCAST_INTERVAL; // 1s
     bms_config.CanChargerBroadcastTimeout = DEFAULT_CAN_CHARGER_BROADCAST_TIMEOUT;   // 5s
-    bms_config.Checksum = 0x00;                                                      // TODO: Implement a good checksum
+    bms_config.Checksum = 0x00;                                                     // TODO: Implement a good checksum
+    if(BMS_Config_WriteToFlash(&bms_config) != BMS_CONFIG_OK){
+      Error_Handler(); // Hard stop if this fails
+    } // Write the config to flash
   }
 
 #if CONNECTED_TO_BATTERY
@@ -323,7 +317,6 @@ int main(void)
     high_cell_temp = (uint16_t)(hbq.highestCellTemperature * 10); // Convert to C * 10
     low_cell_temp = (uint16_t)(hbq.lowestCellTemperature * 10);   // Convert to C * 10
 
-
     // UpdateCurrentSensor();
 
     float currentSensor = lowCurrentSensor;
@@ -358,12 +351,14 @@ int main(void)
 
       default:
         // Using if statements to be able to check against variables
-        if(node_id == bms_config.CanNodeID){
+        if (node_id == bms_config.CanNodeID)
+        {
           BMS_Config_HandleCanMessage(&bms_config, packet_id, rxData); // Handle the CAN message
-        }else if(node_id == 1){ // continoue downwards here
         }
-          // This is the master, we should not do anything with this
-
+        else if (node_id == 1)
+        { // continoue downwards here
+        }
+        // This is the master, we should not do anything with this
       }
     }
 
@@ -423,9 +418,9 @@ int main(void)
 }
 
 /**
- * @brief System Clock Configuration
- * @retval None
- */
+  * @brief System Clock Configuration
+  * @retval None
+  */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -433,13 +428,14 @@ void SystemClock_Config(void)
   RCC_CRSInitTypeDef pInit = {0};
 
   /** Configure the main internal regulator output voltage
-   */
+  */
   HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1_BOOST);
 
   /** Initializes the RCC Oscillators according to the specified parameters
-   * in the RCC_OscInitTypeDef structure.
-   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_HSI48 | RCC_OSCILLATORTYPE_HSE;
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSI48
+                              |RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
@@ -457,8 +453,9 @@ void SystemClock_Config(void)
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-   */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
@@ -470,15 +467,15 @@ void SystemClock_Config(void)
   }
 
   /** Enable the SYSCFG APB clock
-   */
+  */
   __HAL_RCC_CRS_CLK_ENABLE();
 
   /** Configures CRS
-   */
+  */
   pInit.Prescaler = RCC_CRS_SYNC_DIV1;
   pInit.Source = RCC_CRS_SYNC_SOURCE_USB;
   pInit.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
-  pInit.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000, 1000);
+  pInit.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000,1000);
   pInit.ErrorLimitValue = 34;
   pInit.HSI48CalibrationValue = 32;
 
@@ -490,13 +487,13 @@ void SystemClock_Config(void)
 /* USER CODE END 4 */
 
 /**
- * @brief  Period elapsed callback in non blocking mode
- * @note   This function is called  when TIM1 interrupt took place, inside
- * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
- * a global variable "uwTick" used as application time base.
- * @param  htim : TIM handle
- * @retval None
- */
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM1 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
@@ -512,9 +509,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 }
 
 /**
- * @brief  This function is executed in case of error occurrence.
- * @retval None
- */
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -526,14 +523,14 @@ void Error_Handler(void)
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef USE_FULL_ASSERT
+#ifdef  USE_FULL_ASSERT
 /**
- * @brief  Reports the name of the source file and the source line number
- *         where the assert_param error has occurred.
- * @param  file: pointer to the source file name
- * @param  line: assert_param error line source number
- * @retval None
- */
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
