@@ -4,6 +4,3 @@
 [submodule "w25q"]
 	path = w25q
 	url = https://github.com/Crazy-Geeks/STM32-W25Q-QSPI
-[submodule "TinyEKF"]
-	path = TinyEKF
-	url = https://github.com/simondlevy/TinyEKF.git

@@ -7,7 +7,8 @@
         "float.h": "c",
         "stdint.h": "c",
         "stdbool.h": "c",
-        "tim.h": "c"
+        "tim.h": "c",
+        "cstdint": "c"
     },
     "cortex-debug.variableUseNaturalFormat": false
 }

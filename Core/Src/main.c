@@ -55,8 +55,7 @@
 /* USER CODE BEGIN PD */
 // TODO: Find actual limit
 #define LOW_CURRENT_SENSOR_LIMIT 100 // Amps
-#define USB_LOGGING 1 // Enable USB logging
-
+#define CONNECTED_TO_BATTERY false
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -106,15 +105,14 @@ void UpdateCurrentSensor(void);
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
+ * @brief  The application entry point.
+ * @retval int
+ */
 int main(void)
 {
 
   /* USER CODE BEGIN 1 */
   SEGGER_RTT_Init();
-  
 
   /* USER CODE END 1 */
 
@@ -156,13 +154,13 @@ int main(void)
   HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_3, &pwmCh3Memory, 1); // Start the timer for PWM generation
   HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, &pwmCh4Memory, 1); // Start the timer for PWM generation
 
-
   // Initialize w25q32
   W25Q_STATE res = W25Q_Init();
   if (res != W25Q_OK)
   {
     Error_Handler(); // Hard stop if this fails
   }
+
 
   // Initilalize the BMS Config
   BMS_ConfigTypeDef bms_config;
@@ -174,8 +172,6 @@ int main(void)
     Error_Handler(); // Hard stop if this fails
     // Someone mustve pulled the chip out, or something else went wrong
   }
-
-
 
   // Check if memory contains a config, and that it is a valid
   if (strncmp(bms_config.MemoryCheck, "align", 5) == 0)
@@ -207,9 +203,16 @@ int main(void)
     bms_config.CellTemperatureLimitHigh = DEFAULT_CELLTEMPERATURE_LIMIT_HIGH; // 85C
     bms_config.CanNodeID = DEFAULT_CAN_NODE_ID;
     bms_config.CanBaudrate = DEFAULT_CAN_BAUDRATE;
-    bms_config.Checksum = 0x00; // TODO: Implement a good checksum
+    bms_config.UsbLoggingEnabled = DEFAULT_USB_LOGGING_ENABLED;
+    bms_config.CanBroadcastInterval = DEFAULT_CAN_BROADCAST_INTERVAL;                // 100ms
+    bms_config.CanTempBroadcastInterval = DEFAULT_CAN_TEMP_BROADCAST_INTERVAL;       // 1s
+    bms_config.UsbLoggingInterval = DEFAULT_USB_LOGGING_INTERVAL;                    // 1s
+    bms_config.CanChargerBroadcastInterval = DEFAULT_CAN_CHARGER_BROADCAST_INTERVAL; // 1s
+    bms_config.CanChargerBroadcastTimeout = DEFAULT_CAN_CHARGER_BROADCAST_TIMEOUT;   // 5s
+    bms_config.Checksum = 0x00;                                                      // TODO: Implement a good checksum
   }
 
+#if CONNECTED_TO_BATTERY
   BQ_HandleTypeDef hbq;
   hbq.hspi = &hspi2;
   hbq.csGPIOx = GPIOB;
@@ -221,7 +224,7 @@ int main(void)
   hbq.nFaultGPIOx = GPIOA;
   hbq.nFaultPin = GPIO_PIN_8;
   hbq.gpioADC = 0x7F; // All GPIOs are ADCs, except GPIO8, which is an output
-  hbq.htim = &htim3; // The timer used for the delays
+  hbq.htim = &htim3;  // The timer used for the delays
 
   BQ_BindMemory(&hbq, bms_config.NumOfSlaves, bq_output_buffer, bq_cell_voltages, bms_config.CellsEach, bq_cell_temperature_pool, bms_config.TempsEach, bq_die_temperature_pool); // Bind memory pools for the BQ79600 cell voltages
 
@@ -247,19 +250,19 @@ int main(void)
     Error_Handler(); // Hard stop if this fails
   }
 
-  BQ_ActivateSlaveADC(&hbq); // Activate the ADC on all slaves
+  status = BQ_ActivateSlaveADC(&hbq); // Activate the ADC on all slaves
   if (status != BQ_STATUS_OK)
   {
     Error_Handler(); // Hard stop if this fails
   }
-
+#endif
   HAL_ADC_Start_DMA(&hadc1, adc1Buffer, 1);
   HAL_ADC_Start_DMA(&hadc2, adc2Buffer, 1);
 
   BatteryModel_HandleTypeDef battery_model;
   BatteryModel_Init(&battery_model, cell_model_memory_pool, bms_config.CellCount, bms_config.TotalCellCountInSeries, bms_config.CellCountInParallel);
   BatteryModel_InitOCVMaps(&battery_model, bms_config.TempMapVoltagePoints, temp_map_voltage_points, temp_map_soc_points, temp_map_pool, bms_config.TempMapAmount);
-  BatteryModel_LoadCellData(&battery_model, 0, 0, 0, 0 ,0, 0, 0, 0); // Load the cell data into the battery model
+  BatteryModel_LoadCellData(&battery_model, 0, 0, 0, 0, 0, 0, 0, 0); // Load the cell data into the battery model
 
   Align_CAN_Init(&hfdcan1, ALIGN_CAN_SPEED_500KBPS, FDCAN1);
 
@@ -271,11 +274,11 @@ int main(void)
   bool toggle = false;
   bool charger_connected = false;
 
-  uint16_t dc_limit = 0; // DC limit in A * 10
-  uint16_t cc_limit = 0; // CC limit in A * 10
+  uint16_t dc_limit = 0;       // DC limit in A * 10
+  uint16_t cc_limit = 0;       // CC limit in A * 10
   uint16_t high_cell_temp = 0; // highest cell temperature in C * 10
-  uint16_t low_cell_temp = 0; // lowest cell temperature in C * 10
-  uint16_t soc = 0; // State of charge in % * 10
+  uint16_t low_cell_temp = 0;  // lowest cell temperature in C * 10
+  uint16_t soc = 0;            // State of charge in % * 10
 
   FDCAN_RxHeaderTypeDef rxHeader;
   uint8_t rxData[8];
@@ -288,21 +291,21 @@ int main(void)
   uint32_t charger_timeout = HAL_GetTick();
   USB_LogFrameTypeDef usb_log = {0};
 
-
   while (1)
   {
 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+#if CONNECTED_TO_BATTERY
     // The main tasks of the BMS
     BQ_GetCellVoltages(&hbq);
 
     BQ_GetCellTemperatures(&hbq);
+    high_cell_temp = (uint16_t)(hbq.highestCellTemperature * 10); // Convert to C * 10
+    low_cell_temp = (uint16_t)(hbq.lowestCellTemperature * 10);   // Convert to C * 10
 
-    high_cell_temp = (uint16_t) (hbq.highestCellTemperature * 10); // Convert to C * 10
-    low_cell_temp = (uint16_t) (hbq.lowestCellTemperature * 10); // Convert to C * 10
-    
+
     // UpdateCurrentSensor();
 
     float currentSensor = lowCurrentSensor;
@@ -314,17 +317,16 @@ int main(void)
 
     BatteryModel_UpdateMeasured(&battery_model, hbq.cellVoltages, hbq.cellTemperatures, &currentSensor);
     BatteryModel_UpdateEstimates(&battery_model);
-    soc = (uint16_t) (battery_model.EstimatedSOC * 10); // Convert to % * 10
-
-    
+    soc = (uint16_t)(battery_model.EstimatedSOC * 10); // Convert to % * 10
+  #endif
 
     // We do communication at the end
     if (Align_CAN_Receive(&hfdcan1, &rxHeader, rxData))
     {
       // Process the received data
       uint32_t can_id = rxHeader.Identifier;
-      uint8_t packet_id = 0;
-      uint8_t node_id = 0;
+      uint16_t packet_id = 0;
+      uint16_t node_id = 0;
       Align_SplitCanId(can_id, &packet_id, &node_id, rxHeader.IdType == FDCAN_EXTENDED_ID);
 
       switch (can_id)
@@ -337,63 +339,60 @@ int main(void)
         break;
 
       default:
-        switch (node_id)
-        {
-
-        case 12:
-          if(packet_id == 0x1F){
-            // BMS_Config_WriteToFlash(&bms_config, );
-
-          }
-          // BMS_Config_HandleCanMessage(&bms_config, packet_id, rxData);
-        default:
-          break;
+        // Using if statements to be able to check against variables
+        if(node_id == bms_config.CanNodeID){
+          BMS_Config_HandleCanMessage(&bms_config, packet_id, rxData); // Handle the CAN message
+        }else if(node_id == 1){ // continoue downwards here
         }
+          // This is the master, we should not do anything with this
+
       }
     }
 
     // Send general BMS status here
-    if ((broadcast_timestamp + 200) <= HAL_GetTick())
+    if ((broadcast_timestamp + bms_config.CanBroadcastInterval) <= HAL_GetTick())
     {
       // Every second
       uint8_t bms_data[8] = {0};
-      bms_data[0] = (dc_limit >> 8) & 0xFF; // Should be DC_limit x 10
-      bms_data[1] = dc_limit & 0xFF;        // Should be DC_limit x 10
-      bms_data[2] = (cc_limit >> 8) & 0xFF; // Should be CC_limit x 10
-      bms_data[3] = cc_limit & 0xFF;        // Should be CC_limit x 10
+      bms_data[0] = (dc_limit >> 8) & 0xFF;       // Should be DC_limit x 10
+      bms_data[1] = dc_limit & 0xFF;              // Should be DC_limit x 10
+      bms_data[2] = (cc_limit >> 8) & 0xFF;       // Should be CC_limit x 10
+      bms_data[3] = cc_limit & 0xFF;              // Should be CC_limit x 10
       bms_data[4] = (high_cell_temp >> 8) & 0xFF; // Should be avg_cell_temp x 10
       bms_data[5] = high_cell_temp & 0xFF;        // Should be avg_cell_temp x 10
-      bms_data[6] = (soc >> 8) & 0xFF; // Should be soc x 10
-      bms_data[7] = soc & 0xFF;        // Should be soc x 10
+      bms_data[6] = (soc >> 8) & 0xFF;            // Should be soc x 10
+      bms_data[7] = soc & 0xFF;                   // Should be soc x 10
       uint32_t can_id = Align_CombineCanId(bms_config.CanNodeID, bms_config.BroadcastPacket, bms_config.CanExtended);
       Align_CAN_Send(&hfdcan1, can_id, bms_data, 8, bms_config.CanExtended);
       broadcast_timestamp = HAL_GetTick();
-      toggle = !toggle;
-      BQ_SetGPIOAll(&hbq, 7, toggle);      // Set GPIO8 to high
     }
-    
-    if((usb_timestamp + 10) <= HAL_GetTick() && USB_LOGGING){
+
+    if ((usb_timestamp + bms_config.UsbLoggingInterval) <= HAL_GetTick() && bms_config.UsbLoggingEnabled)
+    {
       // Every second
-      CDC_Transmit_FS((uint8_t*) &usb_log, sizeof(usb_log)); // Send data to USB CDC
+      CDC_Transmit_FS((uint8_t *)&usb_log, sizeof(usb_log)); // Send data to USB CDC
+
       usb_timestamp = HAL_GetTick();
     }
 
-    if(charger_connected && ((charger_timestamp + 1000) <= HAL_GetTick())){
+    if (charger_connected && ((charger_timestamp + bms_config.CanChargerBroadcastInterval) <= HAL_GetTick()))
+    {
       // Every second
 
       uint16_t max_charing_voltage = 5880; // 588.0 V
       uint16_t max_charing_current = 100;  // 10.0 A
-      uint8_t  charger_enabed = 1; // 1 = disabled, 0 = enabled
+      uint8_t charger_enabed = 1;          // 1 = disabled, 0 = enabled
       uint8_t charger_data[8] = {0};
       charger_data[0] = (max_charing_voltage >> 8) & 0xFF; // High byte
       charger_data[1] = max_charing_voltage & 0xFF;        // Low byte
       charger_data[2] = (max_charing_current >> 8) & 0xFF; // High byte
       charger_data[3] = max_charing_current & 0xFF;        // Low byte
-      charger_data[4] = charger_enabed;                   // Enable charger
+      charger_data[4] = charger_enabed;                    // Enable charger
 
       Align_CAN_Send(&hfdcan1, 0x1806E5F4, charger_data, 8, true); // Send data to the charger
 
-      if(charger_timeout + 5000 <= HAL_GetTick()){
+      if (charger_timeout + bms_config.CanChargerBroadcastTimeout <= HAL_GetTick())
+      {
         // Charger timeout
         charger_connected = false;
         charger_timeout = HAL_GetTick();
@@ -406,9 +405,9 @@ int main(void)
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
+ * @brief System Clock Configuration
+ * @retval None
+ */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -416,14 +415,13 @@ void SystemClock_Config(void)
   RCC_CRSInitTypeDef pInit = {0};
 
   /** Configure the main internal regulator output voltage
-  */
+   */
   HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1_BOOST);
 
   /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSI48
-                              |RCC_OSCILLATORTYPE_HSE;
+   * in the RCC_OscInitTypeDef structure.
+   */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_HSI48 | RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
@@ -441,9 +439,8 @@ void SystemClock_Config(void)
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+   */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
@@ -455,15 +452,15 @@ void SystemClock_Config(void)
   }
 
   /** Enable the SYSCFG APB clock
-  */
+   */
   __HAL_RCC_CRS_CLK_ENABLE();
 
   /** Configures CRS
-  */
+   */
   pInit.Prescaler = RCC_CRS_SYNC_DIV1;
   pInit.Source = RCC_CRS_SYNC_SOURCE_USB;
   pInit.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
-  pInit.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000,1000);
+  pInit.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000, 1000);
   pInit.ErrorLimitValue = 34;
   pInit.HSI48CalibrationValue = 32;
 
@@ -475,13 +472,13 @@ void SystemClock_Config(void)
 /* USER CODE END 4 */
 
 /**
-  * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM1 interrupt took place, inside
-  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
-  * a global variable "uwTick" used as application time base.
-  * @param  htim : TIM handle
-  * @retval None
-  */
+ * @brief  Period elapsed callback in non blocking mode
+ * @note   This function is called  when TIM1 interrupt took place, inside
+ * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+ * a global variable "uwTick" used as application time base.
+ * @param  htim : TIM handle
+ * @retval None
+ */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
@@ -497,9 +494,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 }
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -511,14 +508,14 @@ void Error_Handler(void)
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
+ * @brief  Reports the name of the source file and the source line number
+ *         where the assert_param error has occurred.
+ * @param  file: pointer to the source file name
+ * @param  line: assert_param error line source number
+ * @retval None
+ */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
