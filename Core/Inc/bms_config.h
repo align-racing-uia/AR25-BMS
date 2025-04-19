@@ -44,6 +44,7 @@
 #define DEFAULT_CAN_TEMP_BROADCAST_INTERVAL 1000 // The interval for the CAN temperature broadcast
 #define DEFAULT_CAN_CHARGER_BROADCAST_INTERVAL 1000 // The interval for the CAN charger broadcast
 #define DEFAULT_CAN_CHARGER_BROADCAST_TIMEOUT 5000 // The timeout for the charger broadcast packet  
+#define DEFAULT_BALANCE_WHILE_CHARGING false // Should the BMS balance while charging or not
 
 #define DEFAULT_TOTAL_CELLS (DEFAULT_TOTAL_SLAVES * DEFAULT_CELLS_EACH * DEFAULT_CELLS_IN_PARALLEL)
 #define DEFAULT_TOTAL_CELLS_IN_SERIES (DEFAULT_TOTAL_SLAVES * DEFAULT_CELLS_EACH)
@@ -80,6 +81,7 @@ typedef struct
     uint16_t UsbLoggingInterval; // The timeout for the USB logging
     uint16_t CanChargerBroadcastInterval; // The timeout for the charger broadcast packet
     uint16_t CanChargerBroadcastTimeout; // The timeout for the charger broadcast packet
+    bool BalanceWhileCharging; // Should the BMS balance while charging or not
 
     uint32_t Checksum;       // The checksum of the config
 
@@ -95,6 +97,7 @@ typedef enum
     BMS_CONFIG_INVALID_PACKET,
 } BMS_Config_StatusTypeDef;
 
+void BMS_Config_Init(BMS_Config_HandleTypeDef *bms_config); // This cannot really fail, so it does not return anything
 BMS_Config_StatusTypeDef BMS_Config_WriteToFlash(BMS_Config_HandleTypeDef *bms_config);
 BMS_Config_StatusTypeDef BMS_Config_UpdateFromFlash(BMS_Config_HandleTypeDef *bms_config);
 BMS_Config_StatusTypeDef BMS_Config_HandleCanMessage(BMS_Config_HandleTypeDef *bms_config, uint16_t packet_id, uint8_t *data);

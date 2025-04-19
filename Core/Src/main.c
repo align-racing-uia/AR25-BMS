@@ -49,22 +49,28 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
-typedef enum {
+typedef enum
+{
   BMS_STATE_BOOTING,
+  BMS_STATE_CONNECTING,
   BMS_STATE_IDLE,
   BMS_STATE_CHARGING,
   BMS_STATE_DISCHARGING,
   BMS_STATE_BALANCING,
-  BMS_STATE_FAULT,
+  BMS_STATE_FAULT
 } BMS_StateTypeDef;
 
-typedef enum {
-  BMS_ERROR_NONE,
-  BMS_ERROR_OVERCURRENT,
-  BMS_ERROR_UNDERVOLTAGE,
-  BMS_ERROR_OVERVOLTAGE,
-  BMS_ERROR_OVERTEMPERATURE,
-  BMS_ERROR_UNDERTEMPERATURE,
+typedef enum
+{
+  BMS_ERROR_NONE = 0,
+  BMS_ERROR_BQ = (1 << 0),               // These are considered fatal errors, and the system will not run
+  BMS_ERROR_ADC = (1 << 1),              // These are considered fatal errors, and the system will not run
+  BMS_WARNING_OVERCURRENT = (1 << 2),      // This will make the BMS stop the car
+  BMS_WARNING_UNDERVOLTAGE = (1 << 3),     // This will make the BMS stop the car
+  BMS_WARNING_OVERTEMPERATURE = (1 << 4),  // This will make the BMS stop the car
+  BMS_WARNING_UNDERTEMPERATURE = (1 << 5), // This will make the BMS stop the car
+  BMS_WARNING_CAN = (1 << 6),            // CAN is not present or not working, This will make the BMS stop the car
+  BMS_NOTE_EEPROM = (1 << 7),         // EEPROM is not present or not working, but the system is using a config from RAM, and operating normally
 } BMS_ErrorTypeDef;
 
 /* USER CODE END PTD */
@@ -73,7 +79,10 @@ typedef enum {
 /* USER CODE BEGIN PD */
 // TODO: Find actual limit
 #define LOW_CURRENT_SENSOR_LIMIT 100 // Amps
-#define CONNECTED_TO_BATTERY false
+#define CONNECTED_TO_BATTERY true
+
+#define BMS_ERROR_MASK (BMS_ERROR_BQ | BMS_ERROR_ADC)
+#define BMS_WARNING_MASK (BMS_WARNING_CAN | BMS_WARNING_OVERCURRENT | BMS_WARNING_UNDERVOLTAGE | BMS_WARNING_OVERTEMPERATURE | BMS_WARNING_UNDERTEMPERATURE)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -123,9 +132,9 @@ void UpdateCurrentSensor(void);
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
+ * @brief  The application entry point.
+ * @retval int
+ */
 int main(void)
 {
 
@@ -168,63 +177,54 @@ int main(void)
   // Initialize timer for align delay
   Align_InitDelay(&htim3); // Initialize the delay function
 
-  // Initialize timer used for PWM generation
+  // Define semi-global (global for main loop) variables
+  BMS_StateTypeDef bms_state = BMS_STATE_BOOTING; // The state of the BMS
+  uint8_t active_faults = BMS_ERROR_NONE;
+  bool warning_present = false; // Warning present flag
+  bool fault_present = false;   // Fault present flag
+
+  bool charger_connected = false; // Charger connected flag
+  uint16_t dc_limit = 0;          // DC limit in A * 10
+  uint16_t cc_limit = 0;          // CC limit in A * 10
+  uint16_t high_cell_temp = 0;    // highest cell temperature in C * 10
+  uint16_t low_cell_temp = 0;     // lowest cell temperature in C * 10
+  uint16_t soc = 0;               // State of charge in % * 10
+
+  // Initialize timer used for PWM generation, and start the DMA
   HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_3, &pwmCh3Memory, 1); // Start the timer for PWM generation
   HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, &pwmCh4Memory, 1); // Start the timer for PWM generation
+
+  // Start the ADCs in DMA mode
+  HAL_ADC_Start_DMA(&hadc1, adc1Buffer, 1);
+  HAL_ADC_Start_DMA(&hadc2, adc2Buffer, 1);
 
   // Initialize w25q32
   W25Q_STATE res = W25Q_Init();
   if (res != W25Q_OK)
   {
-    Error_Handler(); // Hard stop if this fails
+    SET_BIT(active_faults, BMS_NOTE_EEPROM); // Set the EEPROM warning flag
   }
 
   // Initilalize the BMS Config
   BMS_Config_HandleTypeDef bms_config;
-  bool valid_config = false;
+  BMS_Config_Init(&bms_config); // Set the default values of the config
 
-  if(BMS_Config_UpdateFromFlash(&bms_config) == BMS_CONFIG_OK){
-    valid_config = true;
-  }
-
-  if (!valid_config)
+  // If the W25Q_Init caught a fault, we will not be able to read the config from flash
+  if (!READ_BIT(active_faults, BMS_NOTE_EEPROM))
   {
-    // If the config is not valid, we should set it to default values
-    bms_config.ConfigVersion = BMS_CONFIG_VERSION;
-    bms_config.MemoryCheck[0] = 'a';
-    bms_config.MemoryCheck[1] = 'l';
-    bms_config.MemoryCheck[2] = 'i';
-    bms_config.MemoryCheck[3] = 'g';
-    bms_config.MemoryCheck[4] = 'n';
-    bms_config.BroadcastPacket = DEFAULT_CAN_BROADCAST_PACKET;
-    bms_config.CellCount = DEFAULT_TOTAL_CELLS;
-    bms_config.NumOfChips = DEFAULT_TOTAL_CHIPS;
-    bms_config.NumOfSlaves = DEFAULT_TOTAL_CHIPS - 1; // The master is not counted as a slave
-    bms_config.CellsEach = DEFAULT_CELLS_EACH;
-    bms_config.TempsEach = DEFAULT_TEMPS_EACH;
-    bms_config.TempMapVoltagePoints = DEFAULT_TEMP_MAP_VOLTAGE_POINTS;
-    bms_config.TempMapAmount = DEFAULT_TEMP_MAP_AMOUNT;
-    bms_config.TotalCellCountInSeries = DEFAULT_TOTAL_CELLS_IN_SERIES;
-    bms_config.CellCountInParallel = DEFAULT_CELLS_IN_PARALLEL;
-    bms_config.CellVoltageLimitLow = DEFAULT_CELLVOLTAGE_LIMIT_LOW;
-    bms_config.CellVoltageLimitHigh = DEFAULT_CELLVOLTAGE_LIMIT_HIGH;
-    bms_config.CellTemperatureLimitLow = DEFAULT_CELLTEMPERATURE_LIMIT_LOW;   // -40C
-    bms_config.CellTemperatureLimitHigh = DEFAULT_CELLTEMPERATURE_LIMIT_HIGH; // 85C
-    bms_config.CanNodeID = DEFAULT_CAN_NODE_ID;
-    bms_config.CanBaudrate = DEFAULT_CAN_BAUDRATE;
-    bms_config.UsbLoggingEnabled = DEFAULT_USB_LOGGING_ENABLED;
-    bms_config.CanBroadcastInterval = DEFAULT_CAN_BROADCAST_INTERVAL;                // 100ms
-    bms_config.CanTempBroadcastInterval = DEFAULT_CAN_TEMP_BROADCAST_INTERVAL;       // 1s
-    bms_config.UsbLoggingInterval = DEFAULT_USB_LOGGING_INTERVAL;                    // 1s
-    bms_config.CanChargerBroadcastInterval = DEFAULT_CAN_CHARGER_BROADCAST_INTERVAL; // 1s
-    bms_config.CanChargerBroadcastTimeout = DEFAULT_CAN_CHARGER_BROADCAST_TIMEOUT;   // 5s
-    bms_config.Checksum = 0x00;                                                     // TODO: Implement a good checksum
-    if(BMS_Config_WriteToFlash(&bms_config) != BMS_CONFIG_OK){
-      Error_Handler(); // Hard stop if this fails
-    } // Write the config to flash
+    if (BMS_Config_UpdateFromFlash(&bms_config) != BMS_CONFIG_OK)
+    {
+      // If we could not read the config from flash, we will set the default values of the config
+      BMS_Config_Init(&bms_config); // Set the default values of the config (again) as the flash read failed
+      if (BMS_Config_WriteToFlash(&bms_config) != BMS_CONFIG_OK)
+      {
+        SET_BIT(active_faults, BMS_NOTE_EEPROM); // Set the EEPROM warning flag
+        // We have to reset the config to default values, as we could not write to flash and the write reads to verify the write
+        BMS_Config_Init(&bms_config); // Set the default values of the config
+      }
+    }
   }
 
-#if CONNECTED_TO_BATTERY
   BQ_HandleTypeDef hbq;
   hbq.hspi = &hspi2;
   hbq.csGPIOx = GPIOB;
@@ -240,37 +240,6 @@ int main(void)
 
   BQ_BindMemory(&hbq, bms_config.NumOfSlaves, bq_output_buffer, bq_cell_voltages, bms_config.CellsEach, bq_cell_temperature_pool, bms_config.TempsEach, bq_die_temperature_pool); // Bind memory pools for the BQ79600 cell voltages
 
-  // Init BQ79600 (Could be wrapped into one function)
-  BQ_StatusTypeDef status;
-  BQ_WakePing(&hbq);
-  BQ_WakePing(&hbq);
-
-  status = BQ_WakeMsg(&hbq);
-  if (status != BQ_STATUS_OK)
-  {
-    Error_Handler(); // Hard stop if this fails
-  }
-  BQ_ClearComm(&hbq);
-  status = BQ_AutoAddress(&hbq);
-  if (status != BQ_STATUS_OK)
-  {
-    Error_Handler(); // Hard stop if this fails
-  }
-  status = BQ_ConfigureGPIO(&hbq);
-  if (status != BQ_STATUS_OK)
-  {
-    Error_Handler(); // Hard stop if this fails
-  }
-
-  status = BQ_ActivateSlaveADC(&hbq); // Activate the ADC on all slaves
-  if (status != BQ_STATUS_OK)
-  {
-    Error_Handler(); // Hard stop if this fails
-  }
-#endif
-  HAL_ADC_Start_DMA(&hadc1, adc1Buffer, 1);
-  HAL_ADC_Start_DMA(&hadc2, adc2Buffer, 1);
-
   BatteryModel_HandleTypeDef battery_model;
   BatteryModel_Init(&battery_model, cell_model_memory_pool, bms_config.CellCount, bms_config.TotalCellCountInSeries, bms_config.CellCountInParallel);
   BatteryModel_InitOCVMaps(&battery_model, bms_config.TempMapVoltagePoints, temp_map_voltage_points, temp_map_soc_points, temp_map_pool, bms_config.TempMapAmount);
@@ -283,15 +252,6 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-  bool toggle = false;
-  bool charger_connected = false;
-
-  uint16_t dc_limit = 0;       // DC limit in A * 10
-  uint16_t cc_limit = 0;       // CC limit in A * 10
-  uint16_t high_cell_temp = 0; // highest cell temperature in C * 10
-  uint16_t low_cell_temp = 0;  // lowest cell temperature in C * 10
-  uint16_t soc = 0;            // State of charge in % * 10
-
   FDCAN_RxHeaderTypeDef rxHeader;
   uint8_t rxData[8];
 
@@ -301,39 +261,41 @@ int main(void)
   uint32_t usb_timestamp = HAL_GetTick();
   uint32_t charger_timestamp = HAL_GetTick();
   uint32_t charger_timeout = HAL_GetTick();
+  uint32_t can_timeout = HAL_GetTick();
   USB_LogFrameTypeDef usb_log = {0};
+
+  bms_state = BMS_STATE_CONNECTING; // Set the state to connecting
 
   while (1)
   {
-
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
-#if CONNECTED_TO_BATTERY
-    // The main tasks of the BMS
-    BQ_GetCellVoltages(&hbq);
-
-    BQ_GetCellTemperatures(&hbq);
-    high_cell_temp = (uint16_t)(hbq.highestCellTemperature * 10); // Convert to C * 10
-    low_cell_temp = (uint16_t)(hbq.lowestCellTemperature * 10);   // Convert to C * 10
-
-    // UpdateCurrentSensor();
-
-    float currentSensor = lowCurrentSensor;
-    // We rely on the low current sensor to be the most accurate, and the high current sensor when we are in the high current region
-    if (lowCurrentSensor >= LOW_CURRENT_SENSOR_LIMIT || lowCurrentSensor <= LOW_CURRENT_SENSOR_LIMIT)
+    if (charger_connected && ((charger_timeout + bms_config.CanChargerBroadcastTimeout) <= HAL_GetTick()))
     {
-      currentSensor = highCurrentSensor;
+      charger_connected = false;  // Charger is not connected anymore
+      bms_state = BMS_STATE_IDLE; // Set the state to idle
     }
 
-    BatteryModel_UpdateMeasured(&battery_model, hbq.cellVoltages, hbq.cellTemperatures, &currentSensor);
-    BatteryModel_UpdateEstimates(&battery_model);
-    soc = (uint16_t)(battery_model.EstimatedSOC * 10); // Convert to % * 10
-  #endif
+    // We should recieve a CAN message atleast as often as the broadcast interval
+    if (can_timeout + bms_config.CanBroadcastInterval < HAL_GetTick())
+    {
+      // We have not received a CAN message for a while, set the state to fault
+      active_faults |= BMS_WARNING_CAN; // Set the CAN warning flag
+    }
 
-    // We do communication at the end
+    // Check for faults and warnings
+    fault_present = active_faults & BMS_ERROR_MASK;     // Check if there are any faults present
+    warning_present = active_faults & BMS_WARNING_MASK; // Check if there are any warnings present
+
+    if(fault_present)
+    {
+      bms_state = BMS_STATE_FAULT; // Set the state to fault
+    }
+
+    // Handle the CAN messages
     if (Align_CAN_Receive(&hfdcan1, &rxHeader, rxData))
     {
+      // Recieved a CAN message, reset the timeout
+      can_timeout = HAL_GetTick();
+
       // Process the received data
       uint32_t can_id = rxHeader.Identifier;
       uint16_t packet_id = 0;
@@ -346,11 +308,12 @@ int main(void)
       case 0x18FF50E5: // Insert Charger ID here
         /* code */
         charger_connected = true;
+        bms_state = BMS_STATE_CHARGING; // Set the state to charging
         charger_timeout = HAL_GetTick();
         break;
 
       default:
-        // Using if statements to be able to check against variables
+        // Using if statements to be able to check against node ids against set variables
         if (node_id == bms_config.CanNodeID)
         {
           BMS_Config_HandleCanMessage(&bms_config, packet_id, rxData); // Handle the CAN message
@@ -358,36 +321,10 @@ int main(void)
         else if (node_id == 1)
         { // continoue downwards here
         }
-        // This is the master, we should not do anything with this
       }
     }
 
-    // Send general BMS status here
-    if ((broadcast_timestamp + bms_config.CanBroadcastInterval) <= HAL_GetTick())
-    {
-      // Every second
-      uint8_t bms_data[8] = {0};
-      bms_data[0] = (dc_limit >> 8) & 0xFF;       // Should be DC_limit x 10
-      bms_data[1] = dc_limit & 0xFF;              // Should be DC_limit x 10
-      bms_data[2] = (cc_limit >> 8) & 0xFF;       // Should be CC_limit x 10
-      bms_data[3] = cc_limit & 0xFF;              // Should be CC_limit x 10
-      bms_data[4] = (high_cell_temp >> 8) & 0xFF; // Should be avg_cell_temp x 10
-      bms_data[5] = high_cell_temp & 0xFF;        // Should be avg_cell_temp x 10
-      bms_data[6] = (soc >> 8) & 0xFF;            // Should be soc x 10
-      bms_data[7] = soc & 0xFF;                   // Should be soc x 10
-      uint32_t can_id = Align_CombineCanId(bms_config.CanNodeID, bms_config.BroadcastPacket, bms_config.CanExtended);
-      Align_CAN_Send(&hfdcan1, can_id, bms_data, 8, bms_config.CanExtended);
-      broadcast_timestamp = HAL_GetTick();
-    }
-
-    if ((usb_timestamp + bms_config.UsbLoggingInterval) <= HAL_GetTick() && bms_config.UsbLoggingEnabled)
-    {
-      // Every second
-      CDC_Transmit_FS((uint8_t *)&usb_log, sizeof(usb_log)); // Send data to USB CDC
-
-      usb_timestamp = HAL_GetTick();
-    }
-
+    // Handle charger communication
     if (charger_connected && ((charger_timestamp + bms_config.CanChargerBroadcastInterval) <= HAL_GetTick()))
     {
       // Every second
@@ -404,13 +341,132 @@ int main(void)
 
       Align_CAN_Send(&hfdcan1, 0x1806E5F4, charger_data, 8, true); // Send data to the charger
 
-      if (charger_timeout + bms_config.CanChargerBroadcastTimeout <= HAL_GetTick())
-      {
-        // Charger timeout
-        charger_connected = false;
-        charger_timeout = HAL_GetTick();
-      }
       charger_timestamp = HAL_GetTick();
+    }
+
+    // Main state machine for the BMS
+    switch (bms_state)
+    {
+    case BMS_STATE_BOOTING:
+    case BMS_STATE_CONNECTING:
+    {
+#if CONNECTED_TO_BATTERY
+      // Init BQ79600 (Could be wrapped into one function)
+      BQ_StatusTypeDef status;
+      BQ_WakePing(&hbq);
+      BQ_WakePing(&hbq);
+
+      status = BQ_WakeMsg(&hbq);
+      if (status != BQ_STATUS_OK)
+      {
+        SET_BIT(active_faults, BMS_ERROR_BQ); // Set the BQ error flag
+      }
+      BQ_ClearComm(&hbq);
+      status = BQ_AutoAddress(&hbq);
+      if (status != BQ_STATUS_OK)
+      {
+        SET_BIT(active_faults, BMS_ERROR_BQ); // Set the BQ error flag
+      }
+      status = BQ_ConfigureGPIO(&hbq);
+      if (status != BQ_STATUS_OK)
+      {
+        SET_BIT(active_faults, BMS_ERROR_BQ); // Set the BQ error flag
+      }
+
+      status = BQ_ActivateSlaveADC(&hbq); // Activate the ADC on all slaves
+      if (status != BQ_STATUS_OK)
+      {
+        SET_BIT(active_faults, BMS_ERROR_BQ); // Set the BQ error flag
+      }
+#endif
+      bms_state = BMS_STATE_IDLE; // Set the state to idle
+      break;
+    }
+    case BMS_STATE_IDLE:
+    case BMS_STATE_CHARGING:
+    case BMS_STATE_DISCHARGING:
+    {
+      // The main tasks of the BMS
+#if CONNECTED_TO_BATTERY
+      BQ_GetCellVoltages(&hbq);
+      BQ_GetCellTemperatures(&hbq);
+#endif
+      high_cell_temp = (uint16_t)(hbq.highestCellTemperature * 10); // Convert to C * 10
+      low_cell_temp = (uint16_t)(hbq.lowestCellTemperature * 10);   // Convert to C * 10
+
+      float currentSensor = lowCurrentSensor;
+      // We rely on the low current sensor to be the most accurate, and the high current sensor when we are in the high current region
+      if (lowCurrentSensor >= LOW_CURRENT_SENSOR_LIMIT || lowCurrentSensor <= LOW_CURRENT_SENSOR_LIMIT)
+      {
+        currentSensor = highCurrentSensor;
+      }
+
+      if (currentSensor < 0)
+      {
+        bms_state = BMS_STATE_CHARGING; // Set the state to charging
+      }
+      else if (currentSensor > 0)
+      {
+        bms_state = BMS_STATE_DISCHARGING; // Set the state to discharging
+      }
+      else
+      {
+        bms_state = BMS_STATE_IDLE; // Set the state to idle
+      }
+
+      BatteryModel_UpdateMeasured(&battery_model, hbq.cellVoltages, hbq.cellTemperatures, &currentSensor);
+      BatteryModel_UpdateEstimates(&battery_model);
+      soc = (uint16_t)(battery_model.EstimatedSOC * 10); // Convert to % * 10
+
+      // TODO: Handle dc limit and cc limit
+
+      // TODO: Open the contactors if the current is high on warning or fault
+
+      break;
+    }
+    case BMS_STATE_BALANCING:
+    {
+
+      break;
+    }
+    case BMS_STATE_FAULT:
+    {
+      // TODO: Check what the fault is, and handle accordingly..
+      // TODO: Open the contactors in the majority of the cases
+      break;
+    }
+    }
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+
+    // Send general BMS status here at the end of the loop
+    if ((broadcast_timestamp + bms_config.CanBroadcastInterval) <= HAL_GetTick())
+    {
+
+      // TODO: Broadcast the BMS active faults and warnings
+      // Every second
+      uint8_t bms_data[8] = {0};
+      bms_data[0] = (dc_limit >> 8) & 0xFF;       // Should be DC_limit x 10
+      bms_data[1] = dc_limit & 0xFF;              // Should be DC_limit x 10
+      bms_data[2] = (cc_limit >> 8) & 0xFF;       // Should be CC_limit x 10
+      bms_data[3] = cc_limit & 0xFF;              // Should be CC_limit x 10
+      bms_data[4] = (high_cell_temp >> 8) & 0xFF; // Should be avg_cell_temp x 10
+      bms_data[5] = high_cell_temp & 0xFF;        // Should be avg_cell_temp x 10
+      bms_data[6] = (soc >> 8) & 0xFF;            // Should be soc x 10
+      bms_data[7] = soc & 0xFF;                   // Should be soc x 10
+      uint32_t can_id = Align_CombineCanId(bms_config.CanNodeID, bms_config.BroadcastPacket, bms_config.CanExtended);
+      Align_CAN_Send(&hfdcan1, can_id, bms_data, 8, bms_config.CanExtended);
+      broadcast_timestamp = HAL_GetTick();
+    }
+
+    // Do USB communication at the end of the loop
+    if (bms_config.UsbLoggingEnabled && (usb_timestamp + bms_config.UsbLoggingInterval) <= HAL_GetTick())
+    {
+      // Every second
+      CDC_Transmit_FS((uint8_t *)&usb_log, sizeof(usb_log)); // Send data to USB CDC
+
+      usb_timestamp = HAL_GetTick();
     }
   }
 
@@ -418,9 +474,9 @@ int main(void)
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
+ * @brief System Clock Configuration
+ * @retval None
+ */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -428,14 +484,13 @@ void SystemClock_Config(void)
   RCC_CRSInitTypeDef pInit = {0};
 
   /** Configure the main internal regulator output voltage
-  */
+   */
   HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1_BOOST);
 
   /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSI48
-                              |RCC_OSCILLATORTYPE_HSE;
+   * in the RCC_OscInitTypeDef structure.
+   */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_HSI48 | RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
@@ -453,9 +508,8 @@ void SystemClock_Config(void)
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+   */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
@@ -467,15 +521,15 @@ void SystemClock_Config(void)
   }
 
   /** Enable the SYSCFG APB clock
-  */
+   */
   __HAL_RCC_CRS_CLK_ENABLE();
 
   /** Configures CRS
-  */
+   */
   pInit.Prescaler = RCC_CRS_SYNC_DIV1;
   pInit.Source = RCC_CRS_SYNC_SOURCE_USB;
   pInit.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
-  pInit.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000,1000);
+  pInit.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000, 1000);
   pInit.ErrorLimitValue = 34;
   pInit.HSI48CalibrationValue = 32;
 
@@ -487,13 +541,13 @@ void SystemClock_Config(void)
 /* USER CODE END 4 */
 
 /**
-  * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM1 interrupt took place, inside
-  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
-  * a global variable "uwTick" used as application time base.
-  * @param  htim : TIM handle
-  * @retval None
-  */
+ * @brief  Period elapsed callback in non blocking mode
+ * @note   This function is called  when TIM1 interrupt took place, inside
+ * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+ * a global variable "uwTick" used as application time base.
+ * @param  htim : TIM handle
+ * @retval None
+ */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
@@ -509,9 +563,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 }
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -523,14 +577,14 @@ void Error_Handler(void)
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
+ * @brief  Reports the name of the source file and the source line number
+ *         where the assert_param error has occurred.
+ * @param  file: pointer to the source file name
+ * @param  line: assert_param error line source number
+ * @retval None
+ */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
