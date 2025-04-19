@@ -64,14 +64,14 @@ typedef enum
 typedef enum
 {
   BMS_ERROR_NONE = 0,
-  BMS_ERROR_BQ = (1 << 0),               // These are considered fatal errors, and the system will not run
-  BMS_ERROR_ADC = (1 << 1),              // These are considered fatal errors, and the system will not run
-  BMS_WARNING_OVERCURRENT = (1 << 2),      // This will make the BMS stop the car
-  BMS_WARNING_UNDERVOLTAGE = (1 << 3),     // This will make the BMS stop the car
-  BMS_WARNING_OVERTEMPERATURE = (1 << 4),  // This will make the BMS stop the car
-  BMS_WARNING_INT_COMM = (1 << 5), // This will make the BMS stop the car
-  BMS_WARNING_CAN = (1 << 6),            // CAN is not present or not working, This will make the BMS stop the car
-  BMS_NOTE_EEPROM = (1 << 7),         // EEPROM is not present or not working, but the system is using a config from RAM, and operating normally
+  BMS_ERROR_BQ = (1 << 0),                // These are considered fatal errors, and the system will not run
+  BMS_ERROR_ADC = (1 << 1),               // These are considered fatal errors, and the system will not run
+  BMS_WARNING_OVERCURRENT = (1 << 2),     // This will make the BMS stop the car
+  BMS_WARNING_UNDERVOLTAGE = (1 << 3),    // This will make the BMS stop the car
+  BMS_WARNING_OVERTEMPERATURE = (1 << 4), // This will make the BMS stop the car
+  BMS_WARNING_INT_COMM = (1 << 5),        // This will make the BMS stop the car
+  BMS_WARNING_CAN = (1 << 6),             // CAN is not present or not working, This will make the BMS stop the car
+  BMS_NOTE_EEPROM = (1 << 7),             // EEPROM is not present or not working, but the system is using a config from RAM, and operating normally
 } BMS_ErrorTypeDef;
 
 /* USER CODE END PTD */
@@ -80,7 +80,7 @@ typedef enum
 /* USER CODE BEGIN PD */
 // TODO: Find actual limit
 #define LOW_CURRENT_SENSOR_LIMIT 100 // Amps
-#define CONNECTED_TO_BATTERY true
+#define CONNECTED_TO_BATTERY false   // For debugging
 
 #define BMS_ERROR_MASK (BMS_ERROR_BQ | BMS_ERROR_ADC)
 #define BMS_WARNING_MASK (BMS_WARNING_CAN | BMS_WARNING_OVERCURRENT | BMS_WARNING_UNDERVOLTAGE | BMS_WARNING_OVERTEMPERATURE | BMS_WARNING_INT_COMM)
@@ -103,8 +103,8 @@ float high_current_sensor;
 uint32_t pwm_ch3_memory = 0;
 uint32_t pwmCh4Memory = 0;
 
-SecondaryMCU_ResponseTypeDef secondary_response = {0}; // The response from the secondary MCU
-SecondaryMCU_TransmitTypeDef secondary_transmit = {0}; // The data to send to the secondary MCU
+SecondaryMCU_ResponseTypeDef secondary_response[2] = {0}; // The response from the secondary MCU
+SecondaryMCU_TransmitTypeDef secondary_transmit = {0};    // The data to send to the secondary MCU
 
 // Create memory pools for the battery models
 // This is done here to make it transparent to the user
@@ -136,9 +136,9 @@ void UpdateCurrentSensor(void);
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
+ * @brief  The application entry point.
+ * @retval int
+ */
 int main(void)
 {
 
@@ -193,16 +193,18 @@ int main(void)
   uint16_t high_cell_temp = 0;    // highest cell temperature in C * 10
   uint16_t low_cell_temp = 0;     // lowest cell temperature in C * 10
   uint16_t soc = 0;               // State of charge in % * 10
-  uint16_t sdc_voltage_raw = 0;     // SDC voltage raw value
-  float sdc_voltage = 0;         // SDC voltage in mV
+  uint16_t sdc_voltage_raw = 0;   // SDC voltage raw value
+  float sdc_voltage = 0;          // SDC voltage in mV
 
   // Initialize timer used for PWM generation, and start the DMA
   HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_3, &pwm_ch3_memory, 1); // Start the timer for PWM generation
-  HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, &pwmCh4Memory, 1); // Start the timer for PWM generation
+  HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, &pwmCh4Memory, 1);   // Start the timer for PWM generation
 
   // Start the ADCs in DMA mode
   HAL_ADC_Start_DMA(&hadc1, adc1_buffer, 1);
   HAL_ADC_Start_DMA(&hadc2, adc2_buffer, 1);
+
+  HAL_SPI_RegisterCallback(&hspi1, HAL_SPI_RX_COMPLETE_CB_ID, (pSPI_CallbackTypeDef *)SecondaryMCU_RecieveCallback); // Register the callback for the secondary MCU
 
   // Set the nFault pin high to indicate no errors on the BMS yet
   HAL_GPIO_WritePin(nFault_GPIO_Port, nFault_Pin, GPIO_PIN_SET); // Set the fault pin high to indicate no fault
@@ -279,6 +281,7 @@ int main(void)
 
   while (1)
   {
+
     if (charger_connected && ((charger_timeout + bms_config.CanChargerBroadcastTimeout) <= HAL_GetTick()))
     {
       charger_connected = false;  // Charger is not connected anymore
@@ -290,15 +293,19 @@ int main(void)
     {
       // We have not received a CAN message for a while, set the state to fault
       SET_BIT(active_faults, BMS_WARNING_CAN); // Set the CAN warning flag
-    } else {
+    }
+    else
+    {
       CLEAR_BIT(active_faults, BMS_WARNING_CAN); // Clear the CAN warning flag
     }
 
-    if (abs(secondary_response.PingPongDeviation) > 100) // Check if internal communication is getting slow
+    if (abs(secondary_response[secondary_mcu_recieve_index].PingPongDeviation) > 100) // Check if internal communication is getting slow
     {
       // We have a ping-pong deviation, set the state to fault
       SET_BIT(active_faults, BMS_WARNING_INT_COMM); // Set the CAN warning flag
-    } else {
+    }
+    else
+    {
       CLEAR_BIT(active_faults, BMS_WARNING_INT_COMM); // Clear the CAN warning flag
     }
 
@@ -306,16 +313,16 @@ int main(void)
     fault_present = active_faults & BMS_ERROR_MASK;     // Check if there are any faults present
     warning_present = active_faults & BMS_WARNING_MASK; // Check if there are any warnings present
 
-    if(fault_present)
+    if (fault_present)
     {
       bms_state = BMS_STATE_FAULT; // Set the state to fault
     }
 
     // Handle data from the secondary MCU
 
-    sdc_voltage_raw = secondary_response.SDCVoltageRaw; // Get the SDC voltage from the secondary MCU
-    sdc_voltage = (((float) sdc_voltage_raw) * 3000.0 / 4096.0); // Convert to mV
-    
+    sdc_voltage_raw = secondary_response[secondary_mcu_recieve_index].SDCVoltageRaw; // Get the SDC voltage from the secondary MCU
+    sdc_voltage = (((float)sdc_voltage_raw) * 3000.0 / 4096.0);                      // Convert to mV
+
     // Handle the CAN messages
     if (Align_CAN_Receive(&hfdcan1, &rxHeader, rxData))
     {
@@ -457,7 +464,7 @@ int main(void)
     }
     case BMS_STATE_FAULT:
     {
-    
+
       HAL_GPIO_WritePin(nFault_GPIO_Port, nFault_Pin, GPIO_PIN_RESET); // Set the fault pin low to indicate a fault on the SDC
       break;
     }
@@ -483,15 +490,29 @@ int main(void)
       bms_data[7] = soc & 0xFF;                   // Should be soc x 10
       uint32_t can_id = Align_CombineCanId(bms_config.CanNodeID, bms_config.BroadcastPacket, bms_config.CanExtended);
       Align_CAN_Send(&hfdcan1, can_id, bms_data, 8, bms_config.CanExtended);
-      Align_DelayUs(&htim3,5); // To give time to send message
+      Align_DelayUs(&htim3, 5); // To give time to send message
 
-      bms_data[0] = active_faults; // Should be the active faults
-      bms_data[1] = sdc_voltage_raw >> 8; // Should be the SDC voltage 0xFF00
+      bms_data[0] = active_faults;          // Should be the active faults
+      bms_data[1] = sdc_voltage_raw >> 8;   // Should be the SDC voltage 0xFF00
       bms_data[2] = sdc_voltage_raw & 0xFF; // Should be the SDC voltage 0x00FF
 
-      Align_CAN_Send(&hfdcan1, can_id+1, bms_data, 3, bms_config.CanExtended); // Send the message again to make sure it is sent
+      Align_CAN_Send(&hfdcan1, can_id + 1, bms_data, 3, bms_config.CanExtended); // Send the message again to make sure it is sent
 
       broadcast_timestamp = HAL_GetTick();
+    }
+
+    if (bms_config.CanTempBroadcastEnabled && (cell_temp_timestamp + bms_config.CanTempBroadcastInterval) <= HAL_GetTick())
+    {
+      // TODO: Broadcast the cell temperatures
+
+      cell_temp_timestamp = HAL_GetTick();
+    }
+
+    if (bms_config.CanVoltageBroadcastEnabled && (cell_voltage_timestamp + bms_config.CanVoltageBroadcastInterval) <= HAL_GetTick())
+    {
+      // TODO: Broadcast the cell voltages
+
+      cell_voltage_timestamp = HAL_GetTick();
     }
 
     // Do USB communication at the end of the loop
@@ -503,9 +524,21 @@ int main(void)
       usb_timestamp = HAL_GetTick();
     }
 
-    if((internal_comm_timestamp + 50) <= HAL_GetTick){
-      HAL_SPI_Transmit(&hspi1, (uint8_t *)&secondary_transmit, sizeof(SecondaryMCU_TransmitTypeDef), 10); // Send the PWM data to the secondary MCU
-      HAL_SPI_Receive(&hspi1, (uint8_t *)&secondary_response, sizeof(SecondaryMCU_ResponseTypeDef), 10); // Receive the response from the secondary MCU
+    if ((internal_comm_timestamp + 50) <= HAL_GetTick)
+    {
+      HAL_SPI_Transmit_DMA(&hspi1, (uint8_t *)&secondary_transmit, sizeof(SecondaryMCU_TransmitTypeDef)); // Send the PWM data to the secondary MCU
+      HAL_StatusTypeDef status = HAL_SPI_Receive_DMA(&hspi1, // !secondary_mcu_recieve_index is used to place it in the next buffer
+                                                     (uint8_t *)&(secondary_response[!secondary_mcu_recieve_index]),
+                                                     sizeof(SecondaryMCU_ResponseTypeDef)); // Receive the response from the secondary MCU
+      if (status != HAL_OK)
+      {
+        // We have a timeout, set the state to fault
+        SET_BIT(active_faults, BMS_WARNING_INT_COMM); // Set the CAN warning flag
+      }
+      else
+      {
+        CLEAR_BIT(active_faults, BMS_WARNING_INT_COMM); // Clear the CAN warning flag
+      }
       internal_comm_timestamp = HAL_GetTick(); // Reset the timer
     }
 
@@ -516,16 +549,15 @@ int main(void)
       HAL_GPIO_TogglePin(GPIOA, Alive_Sig_Pin); // Toggle the alive signal pin
       alive_sig_timestamp = HAL_GetTick();
     }
-
   }
 
   /* USER CODE END 3 */
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
+ * @brief System Clock Configuration
+ * @retval None
+ */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -533,14 +565,13 @@ void SystemClock_Config(void)
   RCC_CRSInitTypeDef pInit = {0};
 
   /** Configure the main internal regulator output voltage
-  */
+   */
   HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1_BOOST);
 
   /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSI48
-                              |RCC_OSCILLATORTYPE_HSE;
+   * in the RCC_OscInitTypeDef structure.
+   */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_HSI48 | RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
@@ -558,9 +589,8 @@ void SystemClock_Config(void)
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+   */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
@@ -572,15 +602,15 @@ void SystemClock_Config(void)
   }
 
   /** Enable the SYSCFG APB clock
-  */
+   */
   __HAL_RCC_CRS_CLK_ENABLE();
 
   /** Configures CRS
-  */
+   */
   pInit.Prescaler = RCC_CRS_SYNC_DIV1;
   pInit.Source = RCC_CRS_SYNC_SOURCE_USB;
   pInit.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
-  pInit.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000,1000);
+  pInit.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000, 1000);
   pInit.ErrorLimitValue = 34;
   pInit.HSI48CalibrationValue = 32;
 
@@ -592,13 +622,13 @@ void SystemClock_Config(void)
 /* USER CODE END 4 */
 
 /**
-  * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM1 interrupt took place, inside
-  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
-  * a global variable "uwTick" used as application time base.
-  * @param  htim : TIM handle
-  * @retval None
-  */
+ * @brief  Period elapsed callback in non blocking mode
+ * @note   This function is called  when TIM1 interrupt took place, inside
+ * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+ * a global variable "uwTick" used as application time base.
+ * @param  htim : TIM handle
+ * @retval None
+ */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
@@ -614,9 +644,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 }
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -628,14 +658,14 @@ void Error_Handler(void)
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
+ * @brief  Reports the name of the source file and the source line number
+ *         where the assert_param error has occurred.
+ * @param  file: pointer to the source file name
+ * @param  line: assert_param error line source number
+ * @retval None
+ */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */

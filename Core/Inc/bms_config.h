@@ -76,11 +76,14 @@ typedef struct
     uint16_t CanBaudrate;    // The baudrate of the CAN bus
     bool CanExtended; // Should the CAN ID be extended or not
     bool UsbLoggingEnabled; // Should the USB logging be enabled or not
+    bool CanVoltageBroadcastEnabled;
+    bool CanTempBroadcastEnabled;
 
     uint8_t BroadcastPacket; // The ID of the board
 
     uint16_t CanBroadcastInterval; // The timeout for the broadcast packet
     uint16_t CanTempBroadcastInterval; // The timeout for the temperature broadcast packet
+    uint16_t CanVoltageBroadcastInterval; // The timeout for the temperature broadcast packet
     uint16_t UsbLoggingInterval; // The timeout for the USB logging
     uint16_t CanChargerBroadcastInterval; // The timeout for the charger broadcast packet
     uint16_t CanChargerBroadcastTimeout; // The timeout for the charger broadcast packet

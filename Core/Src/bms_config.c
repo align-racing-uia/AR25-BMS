@@ -28,6 +28,9 @@ void BMS_Config_Init(BMS_Config_HandleTypeDef *bms_config){
           bms_config->UsbLoggingEnabled = DEFAULT_USB_LOGGING_ENABLED;
           bms_config->CanBroadcastInterval = DEFAULT_CAN_BROADCAST_INTERVAL;                // 100ms
           bms_config->CanTempBroadcastInterval = DEFAULT_CAN_TEMP_BROADCAST_INTERVAL;       // 1s
+          bms_config->CanVoltageBroadcastInterval = DEFAULT_CAN_TEMP_BROADCAST_INTERVAL;       // 1s
+          bms_config->CanTempBroadcastEnabled = true; // Should the BMS broadcast the temperature or not
+          bms_config->CanVoltageBroadcastEnabled = true; // Should the BMS broadcast the temperature or not
           bms_config->UsbLoggingInterval = DEFAULT_USB_LOGGING_INTERVAL;                    // 1s
           bms_config->CanChargerBroadcastInterval = DEFAULT_CAN_CHARGER_BROADCAST_INTERVAL; // 1s
           bms_config->CanChargerBroadcastTimeout = DEFAULT_CAN_CHARGER_BROADCAST_TIMEOUT;   // 5s
