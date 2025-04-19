@@ -66,6 +66,9 @@ typedef struct
     uint16_t CellTemperatureLimitLow;  // The minimum temperature of a cell
     uint16_t CellTemperatureLimitHigh; // The maximum temperature of a cell
 
+    uint16_t CCWarningLimit; // The charging current limit for the BMS during warning state
+    uint16_t DCWarningLimit; // The discharge current limit for the BMS during warning state
+
     uint8_t TempMapAmount; // The number of temperature maps
     uint8_t TempMapVoltagePoints; // The number of voltage points in each temperature map
 
