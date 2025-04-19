@@ -21,6 +21,6 @@ typedef struct
 extern uint8_t secondary_mcu_recieve_index; // Alternate what buffer is read / written to
 
 
-pSPI_CallbackTypeDef SecondaryMCU_RecieveCallback(SPI_HandleTypeDef *hspi);
+void SecondaryMCU_RecieveCallback(DMA_HandleTypeDef *hdma);
 
 #endif

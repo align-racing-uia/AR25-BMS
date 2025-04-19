@@ -204,7 +204,7 @@ int main(void)
   HAL_ADC_Start_DMA(&hadc1, adc1_buffer, 1);
   HAL_ADC_Start_DMA(&hadc2, adc2_buffer, 1);
 
-  HAL_SPI_RegisterCallback(&hspi1, HAL_SPI_RX_COMPLETE_CB_ID, (pSPI_CallbackTypeDef *)SecondaryMCU_RecieveCallback); // Register the callback for the secondary MCU
+  HAL_DMA_RegisterCallback(hspi1.hdmarx, HAL_DMA_XFER_CPLT_CB_ID, (void *)SecondaryMCU_RecieveCallback); // Register the callback for the secondary MCU
 
   // Set the nFault pin high to indicate no errors on the BMS yet
   HAL_GPIO_WritePin(nFault_GPIO_Port, nFault_Pin, GPIO_PIN_SET); // Set the fault pin high to indicate no fault
