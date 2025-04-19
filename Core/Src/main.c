@@ -246,7 +246,10 @@ int main(void)
   hbq.spiRdyPin = GPIO_PIN_11;
   hbq.nFaultGPIOx = GPIOA;
   hbq.nFaultPin = GPIO_PIN_8;
-  hbq.gpioADC = 0x7F; // All GPIOs are ADCs, except GPIO8, which is an output
+  hbq.gpioADCMap = 0x7F; // All GPIOs are ADCs, except GPIO8, which is an output
+  hbq.activeTempAuxPinMap = 0x7E; // Pin 1 is used to detect PCB temperature, and the rest are used for the temperature sensors
+  hbq.tempMultiplexEnabled = true; // The temperature sensors are not multiplexed
+  hbq.tempMultiplexPinIndex = 7; // The pin used to multiplex the temperature sensors, currently 0b01111110
   hbq.htim = &htim3;  // The timer used for the delays
 
   BQ_BindMemory(&hbq, bms_config.NumOfSlaves, bq_output_buffer, bq_cell_voltages, bms_config.CellsEach, bq_cell_temperature_pool, bms_config.TempsEach, bq_die_temperature_pool); // Bind memory pools for the BQ79600 cell voltages
