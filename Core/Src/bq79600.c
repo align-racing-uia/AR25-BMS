@@ -398,21 +398,43 @@ BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq)
 }
 
 BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq)
-{
+{   
+    BQ_StatusTypeDef status = BQ_STATUS_OK;
 
     if (hbq->tempMultiplexEnabled)
     {
-        BQ_SetGPIOAll(hbq, hbq->tempMultiplexPinIndex, true); // Set GPIO8 to hig
+        status = BQ_SetGPIOAll(hbq, hbq->tempMultiplexPinIndex, true); // Set GPIO8 to hig
 
-        BQ_GetAuxADCs(hbq, hbq->activeTempAuxPinMap, hbq->cellTemperatures); // Read the GPIO configuration register
+        if(status != BQ_STATUS_OK)
+        {
+            return status;
+        }
 
-        BQ_SetGPIOAll(hbq, hbq->tempMultiplexPinIndex, false); // Set GPIO8 to low
+        status = BQ_GetAuxADCs(hbq, hbq->activeTempAuxPinMap, hbq->cellTemperatures); 
+
+        if(status != BQ_STATUS_OK)
+        {
+            return status;
+        }
+
+        status = BQ_SetGPIOAll(hbq, hbq->tempMultiplexPinIndex, false); // Set GPIO8 to low
+
+        if(status != BQ_STATUS_OK)
+        {
+            return status;
+        }
+
+        status = BQ_GetAuxADCs(hbq, hbq->activeTempAuxPinMap, hbq->cellTemperatures + hbq->numOfTempsEach); // In reality it is hbq->numOfTempsEach * 2 / 2
+        // Last one is returned either way
+        
     }else {
+        status = BQ_GetAuxADCs(hbq, hbq->activeTempAuxPinMap, hbq->cellTemperatures); 
+        // Last one is returned either way
 
     }
 
 
-    return BQ_STATUS_OK;
+    return status;
 }
 
 BQ_StatusTypeDef BQ_GetDieTemperature(BQ_HandleTypeDef *hbq)
