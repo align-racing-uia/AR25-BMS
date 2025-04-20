@@ -278,7 +278,8 @@ BQ_StatusTypeDef BQ_GetAuxADCs(BQ_HandleTypeDef *hbq, uint8_t pin_map, uint8_t *
     size_t number_of_pins = NUM_OF_ONES(pin_map); // Number of pins to read
     for (size_t i = 0; i < number_of_pins; i++)
     {
-        data_out[i] = (((uint16_t) hbq->bqOutputBuffer[total_len * i - 2]) << 8) | ((uint16_t) hbq->bqOutputBuffer[total_len * i - 1]); // Put data in the output buffer
+        data_out[2*i] = hbq->bqOutputBuffer[total_len * i - 2];
+        data_out[2*i+1] = hbq->bqOutputBuffer[total_len * i - 1]; // Put data in the output buffer
     }
 
     return BQ_STATUS_OK;
@@ -399,13 +400,17 @@ BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq)
 BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq)
 {
 
-    // BQ_SetGPIOAll(hbq, 7, true); // Set GPIO8 to high
+    if (hbq->tempMultiplexEnabled)
+    {
+        BQ_SetGPIOAll(hbq, hbq->tempMultiplexPinIndex, true); // Set GPIO8 to hig
 
-    // // TODO Implement temperature reading
+        BQ_GetAuxADCs(hbq, hbq->activeTempAuxPinMap, hbq->cellTemperatures); // Read the GPIO configuration register
 
-    // BQ_SetGPIOAll(hbq, 7, false); // Set GPIO8 to low
+        BQ_SetGPIOAll(hbq, hbq->tempMultiplexPinIndex, false); // Set GPIO8 to low
+    }else {
 
-    // TODO Implement temperature reading
+    }
+
 
     return BQ_STATUS_OK;
 }
