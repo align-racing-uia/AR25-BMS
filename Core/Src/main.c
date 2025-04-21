@@ -480,7 +480,14 @@ int main(void)
 
     // Handle the PWM generation
     pid_controller.Setpoint = 40.0; // Set the setpoint to 40.0 degrees for now
-    float pid_output = PID_Calculate(&pid_controller, hbq.highestCellTemperature); // Calculate the PID output
+    if(hbq.highestCellTemperature < 40.0)
+    {
+      pid_controller.Setpoint = hbq.highestCellTemperature; // Set the setpoint to the highest cell temperature
+    }
+    else {
+      pid_controller.Setpoint = 40.0; // Set the setpoint to 40.0 degrees for now
+    }
+    float pid_output = fabsf(PID_Calculate(&pid_controller, hbq.highestCellTemperature)); // Calculate the PID output
     if (pid_output > 100.0)
     {
       pid_output = 100.0; // Limit the output to 100%
