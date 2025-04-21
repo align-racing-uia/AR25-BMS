@@ -375,7 +375,10 @@ BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq)
         return status;
     }
 
-    uint8_t totalLen = 6 + hbq->numOfCellsEach * hbq->numOfSlaves * 2; // Totalt expected message length
+    // If something goes wrong, uncomment this line, as it was removed in the belief that it was wrong (without testing)
+    // uint8_t totalLen = 6 + hbq->numOfCellsEach * hbq->numOfSlaves * 2; // Totalt expected message length
+    uint8_t totalLen = 6 + hbq->numOfCellsEach * 2; // Totalt expected message length
+
 
     for (uint8_t i = 0; i < hbq->numOfSlaves; i++)
     { // Base board will not be part of the cell voltages
@@ -546,7 +549,7 @@ BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef *hbq, uint8_t *pOut, uint8_t deviceId,
     uint16_t fullBuffers = (uint16_t)(maxBytes / 128);
     uint16_t remainingBytes = maxBytes - (fullBuffers * 128);
     BQ_SetMosiIdle(hbq); // We need to transmit 0xFFs.... so why not...?
-    while (remainingBytes > 0)
+    while (remainingBytes > 0 || fullBuffers > 0)
     {
         start = HAL_GetTick();
         while (BQ_SpiRdy(hbq) != true)

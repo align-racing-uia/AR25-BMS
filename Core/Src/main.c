@@ -479,7 +479,6 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
     // Handle the PWM generation
-    pid_controller.Setpoint = 40.0; // Set the setpoint to 40.0 degrees for now
     if(hbq.highestCellTemperature < 40.0)
     {
       pid_controller.Setpoint = hbq.highestCellTemperature; // Set the setpoint to the highest cell temperature
