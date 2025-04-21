@@ -22,6 +22,7 @@
 #include "crc.h"
 #include "dma.h"
 #include "i2c.h"
+#include "iwdg.h"
 #include "quadspi.h"
 #include "spi.h"
 #include "tim.h"
@@ -44,6 +45,7 @@
 #include "icm.h"
 #include "usb_logging.h"
 #include "secondary_mcu.h"
+#include "pid.h"
 
 /* USER CODE END Includes */
 
@@ -101,7 +103,7 @@ float low_current_sensor;
 float high_current_sensor;
 
 uint32_t pwm_ch3_memory = 0;
-uint32_t pwmCh4Memory = 0;
+uint32_t pwm_ch4_memory = 0;
 
 SecondaryMCU_ResponseTypeDef secondary_response[2] = {0}; // The response from the secondary MCU
 SecondaryMCU_TransmitTypeDef secondary_transmit = {0};    // The data to send to the secondary MCU
@@ -126,7 +128,6 @@ float bq_cell_temperature_pool[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_TEMPS_
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
-void UpdateCurrentSensor(void);
 
 /* USER CODE END PFP */
 
@@ -136,9 +137,9 @@ void UpdateCurrentSensor(void);
 /* USER CODE END 0 */
 
 /**
- * @brief  The application entry point.
- * @retval int
- */
+  * @brief  The application entry point.
+  * @retval int
+  */
 int main(void)
 {
 
@@ -176,6 +177,7 @@ int main(void)
   MX_I2C1_Init();
   MX_ADC1_Init();
   MX_TIM3_Init();
+  MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
 
   // Initialize timer for align delay
@@ -198,13 +200,13 @@ int main(void)
 
   // Initialize timer used for PWM generation, and start the DMA
   HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_3, &pwm_ch3_memory, 1); // Start the timer for PWM generation
-  HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, &pwmCh4Memory, 1);   // Start the timer for PWM generation
+  HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, &pwm_ch4_memory, 1);   // Start the timer for PWM generation
 
   // Start the ADCs in DMA mode
   HAL_ADC_Start_DMA(&hadc1, adc1_buffer, 1);
   HAL_ADC_Start_DMA(&hadc2, adc2_buffer, 1);
 
-  HAL_SPI_RegisterCallback(&hspi1, HAL_SPI_RX_COMPLETE_CB_ID, (pSPI_CallbackTypeDef *)SecondaryMCU_RecieveCallback); // Register the callback for the secondary MCU
+  HAL_DMA_RegisterCallback(hspi1.hdmarx, HAL_DMA_XFER_CPLT_CB_ID, (void *)SecondaryMCU_RecieveCallback); // Register the callback for the secondary MCU
 
   // Set the nFault pin high to indicate no errors on the BMS yet
   HAL_GPIO_WritePin(nFault_GPIO_Port, nFault_Pin, GPIO_PIN_SET); // Set the fault pin high to indicate no fault
@@ -246,7 +248,10 @@ int main(void)
   hbq.spiRdyPin = GPIO_PIN_11;
   hbq.nFaultGPIOx = GPIOA;
   hbq.nFaultPin = GPIO_PIN_8;
-  hbq.gpioADC = 0x7F; // All GPIOs are ADCs, except GPIO8, which is an output
+  hbq.gpioADCMap = 0x7F; // All GPIOs are ADCs, except GPIO8, which is an output
+  hbq.activeTempAuxPinMap = 0x7E; // Pin 1 is used to detect PCB temperature, and the rest are used for the temperature sensors
+  hbq.tempMultiplexEnabled = true; // The temperature sensors are not multiplexed
+  hbq.tempMultiplexPinIndex = 7; // The pin used to multiplex the temperature sensors, currently 0b01111110
   hbq.htim = &htim3;  // The timer used for the delays
 
   BQ_BindMemory(&hbq, bms_config.NumOfSlaves, bq_output_buffer, bq_cell_voltages, bms_config.CellsEach, bq_cell_temperature_pool, bms_config.TempsEach, bq_die_temperature_pool); // Bind memory pools for the BQ79600 cell voltages
@@ -275,7 +280,9 @@ int main(void)
   uint32_t can_timeout = HAL_GetTick();
   uint32_t alive_sig_timestamp = HAL_GetTick();
   uint32_t internal_comm_timestamp = HAL_GetTick(); // Communication with the secondary MCU to activate relays
-  USB_LogFrameTypeDef usb_log = {0};
+  USB_Log_HandleTypeDef usb_log = {0};
+
+  PID_HandleTypeDef pid_controller = PID_Init(0.1, 0.01, 0.01, 0.1, 100); // Initialize the PID controller
 
   bms_state = BMS_STATE_CONNECTING; // Set the state to connecting
 
@@ -473,6 +480,26 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
+    // Handle the PWM generation
+    if(hbq.highestCellTemperature < 40.0)
+    {
+      pid_controller.Setpoint = hbq.highestCellTemperature; // Set the setpoint to the highest cell temperature
+    }
+    else {
+      pid_controller.Setpoint = 40.0; // Set the setpoint to 40.0 degrees for now
+    }
+    float pid_output = fabsf(PID_Compute(&pid_controller, hbq.highestCellTemperature)); // Calculate the PID output
+    if (pid_output > 100.0)
+    {
+      pid_output = 100.0; // Limit the output to 100%
+    }
+    else if (pid_output < 0.0)
+    {
+      pid_output = 0.0; // Limit the output to 0%
+    }
+    pwm_ch3_memory = (uint32_t)(pid_output / 100.0 * htim2.Instance->ARR); // Set the PWM duty cycle to the PID output, scaled to the PWM resolution
+    pwm_ch4_memory = (uint32_t)(pid_output / 100.0 * htim2.Instance->ARR);   // Set the PWM duty cycle to the PID output, scaled to the PWM resolution
+
     // Send general BMS status here at the end of the loop
     if ((broadcast_timestamp + bms_config.CanBroadcastInterval) <= HAL_GetTick())
     {
@@ -551,13 +578,16 @@ int main(void)
     }
   }
 
+  // Refresh the watchdog timer
+  HAL_IWDG_Refresh(&hiwdg); // Refresh the watchdog timer
+
   /* USER CODE END 3 */
 }
 
 /**
- * @brief System Clock Configuration
- * @retval None
- */
+  * @brief System Clock Configuration
+  * @retval None
+  */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -565,16 +595,18 @@ void SystemClock_Config(void)
   RCC_CRSInitTypeDef pInit = {0};
 
   /** Configure the main internal regulator output voltage
-   */
+  */
   HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1_BOOST);
 
   /** Initializes the RCC Oscillators according to the specified parameters
-   * in the RCC_OscInitTypeDef structure.
-   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_HSI48 | RCC_OSCILLATORTYPE_HSE;
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSI48
+                              |RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
@@ -589,8 +621,9 @@ void SystemClock_Config(void)
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-   */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
@@ -602,15 +635,15 @@ void SystemClock_Config(void)
   }
 
   /** Enable the SYSCFG APB clock
-   */
+  */
   __HAL_RCC_CRS_CLK_ENABLE();
 
   /** Configures CRS
-   */
+  */
   pInit.Prescaler = RCC_CRS_SYNC_DIV1;
   pInit.Source = RCC_CRS_SYNC_SOURCE_USB;
   pInit.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
-  pInit.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000, 1000);
+  pInit.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000,1000);
   pInit.ErrorLimitValue = 34;
   pInit.HSI48CalibrationValue = 32;
 
@@ -622,13 +655,13 @@ void SystemClock_Config(void)
 /* USER CODE END 4 */
 
 /**
- * @brief  Period elapsed callback in non blocking mode
- * @note   This function is called  when TIM1 interrupt took place, inside
- * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
- * a global variable "uwTick" used as application time base.
- * @param  htim : TIM handle
- * @retval None
- */
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM1 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
@@ -644,9 +677,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 }
 
 /**
- * @brief  This function is executed in case of error occurrence.
- * @retval None
- */
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -658,14 +691,14 @@ void Error_Handler(void)
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef USE_FULL_ASSERT
+#ifdef  USE_FULL_ASSERT
 /**
- * @brief  Reports the name of the source file and the source line number
- *         where the assert_param error has occurred.
- * @param  file: pointer to the source file name
- * @param  line: assert_param error line source number
- * @retval None
- */
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */

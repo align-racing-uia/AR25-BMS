@@ -76,8 +76,8 @@ typedef struct
     // And what GPIOs should be treated as General Purpose Outputs
     //    GPIO8 GPIO7 GPIO6 ...
     //  0b  0     0     0   ...
-    uint8_t gpioADC;
-    uint8_t gpioconf[4]; // This is to skip the need to read the GPIO config registers when setting the GPIOs
+    uint8_t gpioADCMap;
+    uint8_t gpioConf[4]; // This is to skip the need to read the GPIO config registers when setting the GPIOs
 
     float highestCellTemperature;
     float lowestCellTemperature;
@@ -90,6 +90,11 @@ typedef struct
     uint8_t numOfSlaves;
     uint8_t numOfCellsEach;
     uint8_t numOfTempsEach;
+
+    bool tempMultiplexEnabled; // This is true if the temperature sensors are multiplexed
+    uint8_t tempMultiplexPinIndex; // This is the pin used to multiplex the temperature sensors
+    uint8_t activeTempAuxPinMap; // This is the pins reading the temperature sensors
+
     TIM_HandleTypeDef *htim; // The timer used for the delays
 } BQ_HandleTypeDef;
 
@@ -115,6 +120,7 @@ BQ_StatusTypeDef BQ_ActivateAuxADC(BQ_HandleTypeDef* hbq);
 BQ_StatusTypeDef BQ_ConfigureGPIO(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq);
+BQ_StatusTypeDef BQ_GetSpecificAuxADC(BQ_HandleTypeDef *hbq, uint8_t pin);
 BQ_StatusTypeDef BQ_AutoAddress(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_GetDieTemperatures(BQ_HandleTypeDef *hbq);
 
