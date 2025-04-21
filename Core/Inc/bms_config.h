@@ -22,7 +22,7 @@
 
 // Default values for compiled programs can be set in this header
 // These values are only used if the EEPROM is empty, corrupt, or not present
-#define DEFAULT_TOTAL_CHIPS 2       // Including master
+#define DEFAULT_TOTAL_CHIPS 3       // Including master
 #define DEFAULT_TOTAL_SLAVES (DEFAULT_TOTAL_CHIPS-1)     // Number of slaves in the system
 #define DEFAULT_CELLS_EACH 16       // Number of cells in series on each slave
 #define DEFAULT_TEMPS_EACH 6       // Number of temperature sensors on each slave
@@ -34,6 +34,8 @@
 #define DEFAULT_CELLTEMPERATURE_LIMIT_LOW 0 // C
 #define DEFAULT_CELLTEMPERATURE_LIMIT_HIGH 60 // C
 #define DEFAULT_CAN_NODE_ID 0x06
+#define DEFAULT_CAN_CELLVOLTAGE_NODE_ID 0x07
+#define DEFAULT_CAN_CELLTEMPERATURE_NODE_ID 0x08
 #define DEFAULT_CAN_BROADCAST_PACKET 0x01
 #define DEFAULT_CAN_BAUDRATE (uint16_t) 500000 // 500kbit/s
 #define DEFAULT_CAN_EXTENDED false // Should the CAN ID be extended or not
@@ -73,6 +75,8 @@ typedef struct
     uint8_t TempMapVoltagePoints; // The number of voltage points in each temperature map
 
     uint8_t CanNodeID;       // This follows the CAN ID format specified by DTI
+    uint8_t CanVoltageNodeID; // The ID of the cell voltage packet
+    uint8_t CanTemperatureNodeID; // The ID of the cell temperature packet
     uint16_t CanBaudrate;    // The baudrate of the CAN bus
     bool CanExtended; // Should the CAN ID be extended or not
     bool UsbLoggingEnabled; // Should the USB logging be enabled or not

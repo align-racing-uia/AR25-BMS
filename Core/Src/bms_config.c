@@ -1,46 +1,50 @@
 #include "bms_config.h"
 #include "w25q_mem.h"
 
-void BMS_Config_Init(BMS_Config_HandleTypeDef *bms_config){
-          // Setting the default values of the config
-          bms_config->ConfigVersion = BMS_CONFIG_VERSION;
-          bms_config->MemoryCheck[0] = 'a';
-          bms_config->MemoryCheck[1] = 'l';
-          bms_config->MemoryCheck[2] = 'i';
-          bms_config->MemoryCheck[3] = 'g';
-          bms_config->MemoryCheck[4] = 'n';
-          bms_config->BroadcastPacket = DEFAULT_CAN_BROADCAST_PACKET;
-          bms_config->CellCount = DEFAULT_TOTAL_CELLS;
-          bms_config->NumOfChips = DEFAULT_TOTAL_CHIPS;
-          bms_config->NumOfSlaves = DEFAULT_TOTAL_CHIPS - 1; // The master is not counted as a slave
-          bms_config->CellsEach = DEFAULT_CELLS_EACH;
-          bms_config->TempsEach = DEFAULT_TEMPS_EACH;
-          bms_config->TempMapVoltagePoints = DEFAULT_TEMP_MAP_VOLTAGE_POINTS;
-          bms_config->TempMapAmount = DEFAULT_TEMP_MAP_AMOUNT;
-          bms_config->TotalCellCountInSeries = DEFAULT_TOTAL_CELLS_IN_SERIES;
-          bms_config->CellCountInParallel = DEFAULT_CELLS_IN_PARALLEL;
-          bms_config->CellVoltageLimitLow = DEFAULT_CELLVOLTAGE_LIMIT_LOW;
-          bms_config->CellVoltageLimitHigh = DEFAULT_CELLVOLTAGE_LIMIT_HIGH;
-          bms_config->CellTemperatureLimitLow = DEFAULT_CELLTEMPERATURE_LIMIT_LOW;   // -40C
-          bms_config->CellTemperatureLimitHigh = DEFAULT_CELLTEMPERATURE_LIMIT_HIGH; // 85C
-          bms_config->CanNodeID = DEFAULT_CAN_NODE_ID;
-          bms_config->CanBaudrate = DEFAULT_CAN_BAUDRATE;
-          bms_config->CanExtended = DEFAULT_CAN_EXTENDED; // Should the CAN ID be extended or not
-          bms_config->UsbLoggingEnabled = DEFAULT_USB_LOGGING_ENABLED;
-          bms_config->CanBroadcastInterval = DEFAULT_CAN_BROADCAST_INTERVAL;                // 100ms
-          bms_config->CanTempBroadcastInterval = DEFAULT_CAN_TEMP_BROADCAST_INTERVAL;       // 1s
-          bms_config->CanVoltageBroadcastInterval = DEFAULT_CAN_TEMP_BROADCAST_INTERVAL;       // 1s
-          bms_config->CanTempBroadcastEnabled = true; // Should the BMS broadcast the temperature or not
-          bms_config->CanVoltageBroadcastEnabled = true; // Should the BMS broadcast the temperature or not
-          bms_config->UsbLoggingInterval = DEFAULT_USB_LOGGING_INTERVAL;                    // 1s
-          bms_config->CanChargerBroadcastInterval = DEFAULT_CAN_CHARGER_BROADCAST_INTERVAL; // 1s
-          bms_config->CanChargerBroadcastTimeout = DEFAULT_CAN_CHARGER_BROADCAST_TIMEOUT;   // 5s
-          bms_config->BalanceWhileCharging = DEFAULT_BALANCE_WHILE_CHARGING; // Should the BMS balance while charging or not
-          bms_config->Checksum = 0x00; // TODO: Implement CRC checksum   
+void BMS_Config_Init(BMS_Config_HandleTypeDef *bms_config)
+{
+    // Setting the default values of the config
+    bms_config->ConfigVersion = BMS_CONFIG_VERSION;
+    bms_config->MemoryCheck[0] = 'a';
+    bms_config->MemoryCheck[1] = 'l';
+    bms_config->MemoryCheck[2] = 'i';
+    bms_config->MemoryCheck[3] = 'g';
+    bms_config->MemoryCheck[4] = 'n';
+    bms_config->BroadcastPacket = DEFAULT_CAN_BROADCAST_PACKET;
+    bms_config->CellCount = DEFAULT_TOTAL_CELLS;
+    bms_config->NumOfChips = DEFAULT_TOTAL_CHIPS;
+    bms_config->NumOfSlaves = DEFAULT_TOTAL_CHIPS - 1; // The master is not counted as a slave
+    bms_config->CellsEach = DEFAULT_CELLS_EACH;
+    bms_config->TempsEach = DEFAULT_TEMPS_EACH;
+    bms_config->TempMapVoltagePoints = DEFAULT_TEMP_MAP_VOLTAGE_POINTS;
+    bms_config->TempMapAmount = DEFAULT_TEMP_MAP_AMOUNT;
+    bms_config->TotalCellCountInSeries = DEFAULT_TOTAL_CELLS_IN_SERIES;
+    bms_config->CellCountInParallel = DEFAULT_CELLS_IN_PARALLEL;
+    bms_config->CellVoltageLimitLow = DEFAULT_CELLVOLTAGE_LIMIT_LOW;
+    bms_config->CellVoltageLimitHigh = DEFAULT_CELLVOLTAGE_LIMIT_HIGH;
+    bms_config->CellTemperatureLimitLow = DEFAULT_CELLTEMPERATURE_LIMIT_LOW;   // -40C
+    bms_config->CellTemperatureLimitHigh = DEFAULT_CELLTEMPERATURE_LIMIT_HIGH; // 85C
+    bms_config->CanNodeID = DEFAULT_CAN_NODE_ID;
+    bms_config->CanVoltageNodeID = DEFAULT_CAN_CELLVOLTAGE_NODE_ID;
+    bms_config->CanTemperatureNodeID = DEFAULT_CAN_CELLTEMPERATURE_NODE_ID;
+    bms_config->CanBaudrate = DEFAULT_CAN_BAUDRATE;
+    bms_config->CanExtended = DEFAULT_CAN_EXTENDED; // Should the CAN ID be extended or not
+    bms_config->UsbLoggingEnabled = DEFAULT_USB_LOGGING_ENABLED;
+    bms_config->CanBroadcastInterval = DEFAULT_CAN_BROADCAST_INTERVAL;                // 100ms
+    bms_config->CanTempBroadcastInterval = DEFAULT_CAN_TEMP_BROADCAST_INTERVAL;       // 1s
+    bms_config->CanVoltageBroadcastInterval = DEFAULT_CAN_TEMP_BROADCAST_INTERVAL;    // 1s
+    bms_config->CanTempBroadcastEnabled = true;                                       // Should the BMS broadcast the temperature or not
+    bms_config->CanVoltageBroadcastEnabled = true;                                    // Should the BMS broadcast the temperature or not
+    bms_config->UsbLoggingInterval = DEFAULT_USB_LOGGING_INTERVAL;                    // 1s
+    bms_config->CanChargerBroadcastInterval = DEFAULT_CAN_CHARGER_BROADCAST_INTERVAL; // 1s
+    bms_config->CanChargerBroadcastTimeout = DEFAULT_CAN_CHARGER_BROADCAST_TIMEOUT;   // 5s
+    bms_config->BalanceWhileCharging = DEFAULT_BALANCE_WHILE_CHARGING;                // Should the BMS balance while charging or not
+    bms_config->Checksum = 0x00;                                                      // TODO: Implement CRC checksum
 }
 
-BMS_Config_StatusTypeDef BMS_Config_WriteToFlash(BMS_Config_HandleTypeDef *bms_config){
-    uint8_t* buffer = (uint8_t*)bms_config;
+BMS_Config_StatusTypeDef BMS_Config_WriteToFlash(BMS_Config_HandleTypeDef *bms_config)
+{
+    uint8_t *buffer = (uint8_t *)bms_config;
     uint16_t size = sizeof(BMS_Config_HandleTypeDef);
     size_t full_pages = size / 256;
     size_t remaining_bytes = size % 256;
@@ -51,7 +55,7 @@ BMS_Config_StatusTypeDef BMS_Config_WriteToFlash(BMS_Config_HandleTypeDef *bms_c
             return BMS_CONFIG_ERROR;
         }
     }
-    if(remaining_bytes > 0)
+    if (remaining_bytes > 0)
     {
         if (W25Q_ProgramData(buffer + (full_pages * 256), remaining_bytes, 0, full_pages) != W25Q_OK)
         {
@@ -62,8 +66,9 @@ BMS_Config_StatusTypeDef BMS_Config_WriteToFlash(BMS_Config_HandleTypeDef *bms_c
     return BMS_Config_UpdateFromFlash(bms_config);
 }
 
-BMS_Config_StatusTypeDef BMS_Config_UpdateFromFlash(BMS_Config_HandleTypeDef *bms_config){
-    uint8_t* buffer = (uint8_t*)bms_config;
+BMS_Config_StatusTypeDef BMS_Config_UpdateFromFlash(BMS_Config_HandleTypeDef *bms_config)
+{
+    uint8_t *buffer = (uint8_t *)bms_config;
     uint16_t size = sizeof(BMS_Config_HandleTypeDef);
     size_t full_pages = size / 256;
     size_t remaining_bytes = size % 256;
@@ -74,7 +79,7 @@ BMS_Config_StatusTypeDef BMS_Config_UpdateFromFlash(BMS_Config_HandleTypeDef *bm
             return BMS_CONFIG_ERROR;
         }
     }
-    if(remaining_bytes > 0)
+    if (remaining_bytes > 0)
     {
         if (W25Q_ReadData(buffer + (full_pages * 256), remaining_bytes, 0, full_pages) != W25Q_OK)
         {
@@ -110,8 +115,7 @@ BMS_Config_StatusTypeDef BMS_Config_UpdateFromFlash(BMS_Config_HandleTypeDef *bm
     // TODO: Implement CRC checksum
 
     return BMS_CONFIG_OK;
-
 }
-BMS_Config_StatusTypeDef BMS_Config_HandleCanMessage(BMS_Config_HandleTypeDef *bms_config, uint16_t packet_id, uint8_t *data){
-
+BMS_Config_StatusTypeDef BMS_Config_HandleCanMessage(BMS_Config_HandleTypeDef *bms_config, uint16_t packet_id, uint8_t *data)
+{
 }

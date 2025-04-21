@@ -139,9 +139,9 @@ void SystemClock_Config(void);
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
+ * @brief  The application entry point.
+ * @retval int
+ */
 int main(void)
 {
 
@@ -369,6 +369,13 @@ int main(void)
         }
         else if (node_id == 1)
         { // continoue downwards here
+          switch (packet_id)
+          {
+          case 0x1:
+            break;
+          case 0x2:
+            break;
+          }
         }
       }
     }
@@ -525,15 +532,15 @@ int main(void)
       bms_data[5] = high_cell_temp & 0xFF;        // Should be avg_cell_temp x 10
       bms_data[6] = (soc >> 8) & 0xFF;            // Should be soc x 10
       bms_data[7] = soc & 0xFF;                   // Should be soc x 10
-      uint32_t can_id = Align_CombineCanId(bms_config.CanNodeID, bms_config.BroadcastPacket, bms_config.CanExtended);
+      uint32_t can_id = Align_CombineCanId(bms_config.BroadcastPacket, bms_config.CanNodeID, bms_config.CanExtended);
       Align_CAN_Send(&hfdcan1, can_id, bms_data, 8, bms_config.CanExtended);
-      Align_DelayUs(&htim3, 5); // To give time to send message
+      Align_DelayUs(&htim3, 20); // To give time to send message
 
       bms_data[0] = active_faults;          // Should be the active faults
       bms_data[1] = sdc_voltage_raw >> 8;   // Should be the SDC voltage 0xFF00
       bms_data[2] = sdc_voltage_raw & 0xFF; // Should be the SDC voltage 0x00FF
-      bms_data[3] = avg_cycle_time >> 8;        // Should be the cycle time in ms
-      bms_data[4] = avg_cycle_time & 0xFF;      // Should be the cycle time in ms
+      bms_data[3] = avg_cycle_time >> 8;    // Should be the cycle time in ms
+      bms_data[4] = avg_cycle_time & 0xFF;  // Should be the cycle time in ms
 
       Align_CAN_Send(&hfdcan1, can_id + 1, bms_data, 5, bms_config.CanExtended); // Send the message again to make sure it is sent
 
@@ -550,6 +557,36 @@ int main(void)
     if (bms_config.CanVoltageBroadcastEnabled && (cell_voltage_timestamp + bms_config.CanVoltageBroadcastInterval) <= HAL_GetTick())
     {
       // TODO: Broadcast the cell voltages
+      uint8_t cell_voltage_data[8] = {0};
+      uint8_t full_messages = bms_config.CellsEach * bms_config.NumOfSlaves / 4;
+      uint8_t partial_message = bms_config.CellsEach * bms_config.NumOfSlaves % 4; // Check if there is a partial message
+      uint8_t i = 0;
+      while (full_messages > 0 || partial_message > 0)
+      {
+        if (full_messages > 0)
+        {
+
+          *((uint16_t *)cell_voltage_data) = (uint16_t)(bq_cell_voltages[i * 4] * 10000.0);           // Convert to mV
+          *((uint16_t *)(cell_voltage_data + 2)) = (uint16_t)(bq_cell_voltages[i * 4 + 1] * 10000.0); // Convert to mV
+          *((uint16_t *)(cell_voltage_data + 4)) = (uint16_t)(bq_cell_voltages[i * 4 + 2] * 10000.0); // Convert to mV
+          *((uint16_t *)(cell_voltage_data + 6)) = (uint16_t)(bq_cell_voltages[i * 4 + 3] * 10000.0); // Convert to mV
+          full_messages--;
+          Align_CAN_Send(&hfdcan1, Align_CombineCanId(i, bms_config.CanVoltageNodeID, bms_config.CanExtended), cell_voltage_data, 8, bms_config.CanExtended); // Send the message to the CAN bus
+          HAL_Delay(2); // TODO: Fix this
+        }
+        else
+        {
+          for (uint8_t j = 0; j < partial_message; j++)
+          {
+            *((uint16_t *)(cell_voltage_data + j * 2)) = (uint16_t)(bq_cell_voltages[i * 4 + j] * 10000.0); // Convert to mV
+          }
+          Align_CAN_Send(&hfdcan1, Align_CombineCanId(i, bms_config.CanVoltageNodeID, bms_config.CanExtended), cell_voltage_data, 2 * partial_message, bms_config.CanExtended); // Send the message to the CAN bus
+          HAL_Delay(2); // TODO: Fix this
+          partial_message = 0;
+        }
+
+        i++;
+      }
 
       cell_voltage_timestamp = HAL_GetTick();
     }
@@ -566,9 +603,9 @@ int main(void)
     if ((internal_comm_timestamp + 50) <= HAL_GetTick)
     {
       HAL_SPI_Transmit(&hspi1, (uint8_t *)&secondary_transmit, sizeof(SecondaryMCU_TransmitTypeDef), 10); // Send the PWM data to the secondary MCU
-      HAL_StatusTypeDef status = HAL_SPI_Receive(&hspi1,                                              // !secondary_mcu_recieve_index is used to place it in the next buffer
-                                                     (uint8_t *)&(secondary_response[!secondary_mcu_recieve_index]),
-                                                     sizeof(SecondaryMCU_ResponseTypeDef), 10); // Receive the response from the secondary MCU
+      HAL_StatusTypeDef status = HAL_SPI_Receive(&hspi1,                                                  // !secondary_mcu_recieve_index is used to place it in the next buffer
+                                                 (uint8_t *)&(secondary_response[!secondary_mcu_recieve_index]),
+                                                 sizeof(SecondaryMCU_ResponseTypeDef), 10); // Receive the response from the secondary MCU
       if (status != HAL_OK)
       {
         // We have a timeout, set the state to fault
@@ -592,7 +629,7 @@ int main(void)
     avg_cycle_time = 0.6 * avg_cycle_time + 0.4 * (HAL_GetTick() - cycle_time_start); // Calculate the cycle time
 
 #if defined(WATCHDOG_ENABLE)
-                                                   // Refresh the watchdog timer
+                                                                                      // Refresh the watchdog timer
     HAL_IWDG_Refresh(&hiwdg); // Refresh the watchdog timer
 
 #endif
@@ -602,9 +639,9 @@ int main(void)
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
+ * @brief System Clock Configuration
+ * @retval None
+ */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -612,14 +649,13 @@ void SystemClock_Config(void)
   RCC_CRSInitTypeDef pInit = {0};
 
   /** Configure the main internal regulator output voltage
-  */
+   */
   HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1_BOOST);
 
   /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSI48
-                              |RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
+   * in the RCC_OscInitTypeDef structure.
+   */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_HSI48 | RCC_OSCILLATORTYPE_LSI | RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
@@ -638,9 +674,8 @@ void SystemClock_Config(void)
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+   */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
@@ -652,15 +687,15 @@ void SystemClock_Config(void)
   }
 
   /** Enable the SYSCFG APB clock
-  */
+   */
   __HAL_RCC_CRS_CLK_ENABLE();
 
   /** Configures CRS
-  */
+   */
   pInit.Prescaler = RCC_CRS_SYNC_DIV1;
   pInit.Source = RCC_CRS_SYNC_SOURCE_USB;
   pInit.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
-  pInit.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000,1000);
+  pInit.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000, 1000);
   pInit.ErrorLimitValue = 34;
   pInit.HSI48CalibrationValue = 32;
 
@@ -672,13 +707,13 @@ void SystemClock_Config(void)
 /* USER CODE END 4 */
 
 /**
-  * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM1 interrupt took place, inside
-  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
-  * a global variable "uwTick" used as application time base.
-  * @param  htim : TIM handle
-  * @retval None
-  */
+ * @brief  Period elapsed callback in non blocking mode
+ * @note   This function is called  when TIM1 interrupt took place, inside
+ * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+ * a global variable "uwTick" used as application time base.
+ * @param  htim : TIM handle
+ * @retval None
+ */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
@@ -694,9 +729,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 }
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -708,14 +743,14 @@ void Error_Handler(void)
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
+ * @brief  Reports the name of the source file and the source line number
+ *         where the assert_param error has occurred.
+ * @param  file: pointer to the source file name
+ * @param  line: assert_param error line source number
+ * @retval None
+ */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
