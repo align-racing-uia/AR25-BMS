@@ -278,7 +278,7 @@ int main(void)
   uint32_t can_timeout = HAL_GetTick();
   uint32_t alive_sig_timestamp = HAL_GetTick();
   uint32_t internal_comm_timestamp = HAL_GetTick(); // Communication with the secondary MCU to activate relays
-  USB_LogFrameTypeDef usb_log = {0};
+  USB_Log_HandleTypeDef usb_log = {0};
 
   PID_HandleTypeDef pid_controller = PID_Init(0.1, 0.01, 0.01, 0.1, 100); // Initialize the PID controller
 
