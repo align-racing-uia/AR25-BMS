@@ -22,7 +22,6 @@
 #include "crc.h"
 #include "dma.h"
 #include "i2c.h"
-#include "iwdg.h"
 #include "quadspi.h"
 #include "spi.h"
 #include "tim.h"
@@ -46,6 +45,7 @@
 #include "usb_logging.h"
 #include "secondary_mcu.h"
 #include "pid.h"
+#include "iwdg.h"
 
 /* USER CODE END Includes */
 
@@ -80,9 +80,12 @@ typedef enum
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-// TODO: Find actual limit
+
+// Compiliation settings
+#define CONNECTED_TO_BATTERY // For debugging
+// #define WATCHDOG_ENABLE      // Enable the watchdog
+
 #define LOW_CURRENT_SENSOR_LIMIT 100 // Amps
-#define CONNECTED_TO_BATTERY false   // For debugging
 
 #define BMS_ERROR_MASK (BMS_ERROR_BQ | BMS_ERROR_ADC)
 #define BMS_WARNING_MASK (BMS_WARNING_CAN | BMS_WARNING_OVERCURRENT | BMS_WARNING_UNDERVOLTAGE | BMS_WARNING_OVERTEMPERATURE | BMS_WARNING_INT_COMM)
@@ -127,7 +130,6 @@ float bq_cell_temperature_pool[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_TEMPS_
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-
 
 /* USER CODE END PFP */
 
@@ -177,8 +179,14 @@ int main(void)
   MX_I2C1_Init();
   MX_ADC1_Init();
   MX_TIM3_Init();
-  MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
+
+#if defined(WATCHDOG_ENABLE)
+
+  // Enable the watchdog timer
+  MX_IWDG_Init();
+
+#endif
 
   // Initialize timer for align delay
   Align_InitDelay(&htim3); // Initialize the delay function
@@ -200,13 +208,11 @@ int main(void)
 
   // Initialize timer used for PWM generation, and start the DMA
   HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_3, &pwm_ch3_memory, 1); // Start the timer for PWM generation
-  HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, &pwm_ch4_memory, 1);   // Start the timer for PWM generation
+  HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, &pwm_ch4_memory, 1); // Start the timer for PWM generation
 
   // Start the ADCs in DMA mode
   HAL_ADC_Start_DMA(&hadc1, adc1_buffer, 1);
   HAL_ADC_Start_DMA(&hadc2, adc2_buffer, 1);
-
-  HAL_DMA_RegisterCallback(hspi1.hdmarx, HAL_DMA_XFER_CPLT_CB_ID, (void *)SecondaryMCU_RecieveCallback); // Register the callback for the secondary MCU
 
   // Set the nFault pin high to indicate no errors on the BMS yet
   HAL_GPIO_WritePin(nFault_GPIO_Port, nFault_Pin, GPIO_PIN_SET); // Set the fault pin high to indicate no fault
@@ -248,11 +254,11 @@ int main(void)
   hbq.spiRdyPin = GPIO_PIN_11;
   hbq.nFaultGPIOx = GPIOA;
   hbq.nFaultPin = GPIO_PIN_8;
-  hbq.gpioADCMap = 0x7F; // All GPIOs are ADCs, except GPIO8, which is an output
-  hbq.activeTempAuxPinMap = 0x7E; // Pin 1 is used to detect PCB temperature, and the rest are used for the temperature sensors
+  hbq.gpioADCMap = 0x7F;           // All GPIOs are ADCs, except GPIO8, which is an output
+  hbq.activeTempAuxPinMap = 0x7E;  // Pin 1 is used to detect PCB temperature, and the rest are used for the temperature sensors
   hbq.tempMultiplexEnabled = true; // The temperature sensors are not multiplexed
-  hbq.tempMultiplexPinIndex = 7; // The pin used to multiplex the temperature sensors, currently 0b01111110
-  hbq.htim = &htim3;  // The timer used for the delays
+  hbq.tempMultiplexPinIndex = 7;   // The pin used to multiplex the temperature sensors, currently 0b01111110
+  hbq.htim = &htim3;               // The timer used for the delays
 
   BQ_BindMemory(&hbq, bms_config.NumOfSlaves, bq_output_buffer, bq_cell_voltages, bms_config.CellsEach, bq_cell_temperature_pool, bms_config.TempsEach, bq_die_temperature_pool); // Bind memory pools for the BQ79600 cell voltages
 
@@ -282,13 +288,16 @@ int main(void)
   uint32_t internal_comm_timestamp = HAL_GetTick(); // Communication with the secondary MCU to activate relays
   USB_Log_HandleTypeDef usb_log = {0};
 
+  uint32_t cycle_time_start = 0;
+  uint32_t avg_cycle_time = 0;
+
   PID_HandleTypeDef pid_controller = PID_Init(0.1, 0.01, 0.01, 0.1, 100); // Initialize the PID controller
 
   bms_state = BMS_STATE_CONNECTING; // Set the state to connecting
 
   while (1)
   {
-
+    cycle_time_start = HAL_GetTick(); // Start the cycle time measurement
     if (charger_connected && ((charger_timeout + bms_config.CanChargerBroadcastTimeout) <= HAL_GetTick()))
     {
       charger_connected = false;  // Charger is not connected anymore
@@ -390,7 +399,7 @@ int main(void)
     case BMS_STATE_BOOTING:
     case BMS_STATE_CONNECTING:
     {
-#if CONNECTED_TO_BATTERY
+#if defined(CONNECTED_TO_BATTERY)
       // Init BQ79600 (Could be wrapped into one function)
       BQ_StatusTypeDef status;
       BQ_WakePing(&hbq);
@@ -427,7 +436,7 @@ int main(void)
     case BMS_STATE_DISCHARGING:
     {
       // The main tasks of the BMS
-#if CONNECTED_TO_BATTERY
+#if defined(CONNECTED_TO_BATTERY)
       BQ_GetCellVoltages(&hbq);
       BQ_GetCellTemperatures(&hbq);
 #endif
@@ -481,11 +490,12 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
     // Handle the PWM generation
-    if(hbq.highestCellTemperature < 40.0)
+    if (hbq.highestCellTemperature < 40.0)
     {
       pid_controller.Setpoint = hbq.highestCellTemperature; // Set the setpoint to the highest cell temperature
     }
-    else {
+    else
+    {
       pid_controller.Setpoint = 40.0; // Set the setpoint to 40.0 degrees for now
     }
     float pid_output = fabsf(PID_Compute(&pid_controller, hbq.highestCellTemperature)); // Calculate the PID output
@@ -498,7 +508,7 @@ int main(void)
       pid_output = 0.0; // Limit the output to 0%
     }
     pwm_ch3_memory = (uint32_t)(pid_output / 100.0 * htim2.Instance->ARR); // Set the PWM duty cycle to the PID output, scaled to the PWM resolution
-    pwm_ch4_memory = (uint32_t)(pid_output / 100.0 * htim2.Instance->ARR);   // Set the PWM duty cycle to the PID output, scaled to the PWM resolution
+    pwm_ch4_memory = (uint32_t)(pid_output / 100.0 * htim2.Instance->ARR); // Set the PWM duty cycle to the PID output, scaled to the PWM resolution
 
     // Send general BMS status here at the end of the loop
     if ((broadcast_timestamp + bms_config.CanBroadcastInterval) <= HAL_GetTick())
@@ -522,8 +532,10 @@ int main(void)
       bms_data[0] = active_faults;          // Should be the active faults
       bms_data[1] = sdc_voltage_raw >> 8;   // Should be the SDC voltage 0xFF00
       bms_data[2] = sdc_voltage_raw & 0xFF; // Should be the SDC voltage 0x00FF
+      bms_data[3] = avg_cycle_time >> 8;        // Should be the cycle time in ms
+      bms_data[4] = avg_cycle_time & 0xFF;      // Should be the cycle time in ms
 
-      Align_CAN_Send(&hfdcan1, can_id + 1, bms_data, 3, bms_config.CanExtended); // Send the message again to make sure it is sent
+      Align_CAN_Send(&hfdcan1, can_id + 1, bms_data, 5, bms_config.CanExtended); // Send the message again to make sure it is sent
 
       broadcast_timestamp = HAL_GetTick();
     }
@@ -553,10 +565,10 @@ int main(void)
 
     if ((internal_comm_timestamp + 50) <= HAL_GetTick)
     {
-      HAL_SPI_Transmit_DMA(&hspi1, (uint8_t *)&secondary_transmit, sizeof(SecondaryMCU_TransmitTypeDef)); // Send the PWM data to the secondary MCU
-      HAL_StatusTypeDef status = HAL_SPI_Receive_DMA(&hspi1,                                              // !secondary_mcu_recieve_index is used to place it in the next buffer
+      HAL_SPI_Transmit(&hspi1, (uint8_t *)&secondary_transmit, sizeof(SecondaryMCU_TransmitTypeDef), 10); // Send the PWM data to the secondary MCU
+      HAL_StatusTypeDef status = HAL_SPI_Receive(&hspi1,                                              // !secondary_mcu_recieve_index is used to place it in the next buffer
                                                      (uint8_t *)&(secondary_response[!secondary_mcu_recieve_index]),
-                                                     sizeof(SecondaryMCU_ResponseTypeDef)); // Receive the response from the secondary MCU
+                                                     sizeof(SecondaryMCU_ResponseTypeDef), 10); // Receive the response from the secondary MCU
       if (status != HAL_OK)
       {
         // We have a timeout, set the state to fault
@@ -576,10 +588,15 @@ int main(void)
       HAL_GPIO_TogglePin(GPIOA, Alive_Sig_Pin); // Toggle the alive signal pin
       alive_sig_timestamp = HAL_GetTick();
     }
-  }
+    // Cycle time filter, pretty agressive, as we want it to spike up when the system is under load
+    avg_cycle_time = 0.6 * avg_cycle_time + 0.4 * (HAL_GetTick() - cycle_time_start); // Calculate the cycle time
 
-  // Refresh the watchdog timer
-  HAL_IWDG_Refresh(&hiwdg); // Refresh the watchdog timer
+#if defined(WATCHDOG_ENABLE)
+                                                   // Refresh the watchdog timer
+    HAL_IWDG_Refresh(&hiwdg); // Refresh the watchdog timer
+
+#endif
+  }
 
   /* USER CODE END 3 */
 }

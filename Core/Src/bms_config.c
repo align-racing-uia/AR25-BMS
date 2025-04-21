@@ -25,6 +25,7 @@ void BMS_Config_Init(BMS_Config_HandleTypeDef *bms_config){
           bms_config->CellTemperatureLimitHigh = DEFAULT_CELLTEMPERATURE_LIMIT_HIGH; // 85C
           bms_config->CanNodeID = DEFAULT_CAN_NODE_ID;
           bms_config->CanBaudrate = DEFAULT_CAN_BAUDRATE;
+          bms_config->CanExtended = DEFAULT_CAN_EXTENDED; // Should the CAN ID be extended or not
           bms_config->UsbLoggingEnabled = DEFAULT_USB_LOGGING_ENABLED;
           bms_config->CanBroadcastInterval = DEFAULT_CAN_BROADCAST_INTERVAL;                // 100ms
           bms_config->CanTempBroadcastInterval = DEFAULT_CAN_TEMP_BROADCAST_INTERVAL;       // 1s

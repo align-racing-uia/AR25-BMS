@@ -24,7 +24,7 @@
 // These values are only used if the EEPROM is empty, corrupt, or not present
 #define DEFAULT_TOTAL_CHIPS 2       // Including master
 #define DEFAULT_TOTAL_SLAVES (DEFAULT_TOTAL_CHIPS-1)     // Number of slaves in the system
-#define DEFAULT_CELLS_EACH 14       // Number of cells in series on each slave
+#define DEFAULT_CELLS_EACH 16       // Number of cells in series on each slave
 #define DEFAULT_TEMPS_EACH 6       // Number of temperature sensors on each slave
 #define DEFAULT_TEMP_MAP_VOLTAGE_POINTS 5 // Number of voltage points in each temperature map
 #define DEFAULT_TEMP_MAP_AMOUNT 3 // Number of temperature maps
@@ -36,7 +36,7 @@
 #define DEFAULT_CAN_NODE_ID 0x06
 #define DEFAULT_CAN_BROADCAST_PACKET 0x01
 #define DEFAULT_CAN_BAUDRATE (uint16_t) 500000 // 500kbit/s
-#define DEFAULT_CAN_EXTENDED 0 // Should the CAN ID be extended or not
+#define DEFAULT_CAN_EXTENDED false // Should the CAN ID be extended or not
 #define DEFAULT_BROADCAST_PACKET 0x01
 #define DEFAULT_USB_LOGGING_ENABLED 0 // Should the USB logging be enabled or not
 #define DEFAULT_USB_LOGGING_INTERVAL 500 // The interval for the USB logging

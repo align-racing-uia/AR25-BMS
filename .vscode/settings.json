@@ -11,5 +11,5 @@
         "cstdint": "c",
         "lfs_integration.h": "c"
     },
-    "cortex-debug.variableUseNaturalFormat": false
+    "cortex-debug.variableUseNaturalFormat": true
 }
