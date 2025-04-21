@@ -527,7 +527,7 @@ int main(void)
     if ((internal_comm_timestamp + 50) <= HAL_GetTick)
     {
       HAL_SPI_Transmit_DMA(&hspi1, (uint8_t *)&secondary_transmit, sizeof(SecondaryMCU_TransmitTypeDef)); // Send the PWM data to the secondary MCU
-      HAL_StatusTypeDef status = HAL_SPI_Receive_DMA(&hspi1, // !secondary_mcu_recieve_index is used to place it in the next buffer
+      HAL_StatusTypeDef status = HAL_SPI_Receive_DMA(&hspi1,                                              // !secondary_mcu_recieve_index is used to place it in the next buffer
                                                      (uint8_t *)&(secondary_response[!secondary_mcu_recieve_index]),
                                                      sizeof(SecondaryMCU_ResponseTypeDef)); // Receive the response from the secondary MCU
       if (status != HAL_OK)
