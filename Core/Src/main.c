@@ -44,6 +44,7 @@
 #include "icm.h"
 #include "usb_logging.h"
 #include "secondary_mcu.h"
+#include "pid.h"
 
 /* USER CODE END Includes */
 
@@ -101,7 +102,7 @@ float low_current_sensor;
 float high_current_sensor;
 
 uint32_t pwm_ch3_memory = 0;
-uint32_t pwmCh4Memory = 0;
+uint32_t pwm_ch4_memory = 0;
 
 SecondaryMCU_ResponseTypeDef secondary_response[2] = {0}; // The response from the secondary MCU
 SecondaryMCU_TransmitTypeDef secondary_transmit = {0};    // The data to send to the secondary MCU
@@ -126,7 +127,6 @@ float bq_cell_temperature_pool[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_TEMPS_
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
-void UpdateCurrentSensor(void);
 
 /* USER CODE END PFP */
 
@@ -198,7 +198,7 @@ int main(void)
 
   // Initialize timer used for PWM generation, and start the DMA
   HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_3, &pwm_ch3_memory, 1); // Start the timer for PWM generation
-  HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, &pwmCh4Memory, 1);   // Start the timer for PWM generation
+  HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, &pwm_ch4_memory, 1);   // Start the timer for PWM generation
 
   // Start the ADCs in DMA mode
   HAL_ADC_Start_DMA(&hadc1, adc1_buffer, 1);
@@ -279,6 +279,8 @@ int main(void)
   uint32_t alive_sig_timestamp = HAL_GetTick();
   uint32_t internal_comm_timestamp = HAL_GetTick(); // Communication with the secondary MCU to activate relays
   USB_LogFrameTypeDef usb_log = {0};
+
+  PID_HandleTypeDef pid_controller = PID_Init(0.1, 0.01, 0.01, 0.1, 100); // Initialize the PID controller
 
   bms_state = BMS_STATE_CONNECTING; // Set the state to connecting
 
@@ -475,6 +477,20 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+
+    // Handle the PWM generation
+    pid_controller.Setpoint = 40.0; // Set the setpoint to 40.0 degrees for now
+    float pid_output = PID_Calculate(&pid_controller, hbq.highestCellTemperature); // Calculate the PID output
+    if (pid_output > 100.0)
+    {
+      pid_output = 100.0; // Limit the output to 100%
+    }
+    else if (pid_output < 0.0)
+    {
+      pid_output = 0.0; // Limit the output to 0%
+    }
+    pwm_ch3_memory = (uint32_t)(pid_output / 100.0 * htim2.Instance->ARR); // Set the PWM duty cycle to the PID output, scaled to the PWM resolution
+    pwm_ch4_memory = (uint32_t)(pid_output / 100.0 * htim2.Instance->ARR);   // Set the PWM duty cycle to the PID output, scaled to the PWM resolution
 
     // Send general BMS status here at the end of the loop
     if ((broadcast_timestamp + bms_config.CanBroadcastInterval) <= HAL_GetTick())
