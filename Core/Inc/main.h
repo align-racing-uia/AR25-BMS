@@ -75,6 +75,8 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN Private defines */
 
+#define ALIGN_CAN_USE_BUFFER // Enable the CAN buffer for the FDCAN peripheral
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
