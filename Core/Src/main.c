@@ -76,6 +76,34 @@ typedef enum
   BMS_NOTE_EEPROM = (1 << 7),             // EEPROM is not present or not working, but the system is using a config from RAM, and operating normally
 } BMS_ErrorTypeDef;
 
+typedef struct {
+  uint32_t can_id;
+  uint16_t cc_limit;
+  uint16_t dc_limit; // DC limit in A * 10
+  uint16_t high_temp; // Highest temperature in C * 10
+  uint16_t soc;      // State of charge in % * 10
+  uint16_t sdc_voltage_raw; // SDC voltage raw value
+  uint16_t cycle_time; // Cycle time in ms
+  
+} BMS_BroadcastTypeDef;
+
+typedef struct
+{
+  void* Data[2]; // Pointer to two data buffers
+  void (*Fptr)(void* Data); // Function pointer to the function that will be called when the event is triggered
+  uint8_t DataIndex; // Index to the current data buffer
+  uint16_t DataSize;
+  uint16_t CycleTime;
+  bool Active; // Is the event active or not
+} Align_Events_EventTypeDef;
+
+typedef struct {
+  Align_Events_EventTypeDef Events[8]; // Pointer to the event
+  uint8_t EventCount; // The number of events
+} Align_Events_HandleTypeDef;
+
+
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -125,11 +153,49 @@ float bq_cell_voltages[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_CELLS_EACH];  
 float bq_die_temperature_pool[2 * BQ_MAX_AMOUNT_OF_SLAVES];                            // This is the memory pool for the die temperatures
 float bq_cell_temperature_pool[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_TEMPS_EACH]; // This is the memory pool for the cell temperatures
 
+uint32_t event_timer = 0; // The cycle time counter
+Align_Events_HandleTypeDef align_events[8]; // The event handler
+
+BMS_BroadcastTypeDef bms_broadcast_data[2] = {0}; // The data to send to the secondary MCU
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
+
+void SendBroadcastMessage(BMS_BroadcastTypeDef* data){
+  uint8_t temp[8] = {0};
+  Align_CAN_AddToBuffer(&hfdcan1, 0x12, temp, 8, false); // Send the broadcast message to the secondary MCU
+}
+
+void Align_Events_AddEvent(Align_Events_HandleTypeDef* event_handler, uint16_t cycle_time, void* data, uint16_t data_size, void (*callback)(void* data)){
+  if(event_handler->EventCount >= 8) Error_Handler(); // Check if the event handler is full
+  event_handler->Events[event_handler->EventCount].CycleTime = cycle_time;
+  event_handler->Events[event_handler->EventCount].Data[0] = &data[0];
+  event_handler->Events[event_handler->EventCount].Data[1] = &data[1];
+  event_handler->Events[event_handler->EventCount].DataIndex = 0;
+  event_handler->Events[event_handler->EventCount].DataSize = data_size;
+  event_handler->Events[event_handler->EventCount].Fptr = callback;
+  event_handler->Events[event_handler->EventCount].Active = true;
+  event_handler->EventCount++;
+}
+
+void EventCallback(TIM_HandleTypeDef *htim){
+  if(htim->Instance == TIM4){
+    event_timer++;
+    for(uint8_t i = 0; i < align_events->EventCount; i++){
+      if(align_events->Events[i].Active == true){
+        if(event_timer % align_events->Events[i].CycleTime == 0){
+          align_events->Events[i].Fptr(align_events->Events[i].Data[align_events->Events[i].DataIndex]);
+          align_events->Events[i].DataIndex++;
+          align_events->Events[i].DataIndex %= 2;
+        }
+      }
+    }
+  }
+}
 
 /* USER CODE END PFP */
 
@@ -179,6 +245,7 @@ int main(void)
   MX_I2C1_Init();
   MX_ADC1_Init();
   MX_TIM3_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
 
 #if defined(WATCHDOG_ENABLE)
@@ -216,6 +283,13 @@ int main(void)
 
   // Set the nFault pin high to indicate no errors on the BMS yet
   HAL_GPIO_WritePin(nFault_GPIO_Port, nFault_Pin, GPIO_PIN_SET); // Set the fault pin high to indicate no fault
+
+  Align_Events_AddEvent(align_events, 100, &bms_broadcast_data[0], sizeof(BMS_BroadcastTypeDef), SendBroadcastMessage); // Add the event to the event handler
+
+  // Callbacks for cycle timer
+  HAL_TIM_RegisterCallback(&htim4, HAL_TIM_PERIOD_ELAPSED_CB_ID, &EventCallback); // Register the callback for the cycle time measurement
+  HAL_TIM_Base_Start_IT(&htim4); // Start the timer for the cycle time measurement
+
 
 
   // Initialize w25q32
@@ -280,6 +354,7 @@ int main(void)
   uint8_t rxData[8];
 
   uint32_t broadcast_timestamp = HAL_GetTick();
+  uint32_t broadcast_delay = HAL_GetTick(); // Delay compensation for the broadcast
   uint32_t cell_temp_timestamp = HAL_GetTick();
   uint32_t cell_voltage_timestamp = HAL_GetTick();
   uint32_t usb_timestamp = HAL_GetTick();
@@ -522,9 +597,11 @@ int main(void)
     // Send general BMS status here at the end of the loop
     if ((broadcast_timestamp + bms_config.CanBroadcastInterval) <= HAL_GetTick())
     {
-
+      broadcast_delay = HAL_GetTick() - cycle_time_start; // Calculate the delay for the broadcast
       // TODO: Broadcast the BMS active faults and warnings
       // Every second
+      bool sent = true;
+
       uint8_t bms_data[8] = {0};
       bms_data[0] = (dc_limit >> 8) & 0xFF;       // Should be DC_limit x 10
       bms_data[1] = dc_limit & 0xFF;              // Should be DC_limit x 10
@@ -535,7 +612,7 @@ int main(void)
       bms_data[6] = (soc >> 8) & 0xFF;            // Should be soc x 10
       bms_data[7] = soc & 0xFF;                   // Should be soc x 10
       uint32_t can_id = Align_CombineCanId(bms_config.BroadcastPacket, bms_config.CanNodeID, bms_config.CanExtended);
-      Align_CAN_AddToBuffer(&hfdcan1, can_id, bms_data, 8, bms_config.CanExtended);
+      sent &= Align_CAN_AddToBuffer(&hfdcan1, can_id, bms_data, 8, bms_config.CanExtended);
       Align_DelayUs(&htim3, 20); // To give time to send message
 
       bms_data[0] = active_faults;          // Should be the active faults
@@ -545,9 +622,11 @@ int main(void)
       bms_data[4] = avg_cycle_time & 0xFF;  // Should be the cycle time in ms
       can_id = Align_CombineCanId(bms_config.BroadcastPacket+1, bms_config.CanNodeID, bms_config.CanExtended);
 
-      Align_CAN_AddToBuffer(&hfdcan1, can_id, bms_data, 5, bms_config.CanExtended); // Send the message again to make sure it is sent
+      sent &= Align_CAN_AddToBuffer(&hfdcan1, can_id, bms_data, 5, bms_config.CanExtended); // Send the message again to make sure it is sent
 
-      broadcast_timestamp = HAL_GetTick();
+      if(sent){ // If the message didnt fit in the buffer, try to resend next cycle
+        broadcast_timestamp = HAL_GetTick();
+      }
     }
 
     if (bms_config.CanTempBroadcastEnabled && (cell_temp_timestamp + bms_config.CanTempBroadcastInterval) <= HAL_GetTick())
