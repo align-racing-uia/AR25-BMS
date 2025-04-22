@@ -217,6 +217,7 @@ int main(void)
   // Set the nFault pin high to indicate no errors on the BMS yet
   HAL_GPIO_WritePin(nFault_GPIO_Port, nFault_Pin, GPIO_PIN_SET); // Set the fault pin high to indicate no fault
 
+
   // Initialize w25q32
   W25Q_STATE res = W25Q_Init();
   if (res != W25Q_OK)
@@ -243,6 +244,7 @@ int main(void)
       }
     }
   }
+
 
   BQ_HandleTypeDef hbq;
   hbq.hspi = &hspi2;
@@ -541,8 +543,9 @@ int main(void)
       bms_data[2] = sdc_voltage_raw & 0xFF; // Should be the SDC voltage 0x00FF
       bms_data[3] = avg_cycle_time >> 8;    // Should be the cycle time in ms
       bms_data[4] = avg_cycle_time & 0xFF;  // Should be the cycle time in ms
+      can_id = Align_CombineCanId(bms_config.BroadcastPacket+1, bms_config.CanNodeID, bms_config.CanExtended);
 
-      Align_CAN_AddToBuffer(&hfdcan1, can_id + 1, bms_data, 5, bms_config.CanExtended); // Send the message again to make sure it is sent
+      Align_CAN_AddToBuffer(&hfdcan1, can_id, bms_data, 5, bms_config.CanExtended); // Send the message again to make sure it is sent
 
       broadcast_timestamp = HAL_GetTick();
     }
@@ -556,7 +559,6 @@ int main(void)
 
     if (bms_config.CanVoltageBroadcastEnabled && (cell_voltage_timestamp + bms_config.CanVoltageBroadcastInterval) <= HAL_GetTick())
     {
-      // TODO: Broadcast the cell voltages
       uint8_t cell_voltage_data[8] = {0};
       uint8_t full_messages = bms_config.CellsEach * bms_config.NumOfSlaves / 4;
       uint8_t partial_message = bms_config.CellsEach * bms_config.NumOfSlaves % 4; // Check if there is a partial message
