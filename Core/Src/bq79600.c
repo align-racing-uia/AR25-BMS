@@ -12,7 +12,6 @@
 // The use of floats here is to be able to take advantage of the FPU, and to make the maths in later stages simpler
 void BQ_BindMemory(BQ_HandleTypeDef *hbq, uint8_t num_of_slave_chips, uint8_t *bq_output_buffer, float *cell_voltages_memory_pool, uint8_t num_of_cells_each, float *cell_temperature_memory_pool, uint8_t num_of_temps_each, float *bq_die_temperature_memory_pool)
 {
-
     if (hbq == NULL)
     {
         // If this occurs, youve done something very wrong
@@ -256,7 +255,6 @@ BQ_StatusTypeDef BQ_GetAuxADCs(BQ_HandleTypeDef *hbq, uint8_t pin_map, uint8_t *
     // The pin map is a bitwise select of what GPIOs should be read as ADCs
     //    GPIO8 GPIO7 GPIO6 ...
     //  0b  0     0     0   ...
-    memset(hbq->bqOutputBuffer, 0x00, 128 * (hbq->numOfChips)); // Clear the output buffer
 
     // TODO: Implement proper CRC verification
 
@@ -278,8 +276,8 @@ BQ_StatusTypeDef BQ_GetAuxADCs(BQ_HandleTypeDef *hbq, uint8_t pin_map, uint8_t *
     size_t number_of_pins = NUM_OF_ONES(pin_map); // Number of pins to read
     for (size_t i = 0; i < number_of_pins; i++)
     {
-        data_out[2*i] = hbq->bqOutputBuffer[total_len * i - 2];
-        data_out[2*i+1] = hbq->bqOutputBuffer[total_len * i - 1]; // Put data in the output buffer
+        data_out[2 * i] = hbq->bqOutputBuffer[total_len * i - 2];
+        data_out[2 * i + 1] = hbq->bqOutputBuffer[total_len * i - 1]; // Put data in the output buffer
     }
 
     return BQ_STATUS_OK;
@@ -363,9 +361,7 @@ BQ_StatusTypeDef BQ_ConfigureGPIO(BQ_HandleTypeDef *hbq)
 // TODO: Convert to a uint8_t return type, to define different error states, which can be handled properly
 BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq)
 {
-    // Cleanup
-    memset(hbq->bqOutputBuffer, 0x00, 128 * (hbq->numOfChips));
-    memset(hbq->cellVoltages, 0x00, sizeof(float) * hbq->numOfCellsEach * hbq->numOfSlaves); // Clear the cell voltages
+
 
     BQ_StatusTypeDef status;
     status = BQ_Read(hbq, hbq->bqOutputBuffer, 0, BQ16_VCELL16_HI + (2 * (16 - hbq->numOfCellsEach)), hbq->numOfCellsEach * 2, BQ_STACK_READ); // 2 registers for each cell
@@ -378,8 +374,8 @@ BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq)
     // If something goes wrong, uncomment this line, as it was removed in the belief that it was wrong (without testing)
     // uint8_t totalLen = 6 + hbq->numOfCellsEach * hbq->numOfSlaves * 2; // Totalt expected message length
     uint8_t totalLen = 6 + hbq->numOfCellsEach * 2; // Totalt expected message length
-
-
+    // Cleanup
+    hbq->voltageLocked = true;
     for (uint8_t i = 0; i < hbq->numOfSlaves; i++)
     { // Base board will not be part of the cell voltages
 
@@ -397,54 +393,59 @@ BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq)
             hbq->cellVoltages[hbq->numOfCellsEach * i + y / 2] = (float)((float)rawAdc * 0.00019073); // in mV
         }
     }
+    hbq->voltageLocked = false;
     return status;
 }
 
 BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq)
-{   
+{
     BQ_StatusTypeDef status = BQ_STATUS_OK;
+    hbq->tempLocked = true;
 
     if (hbq->tempMultiplexEnabled)
     {
         status = BQ_SetGPIOAll(hbq, hbq->tempMultiplexPinIndex, true); // Set GPIO8 to hig
 
-        if(status != BQ_STATUS_OK)
+        if (status != BQ_STATUS_OK)
         {
+            hbq->tempLocked = false;
             return status;
         }
 
-        status = BQ_GetAuxADCs(hbq, hbq->activeTempAuxPinMap, hbq->cellTemperatures); 
+        status = BQ_GetAuxADCs(hbq, hbq->activeTempAuxPinMap, hbq->cellTemperatures);
 
-        if(status != BQ_STATUS_OK)
+        if (status != BQ_STATUS_OK)
         {
+            hbq->tempLocked = false;
+
             return status;
         }
 
         status = BQ_SetGPIOAll(hbq, hbq->tempMultiplexPinIndex, false); // Set GPIO8 to low
 
-        if(status != BQ_STATUS_OK)
+        if (status != BQ_STATUS_OK)
         {
+            hbq->tempLocked = false;
+
             return status;
         }
 
         status = BQ_GetAuxADCs(hbq, hbq->activeTempAuxPinMap, hbq->cellTemperatures + hbq->numOfTempsEach); // In reality it is hbq->numOfTempsEach * 2 / 2
         // Last one is returned either way
-        
-    }else {
-        status = BQ_GetAuxADCs(hbq, hbq->activeTempAuxPinMap, hbq->cellTemperatures); 
+    }
+    else
+    {
+        status = BQ_GetAuxADCs(hbq, hbq->activeTempAuxPinMap, hbq->cellTemperatures);
         // Last one is returned either way
-
     }
 
-
+    hbq->tempLocked = false;
     return status;
 }
 
 BQ_StatusTypeDef BQ_GetDieTemperature(BQ_HandleTypeDef *hbq)
 {
     // Cleanup
-    memset(hbq->bqOutputBuffer, 0x00, 128 * (hbq->numOfChips));
-    memset(hbq->bqDieTemperatures, 0x00, 2 * (hbq->numOfSlaves) * sizeof(float));
     BQ_StatusTypeDef status = BQ_Read(hbq, hbq->bqOutputBuffer, 0, BQ16_DIETEMP1_HI, 2, BQ_STACK_READ);
 
     if (status != BQ_STATUS_OK)
@@ -463,7 +464,6 @@ BQ_StatusTypeDef BQ_GetDieTemperature(BQ_HandleTypeDef *hbq)
         hbq->bqDieTemperatures[2 * i] = rawTemp * 0.025; // degrees Celcius
     }
 
-    memset(hbq->bqOutputBuffer, 0x00, 128 * (hbq->numOfChips));
 
     return BQ_Read(hbq, hbq->bqOutputBuffer, 0, BQ16_DIETEMP2_HI, 2, BQ_STACK_READ);
 }
@@ -525,9 +525,7 @@ BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef *hbq, uint8_t *pOut, uint8_t deviceId,
 
     // Transmitting message
     HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_RESET);
-    Align_DelayUs(hbq->htim, 10); // Safety margin
     HAL_SPI_Transmit(hbq->hspi, writeData, writeSize, BQ_TIMEOUT);
-    Align_DelayUs(hbq->htim, 10); // Safety margin
     HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
 
     // How many bytes do we expect?
@@ -565,9 +563,7 @@ BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef *hbq, uint8_t *pOut, uint8_t deviceId,
         if (fullBuffers > 0)
         {
             HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_RESET);
-            Align_DelayUs(hbq->htim, 10); // Safety margin
             HAL_SPI_Receive(hbq->hspi, pOut, 128, BQ_TIMEOUT);
-            Align_DelayUs(hbq->htim, 10); // Safety margin
             HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
             pOut += 128; // Move pointer 128 steps
             fullBuffers--;
@@ -575,9 +571,7 @@ BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef *hbq, uint8_t *pOut, uint8_t deviceId,
         else
         {
             HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_RESET);
-            Align_DelayUs(hbq->htim, 10); // Safety margin
             HAL_SPI_Receive(hbq->hspi, pOut, remainingBytes, BQ_TIMEOUT);
-            Align_DelayUs(hbq->htim, 10); // Safety margin
             HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
             remainingBytes = 0;
         }
@@ -645,11 +639,11 @@ BQ_StatusTypeDef BQ_Write(BQ_HandleTypeDef *hbq, uint8_t *inData, uint8_t device
     BQ_SetMosiSPI(hbq); // Getting ready to transmit
 
     HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_RESET);
-    Align_DelayUs(hbq->htim, 10); // Atleast 50ns, we dont have that kind of resolution
+    Align_DelayUs(hbq->htim, 1); // Atleast 50ns, we dont have that kind of resolution
 
     HAL_SPI_Transmit(hbq->hspi, writeData, writeSize, BQ_TIMEOUT);
 
-    Align_DelayUs(hbq->htim, 10);
+    Align_DelayUs(hbq->htim, 1);
     HAL_GPIO_WritePin(hbq->csGPIOx, hbq->csPin, GPIO_PIN_SET);
 
     BQ_SetMosiIdle(hbq); // Mosi always needs to be idle during end of command

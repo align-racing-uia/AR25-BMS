@@ -76,4 +76,5 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     asl
     asl_utils
     asl_can
+    asl_events
 )

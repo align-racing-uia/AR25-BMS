@@ -9,7 +9,8 @@
         "stdbool.h": "c",
         "tim.h": "c",
         "cstdint": "c",
-        "lfs_integration.h": "c"
+        "lfs_integration.h": "c",
+        "compare": "c"
     },
-    "cortex-debug.variableUseNaturalFormat": false
+    "cortex-debug.variableUseNaturalFormat": true
 }

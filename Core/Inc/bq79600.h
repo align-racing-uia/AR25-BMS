@@ -95,6 +95,9 @@ typedef struct
     uint8_t tempMultiplexPinIndex; // This is the pin used to multiplex the temperature sensors
     uint8_t activeTempAuxPinMap; // This is the pins reading the temperature sensors
 
+    bool voltageLocked;
+    bool tempLocked;
+
     TIM_HandleTypeDef *htim; // The timer used for the delays
 } BQ_HandleTypeDef;
 
