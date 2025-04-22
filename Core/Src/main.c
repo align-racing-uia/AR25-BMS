@@ -600,7 +600,7 @@ int main(void)
       usb_timestamp = HAL_GetTick();
     }
 
-    if ((internal_comm_timestamp + 50) <= HAL_GetTick)
+    if ((internal_comm_timestamp + 50) <= HAL_GetTick())
     {
       HAL_SPI_Transmit(&hspi1, (uint8_t *)&secondary_transmit, sizeof(SecondaryMCU_TransmitTypeDef), 10); // Send the PWM data to the secondary MCU
       HAL_StatusTypeDef status = HAL_SPI_Receive(&hspi1,                                                  // !secondary_mcu_recieve_index is used to place it in the next buffer
