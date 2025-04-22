@@ -572,7 +572,6 @@ int main(void)
           *((uint16_t *)(cell_voltage_data + 6)) = (uint16_t)(bq_cell_voltages[i * 4 + 3] * 10000.0); // Convert to mV
           full_messages--;
           Align_CAN_AddToBuffer(&hfdcan1, Align_CombineCanId(i, bms_config.CanVoltageNodeID, bms_config.CanExtended), cell_voltage_data, 8, bms_config.CanExtended); // Send the message to the CAN bus
-          HAL_Delay(2); // TODO: Fix this
         }
         else
         {
@@ -581,7 +580,6 @@ int main(void)
             *((uint16_t *)(cell_voltage_data + j * 2)) = (uint16_t)(bq_cell_voltages[i * 4 + j] * 10000.0); // Convert to mV
           }
           Align_CAN_AddToBuffer(&hfdcan1, Align_CombineCanId(i, bms_config.CanVoltageNodeID, bms_config.CanExtended), cell_voltage_data, 2 * partial_message, bms_config.CanExtended); // Send the message to the CAN bus
-          HAL_Delay(2); // TODO: Fix this
           partial_message = 0;
         }
 
