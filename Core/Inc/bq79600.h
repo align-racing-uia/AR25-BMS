@@ -106,7 +106,8 @@ typedef enum
     BQ_STATUS_OK = 0,
     BQ_STATUS_SPI_ERROR = 1,
     BQ_STATUS_DATA_ERROR = 2,
-    BQ_STATUS_TIMEOUT = 3
+    BQ_STATUS_TIMEOUT = 3,
+    BQ_STATUS_CRC_ERROR = 4,
 } BQ_StatusTypeDef;
 
 

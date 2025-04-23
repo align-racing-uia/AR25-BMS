@@ -12,5 +12,5 @@
         "lfs_integration.h": "c",
         "compare": "c"
     },
-    "cortex-debug.variableUseNaturalFormat": true
+    "cortex-debug.variableUseNaturalFormat": false
 }

@@ -6,6 +6,16 @@
 #include "math.h"
 #include "stdlib.h"
 
+// Private helper function
+
+uint8_t reverse_bits(uint8_t b) {
+    b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+    b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+    b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+    return b;
+ }
+
+
 // Depends on the GCC compiler
 #define NUM_OF_ONES(x) __builtin_popcount(x)
 
@@ -210,7 +220,7 @@ BQ_StatusTypeDef BQ_AutoAddress(BQ_HandleTypeDef *hbq)
     memset(hbq->bqOutputBuffer, 0x00, 128 * (hbq->numOfChips)); // Clear the output buffer
     for (int i = 0; i < 8; i++)
     {
-        status = BQ_Read(hbq, hbq->numOfChips, BQ_SELF_ID, BQ_OTP_ECC_DATAIN1 + i, 1, BQ_STACK_READ);
+        status = BQ_Read(hbq, hbq->bqOutputBuffer, BQ_SELF_ID, BQ_OTP_ECC_DATAIN1 + i, 1, BQ_STACK_READ);
         if (status != BQ_STATUS_OK)
         {
             return status;
@@ -379,9 +389,6 @@ BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq)
     for (uint8_t i = 0; i < hbq->numOfSlaves; i++)
     { // Base board will not be part of the cell voltages
 
-        // For now, ignore all CRC checking and verifications, we want the data
-        // TODO: Implement proper CRC verification
-
         // The responses are always:
         // 1 bytes for message length (minus 1), 1 byte for device id, 2 bytes for register, data inbetween, 2 bytes for CRC
 
@@ -512,7 +519,7 @@ BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef *hbq, uint8_t *pOut, uint8_t deviceId,
     writeSize++;
     writeData[writeSize] = dataLength - 1;
     writeSize++;
-    uint16_t crc = HAL_CRC_Calculate(&hcrc, writeData, writeSize);
+    uint16_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*) writeData, (uint32_t) writeSize);
     // Crc should be sent in reverse
     writeData[writeSize] = (uint8_t)(crc >> 0);
     writeSize++;
@@ -577,6 +584,24 @@ BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef *hbq, uint8_t *pOut, uint8_t deviceId,
         }
     }
     // All data should now be in pOut location (most ofte bqOutputBuffer)
+
+    // CRC Verification
+    uint8_t num_of_messages = maxBytes / (dataLength + 6); // Number of messages in the buffer
+    
+    for(uint8_t i = 0; i < num_of_messages; i++)
+    {
+
+        uint16_t crc_check = HAL_CRC_Calculate(&hcrc, (uint32_t*) (pOut + (i * (dataLength + 6))), (uint32_t) dataLength + 4);
+
+        uint16_t crc_received = ((uint16_t)(pOut[(i * (dataLength + 6)) + dataLength + 5] << 8)) | ((uint16_t)pOut[(i * (dataLength + 6)) + dataLength + 4]);
+
+
+        if (crc_check != crc_received)
+        {
+            BQ_SetMosiIdle(hbq); // Lets not make the issue bigger than it is
+            return BQ_STATUS_CRC_ERROR;
+        }
+    }
 
     BQ_SetMosiIdle(hbq); // Mosi always needs to be idle during end of command
 
