@@ -632,7 +632,7 @@ BQ_StatusTypeDef BQ_Write(BQ_HandleTypeDef *hbq, uint8_t *inData, uint8_t device
         return BQ_STATUS_DATA_ERROR;
     }
     // To limit the program size for now
-    uint8_t writeData[12] = {0};
+    uint8_t writeData[14] = {0};
 
     uint8_t writeSize = 0;
     writeData[writeSize] = writeType | (dataLength - 1);
