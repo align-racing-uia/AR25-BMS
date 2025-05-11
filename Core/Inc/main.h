@@ -43,6 +43,7 @@ extern "C" {
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
 
+
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -54,6 +55,7 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
+void USB_CDC_RxHandler(uint8_t*, uint32_t);
 
 /* USER CODE END EFP */
 

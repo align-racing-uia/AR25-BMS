@@ -15,10 +15,6 @@
 
 
 typedef struct {
-    uint16_t CellID; // No battery in align until this point has had more than 255 cells
-    uint16_t TemperatureID; // What sensor to listen to for temperature
-    float EstimatedVoltage;
-    float EstimatedVoltageError;
     float EstimatedSOC;
     float EstimatedCapacity;
     float SpentEnergy;
@@ -26,38 +22,33 @@ typedef struct {
     float MeasuredRestingVoltage; // Last measured voltage with no current draw
     float MeasuredTemperature;
     float MeasuredCurrent;
-    float MeasuredResistance;
+    float EstimatedResistance;
     float NominalCapacity; // Nominal capacity of the cell
-    float NominalVoltage; // Nominal voltage of the cell
-
 } CellModel_HandleTypeDef;
 
 
 typedef struct {
-    uint16_t Size;
+    uint8_t Size; // The number 0-100 SOC should be divided on, saves a bit of memory with the tradeof that you have to do a bit of math
     uint8_t Temperature;
     float *VoltagePoints; // Voltage points for certain SOCs
 } TempMap_HandleTypeDef;
 
 typedef struct {
-    uint16_t Size; // The number 0-100 SOC should be divided on, saves a bit of memory with the tradeof that you have to do a bit of math
     uint16_t NumOfMaps; // Number of maps
-    TempMap_HandleTypeDef **TemperatureMaps; // This contains voltage points for a certain temperature
-    float *SOCPoints; // This contains SOC points to be matched with the voltages
+    TempMap_HandleTypeDef *TemperatureMaps; // This contains voltage points for a certain temperature
 } OCV_HandleTypeDef;
 
 
 typedef struct {
-
+    bool  soc_estimated; // If the first SOC estimation is done
     float AverageTemperature;
     float EstimatedSOC;
-    float EstimatedEnergy;
-    float AverageEnergyConsumption;
     uint16_t PackVoltage;
     int16_t PackCurrent; 
     uint16_t CellCount;
     uint16_t CellsInSeries;
     uint16_t CellsInParallel;
+    uint32_t LastCycle;
     float K0; // Typically the resting voltage
     float K1; // K1 / SOC
     float K2; // K2 * SOC
@@ -72,11 +63,10 @@ typedef struct {
 } BatteryModel_HandleTypeDef;
 
 
-void BatteryModel_Init(BatteryModel_HandleTypeDef *battery_model, CellModel_HandleTypeDef* cell_memory_pool, uint16_t cell_count, uint16_t cells_in_series, uint16_t cells_in_parallel);
-void BatteryModel_LoadCellData(BatteryModel_HandleTypeDef *battery_model, float k0, float k1, float k2, float k3, float k4, float discharge_resistance, float charging_resistance, float hysteresis);
-void BatteryModel_UpdateMeasured(BatteryModel_HandleTypeDef *battery_model, float *cell_voltages, float *cell_temperatures, float *total_current);
-void BatteryModel_UpdateEstimates(BatteryModel_HandleTypeDef *battery_model);
-void BatteryModel_InitOCVMaps(BatteryModel_HandleTypeDef *battery_model, uint16_t amount_of_voltage_points, float* voltage_point_memory_pool, float* soc_point_memory_pool, TempMap_HandleTypeDef* temp_map_memory_pool, uint8_t numOfMaps);
+void BatteryModel_Init(BatteryModel_HandleTypeDef *battery_model, CellModel_HandleTypeDef* cell_memory_pool, uint16_t cell_count, uint16_t cells_in_series, uint16_t cells_in_parallel, uint16_t nominal_cell_capacity);
+void BatteryModel_LoadECMData(BatteryModel_HandleTypeDef *battery_model, float k0, float k1, float k2, float k3, float k4, float discharge_resistance, float charging_resistance, float hysteresis);
+void BatteryModel_InitOCVMaps(BatteryModel_HandleTypeDef *battery_model, float *voltage_point_memory_pool, TempMap_HandleTypeDef *temp_map_memory_pool,  uint8_t* temps, uint16_t amount_of_voltage_points, uint8_t num_of_maps);
 
+void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_voltages, float *cell_temperatures, float *total_current, uint32_t current_timestamp);
 
 #endif // BATTERY_MODEL_H

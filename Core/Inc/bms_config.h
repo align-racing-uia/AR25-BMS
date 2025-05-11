@@ -5,12 +5,12 @@
 #include "stddef.h"
 #include "stdbool.h"
 
-#define BMS_CONFIG_VERSION 1 // This number will automatically increment when the config changes
+#define BMS_CONFIG_VERSION 2 // This number will automatically increment when the config changes
 
 // These are absolute maxes for the battery model, not the actual values
 // The actual values are set in the battery model init function
 
-#define TEMP_MAP_POOL_MAX_POINTS 15 // Size of the OCV map pool, defaults to a maximum of 5 temperature maps with 15 points each
+#define TEMP_MAP_POOL_MAX_POINTS 100 // Size of the OCV map pool, defaults to a maximum of 5 temperature maps with 15 points each
 #define TEMP_MAP_POOL_AMOUNT 5 // Size of the temperature map pool, defaults to a maximum of 5 temperature maps with 15 points each
 
 #define BQ_MAX_AMOUNT_OF_CHIPS 15 // The maximum amount of chips in the system
@@ -55,7 +55,6 @@
 typedef struct
 {
     uint16_t ConfigVersion;            // This number will automatically increment when the config changes
-    char MemoryCheck[5];               // Inital check of config, should default to "align"
     uint8_t NumOfChips;                // The number of chips in the system
     uint16_t CellCount;                // Total number of cells
     uint8_t  NumOfSlaves;              // The number of slaves in the system
@@ -67,7 +66,8 @@ typedef struct
     uint16_t CellVoltageLimitHigh;     // The maximum voltage of a cell
     uint16_t CellTemperatureLimitLow;  // The minimum temperature of a cell
     uint16_t CellTemperatureLimitHigh; // The maximum temperature of a cell
-
+    
+    char MemoryCheck[5];               // Inital check of config, should default to "align"
     uint16_t CCWarningLimit; // The charging current limit for the BMS during warning state
     uint16_t DCWarningLimit; // The discharge current limit for the BMS during warning state
 

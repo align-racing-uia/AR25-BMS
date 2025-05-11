@@ -48,6 +48,10 @@ BMS_Config_StatusTypeDef BMS_Config_WriteToFlash(BMS_Config_HandleTypeDef *bms_c
     uint16_t size = sizeof(BMS_Config_HandleTypeDef);
     size_t full_pages = size / 256;
     size_t remaining_bytes = size % 256;
+    if (W25Q_EraseSector(0) != W25Q_OK)
+    {
+        return BMS_CONFIG_ERROR;
+    }
     for (size_t i = 0; i < full_pages; i++)
     {
         if (W25Q_ProgramData(buffer + (i * 256), 256, 0, i) != W25Q_OK)
@@ -86,8 +90,8 @@ BMS_Config_StatusTypeDef BMS_Config_UpdateFromFlash(BMS_Config_HandleTypeDef *bm
             return BMS_CONFIG_ERROR;
         }
     }
-
-    if (strncmp(bms_config->MemoryCheck, "align", 5) == 0 || bms_config->ConfigVersion != BMS_CONFIG_VERSION)
+    uint8_t string_check = strncmp(bms_config->MemoryCheck, "align", 5);
+    if (string_check != 0 || bms_config->ConfigVersion != BMS_CONFIG_VERSION)
     {
         return BMS_CONFIG_INVALID_CONFIG;
     }

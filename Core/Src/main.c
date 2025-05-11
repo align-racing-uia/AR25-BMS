@@ -48,6 +48,8 @@
 #include "pid.h"
 #include "iwdg.h"
 
+#include "simulation.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -86,7 +88,7 @@ typedef struct
   uint16_t high_temp;       // Highest temperature in C * 10
   uint16_t soc;             // State of charge in % * 10
   uint16_t sdc_voltage_raw; // SDC voltage raw value
-  uint16_t avg_cycle_time;      // Cycle time in ms
+  uint16_t avg_cycle_time;  // Cycle time in ms
   uint8_t active_faults;
   bool extended; // Extended ID or not
 
@@ -97,7 +99,7 @@ typedef struct
   uint32_t node_id;
   uint32_t packet_id;
   BQ_HandleTypeDef *bq_handle; // The BQ handle to use for the broadcast
-  bool extended; // Extended ID or not
+  bool extended;               // Extended ID or not
 
 } BQ_VoltageBroadcastTypeDef;
 
@@ -107,7 +109,7 @@ typedef struct
 /* USER CODE BEGIN PD */
 
 // Compiliation settings
-#define CONNECTED_TO_BATTERY // For debugging
+// #define CONNECTED_TO_BATTERY // For debugging
 // #define WATCHDOG_ENABLE      // Enable the watchdog
 
 #define LOW_CURRENT_SENSOR_LIMIT 100 // Amps
@@ -124,6 +126,12 @@ typedef struct
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+
+extern float sim_ocv_map[101];
+
+uint8_t usb_rx_buffer[64] = {0}; // Buffer to store the received USB data
+uint8_t usb_rx_len = 0; // Length of the received data
+bool usb_rx_ready = false; // Flag to indicate that USB data is ready to be processed
 
 uint32_t adc1_buffer[1];
 uint32_t adc2_buffer[1];
@@ -150,6 +158,13 @@ float bq_cell_voltages[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_CELLS_EACH];  
 float bq_die_temperature_pool[2 * BQ_MAX_AMOUNT_OF_SLAVES];                            // This is the memory pool for the die temperatures
 float bq_cell_temperature_pool[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_TEMPS_EACH]; // This is the memory pool for the cell temperatures
 
+// Memory pools for the simulation
+Simulation_HandleTypeDef hsim; // The memory pool for the simulation
+Simulation_RX_TypeDef sim_rx_data; // The data received from the simulation
+Simulation_TX_TypeDef sim_tx_data; // The data to send to the simulation
+
+bool sim_reply = false;
+bool sim_update = false; // Flag to indicate that the simulation data has been updated
 
 /* USER CODE END PV */
 
@@ -157,18 +172,23 @@ float bq_cell_temperature_pool[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_TEMPS_
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
+void USB_CDC_RxHandler(uint8_t* Buf, uint32_t Len)
+{
+    CDC_Transmit_FS(Buf, Len);
+}
+
 bool SendBroadcastMessage(BMS_BroadcastTypeDef *data)
 {
 
   uint8_t bms_data[8] = {0};
-  bms_data[0] = (data->dc_limit >> 8) & 0xFF;       // Should be DC_limit x 10
-  bms_data[1] = data->dc_limit & 0xFF;              // Should be DC_limit x 10
-  bms_data[2] = (data->cc_limit >> 8) & 0xFF;       // Should be CC_limit x 10
-  bms_data[3] = data->cc_limit & 0xFF;              // Should be CC_limit x 10
+  bms_data[0] = (data->dc_limit >> 8) & 0xFF;  // Should be DC_limit x 10
+  bms_data[1] = data->dc_limit & 0xFF;         // Should be DC_limit x 10
+  bms_data[2] = (data->cc_limit >> 8) & 0xFF;  // Should be CC_limit x 10
+  bms_data[3] = data->cc_limit & 0xFF;         // Should be CC_limit x 10
   bms_data[4] = (data->high_temp >> 8) & 0xFF; // Should be avg_cell_temp x 10
   bms_data[5] = data->high_temp & 0xFF;        // Should be avg_cell_temp x 10
-  bms_data[6] = (data->soc >> 8) & 0xFF;            // Should be soc x 10
-  bms_data[7] = data->soc & 0xFF;                   // Should be soc x 10
+  bms_data[6] = (data->soc >> 8) & 0xFF;       // Should be soc x 10
+  bms_data[7] = data->soc & 0xFF;              // Should be soc x 10
   uint32_t can_id = Align_CombineCanId(data->packet_id, data->node_id, data->extended);
   Align_CAN_AddToBuffer(&hfdcan1, can_id, bms_data, 8, data->extended);
 
@@ -184,40 +204,41 @@ bool SendBroadcastMessage(BMS_BroadcastTypeDef *data)
   return true;
 }
 
-bool SendVoltageData(BQ_VoltageBroadcastTypeDef *data){
-      if(data->bq_handle->voltageLocked == true)
-      {
-        return false; // The BQ handle is locked, so we cannot send the data
-      }
-      uint8_t cell_voltage_data[8] = {0};
-      uint8_t full_messages = data->bq_handle->numOfCellsEach * data->bq_handle->numOfSlaves / 4;
-      uint8_t partial_message = data->bq_handle->numOfCellsEach * data->bq_handle->numOfSlaves % 4; // Check if there is a partial message
-      uint8_t i = 0;
-      while (full_messages > 0 || partial_message > 0)
-      {
-        if (full_messages > 0)
-        {
+bool SendVoltageData(BQ_VoltageBroadcastTypeDef *data)
+{
+  if (data->bq_handle->voltageLocked == true)
+  {
+    return false; // The BQ handle is locked, so we cannot send the data
+  }
+  uint8_t cell_voltage_data[8] = {0};
+  uint8_t full_messages = data->bq_handle->numOfCellsEach * data->bq_handle->numOfSlaves / 4;
+  uint8_t partial_message = data->bq_handle->numOfCellsEach * data->bq_handle->numOfSlaves % 4; // Check if there is a partial message
+  uint8_t i = 0;
+  while (full_messages > 0 || partial_message > 0)
+  {
+    if (full_messages > 0)
+    {
 
-          *((uint16_t *)cell_voltage_data) = (uint16_t)(data->bq_handle->cellVoltages[i * 4] * 10000.0);           // Convert to mV
-          *((uint16_t *)(cell_voltage_data + 2)) = (uint16_t)(data->bq_handle->cellVoltages[i * 4 + 1] * 10000.0); // Convert to mV
-          *((uint16_t *)(cell_voltage_data + 4)) = (uint16_t)(data->bq_handle->cellVoltages[i * 4 + 2] * 10000.0); // Convert to mV
-          *((uint16_t *)(cell_voltage_data + 6)) = (uint16_t)(data->bq_handle->cellVoltages[i * 4 + 3] * 10000.0); // Convert to mV
-          full_messages--;
-          Align_CAN_AddToBuffer(&hfdcan1, Align_CombineCanId(data->packet_id+i, data->node_id, data->extended), cell_voltage_data, 8, data->extended); // Send the message to the CAN bus
-        }
-        else
-        {
-          for (uint8_t j = 0; j < partial_message; j++)
-          {
-            *((uint16_t *)(cell_voltage_data + j * 2)) = (uint16_t)(data->bq_handle->cellVoltages[i * 4 + j] * 10000.0); // Convert to mV
-          }
-          Align_CAN_AddToBuffer(&hfdcan1, Align_CombineCanId(data->packet_id+i, data->node_id, data->extended), cell_voltage_data, 2 * partial_message, data->extended); // Send the message to the CAN bus
-          partial_message = 0;
-        }
-
-        i++;
+      *((uint16_t *)cell_voltage_data) = (uint16_t)(data->bq_handle->cellVoltages[i * 4] * 10000.0);           // Convert to mV
+      *((uint16_t *)(cell_voltage_data + 2)) = (uint16_t)(data->bq_handle->cellVoltages[i * 4 + 1] * 10000.0); // Convert to mV
+      *((uint16_t *)(cell_voltage_data + 4)) = (uint16_t)(data->bq_handle->cellVoltages[i * 4 + 2] * 10000.0); // Convert to mV
+      *((uint16_t *)(cell_voltage_data + 6)) = (uint16_t)(data->bq_handle->cellVoltages[i * 4 + 3] * 10000.0); // Convert to mV
+      full_messages--;
+      Align_CAN_AddToBuffer(&hfdcan1, Align_CombineCanId(data->packet_id + i, data->node_id, data->extended), cell_voltage_data, 8, data->extended); // Send the message to the CAN bus
+    }
+    else
+    {
+      for (uint8_t j = 0; j < partial_message; j++)
+      {
+        *((uint16_t *)(cell_voltage_data + j * 2)) = (uint16_t)(data->bq_handle->cellVoltages[i * 4 + j] * 10000.0); // Convert to mV
       }
-      return true;
+      Align_CAN_AddToBuffer(&hfdcan1, Align_CombineCanId(data->packet_id + i, data->node_id, data->extended), cell_voltage_data, 2 * partial_message, data->extended); // Send the message to the CAN bus
+      partial_message = 0;
+    }
+
+    i++;
+  }
+  return true;
 }
 
 /* USER CODE END PFP */
@@ -325,7 +346,8 @@ int main(void)
     {
       // If we could not read the config from flash, we will set the default values of the config
       BMS_Config_Init(&bms_config); // Set the default values of the config (again) as the flash read failed
-      if (BMS_Config_WriteToFlash(&bms_config) != BMS_CONFIG_OK)
+      BMS_Config_StatusTypeDef res = BMS_Config_WriteToFlash(&bms_config); // Write the default values to flash
+      if (res != BMS_CONFIG_OK)
       {
         SET_BIT(active_faults, BMS_NOTE_EEPROM); // Set the EEPROM warning flag
         // We have to reset the config to default values, as we could not write to flash and the write reads to verify the write
@@ -344,18 +366,25 @@ int main(void)
   hbq.spiRdyPin = GPIO_PIN_11;
   hbq.nFaultGPIOx = GPIOA;
   hbq.nFaultPin = GPIO_PIN_8;
-  hbq.gpioADCMap = 0x7F;           // All GPIOs are ADCs, except GPIO8, which is an output
-  hbq.activeTempAuxPinMap = 0x7E;  // Pin 1 is used to detect PCB temperature, and the rest are used for the temperature sensors
+  hbq.gpioADCMap = 0x7F;            // All GPIOs are ADCs, except GPIO8, which is an output
+  hbq.activeTempAuxPinMap = 0x7E;   // Pin 1 is used to detect PCB temperature, and the rest are used for the temperature sensors
   hbq.tempMultiplexEnabled = false; // The temperature sensors are not multiplexed
-  hbq.tempMultiplexPinIndex = 7;   // The pin used to multiplex the temperature sensors, currently 0b01111110
-  hbq.htim = &htim3;               // The timer used for the delays
+  hbq.tempMultiplexPinIndex = 7;    // The pin used to multiplex the temperature sensors, currently 0b01111110
+  hbq.htim = &htim3;                // The timer used for the delays
 
   BQ_BindMemory(&hbq, bms_config.NumOfSlaves, bq_output_buffer, bq_cell_voltages, bms_config.CellsEach, bq_cell_temperature_pool, bms_config.TempsEach, bq_die_temperature_pool); // Bind memory pools for the BQ79600 cell voltages
 
   BatteryModel_HandleTypeDef battery_model;
-  BatteryModel_Init(&battery_model, cell_model_memory_pool, bms_config.CellCount, bms_config.TotalCellCountInSeries, bms_config.CellCountInParallel);
-  BatteryModel_InitOCVMaps(&battery_model, bms_config.TempMapVoltagePoints, temp_map_voltage_points, temp_map_soc_points, temp_map_pool, bms_config.TempMapAmount);
-  BatteryModel_LoadCellData(&battery_model, 0, 0, 0, 0, 0, 0, 0, 0); // Load the cell data into the battery model
+  
+  // BatteryModel_Init(&battery_model, cell_model_memory_pool, bms_config.CellCount, bms_config.TotalCellCountInSeries, bms_config.CellCountInParallel);
+  // BatteryModel_InitOCVMaps(&battery_model, bms_config.TempMapVoltagePoints, temp_map_voltage_points, temp_map_soc_points, temp_map_pool, bms_config.TempMapAmount);
+  
+  // Simulation
+  BatteryModel_Init(&battery_model, cell_model_memory_pool, 3, 3, 1, 2650);
+  uint8_t temps[1] = {26};
+  BatteryModel_InitOCVMaps(&battery_model, sim_ocv_map, temp_map_pool, temps, 100, 1);
+
+  BatteryModel_LoadECMData(&battery_model, 0, 0, 0, 0, 0, 0, 0, 0); // Load the cell data into the battery model
 
   Align_CAN_Init(&hfdcan1, ALIGN_CAN_SPEED_500KBPS, FDCAN1);
 
@@ -388,17 +417,17 @@ int main(void)
   bms_state = BMS_STATE_CONNECTING; // Set the state to connecting
 
   // Start Events
-  BMS_BroadcastTypeDef bms_broadcast_data[2] = {0}; // The data to send to the secondary MCU
-  bms_broadcast_data[0].node_id = bms_config.CanNodeID; // Set the node ID to use for the broadcast
-  bms_broadcast_data[0].packet_id = bms_config.BroadcastPacket; // Set the broadcast packet to use for the broadcast
-  bms_broadcast_data[0].extended = bms_config.CanExtended; // Set the extended ID to use for the broadcast
-  Align_Events_EventTypeDef* bms_broadcast_event = Align_Events_AddEvent(100, bms_broadcast_data, sizeof(BMS_BroadcastTypeDef), 2, SendBroadcastMessage); // Add the event to the event handler
+  BMS_BroadcastTypeDef bms_broadcast_data[2] = {0};                                                                                                       // The data to send to the secondary MCU
+  bms_broadcast_data[0].node_id = bms_config.CanNodeID;                                                                                                   // Set the node ID to use for the broadcast
+  bms_broadcast_data[0].packet_id = bms_config.BroadcastPacket;                                                                                           // Set the broadcast packet to use for the broadcast
+  bms_broadcast_data[0].extended = bms_config.CanExtended;                                                                                                // Set the extended ID to use for the broadcast
+  Align_Events_EventTypeDef *bms_broadcast_event = Align_Events_AddEvent(100, bms_broadcast_data, sizeof(BMS_BroadcastTypeDef), 2, SendBroadcastMessage); // Add the event to the event handler
 
-  BQ_VoltageBroadcastTypeDef bq_voltage_broadcast_data[2] = {0}; // The data to send to the secondary MCU
-  bq_voltage_broadcast_data[0].bq_handle = &hbq; // Set the BQ handle to use for the broadcast
-  bq_voltage_broadcast_data[0].node_id = bms_config.CanVoltageNodeID; // Set the node ID to use for the broadcast
-  bq_voltage_broadcast_data[0].packet_id = 0; // Set the broadcast packet to use for the broadcast
-  Align_Events_EventTypeDef* bq_voltage_broadcast_event = Align_Events_AddEvent(1000, bq_voltage_broadcast_data, sizeof(BQ_VoltageBroadcastTypeDef), 1, SendVoltageData); // Add the event to the event handler
+  BQ_VoltageBroadcastTypeDef bq_voltage_broadcast_data[2] = {0};                                                                                                          // The data to send to the secondary MCU
+  bq_voltage_broadcast_data[0].bq_handle = &hbq;                                                                                                                          // Set the BQ handle to use for the broadcast
+  bq_voltage_broadcast_data[0].node_id = bms_config.CanVoltageNodeID;                                                                                                     // Set the node ID to use for the broadcast
+  bq_voltage_broadcast_data[0].packet_id = 0;                                                                                                                             // Set the broadcast packet to use for the broadcast
+  Align_Events_EventTypeDef *bq_voltage_broadcast_event = Align_Events_AddEvent(1000, bq_voltage_broadcast_data, sizeof(BQ_VoltageBroadcastTypeDef), 1, SendVoltageData); // Add the event to the event handler
 
   Align_Events_Init(&htim4); // Initialize the event handler
 
@@ -486,7 +515,6 @@ int main(void)
         }
       }
     }
-
 
     // Handle charger communication
     if (charger_connected && ((charger_timestamp + bms_config.CanChargerBroadcastInterval) <= HAL_GetTick()))
@@ -578,8 +606,24 @@ int main(void)
         bms_state = BMS_STATE_IDLE; // Set the state to idle
       }
 
-      BatteryModel_UpdateMeasured(&battery_model, hbq.cellVoltages, hbq.cellTemperatures, &currentSensor);
-      BatteryModel_UpdateEstimates(&battery_model);
+      // Override, to be able to test the simulation faster
+      if(sim_update){
+      UpdateSimulation(&hsim, &sim_rx_data); // Update the simulation with the new data
+
+      BatteryModel_Update(&battery_model, hsim.cell_voltages, hsim.cell_temperatures, &hsim.current, sim_rx_data.timestamp);
+
+      sim_tx_data.estimated_capacity[0] = (uint16_t)(battery_model.Cells[0].EstimatedCapacity); // mAh
+      sim_tx_data.estimated_capacity[1] = (uint16_t)(battery_model.Cells[1].EstimatedCapacity); // mAh
+      sim_tx_data.estimated_capacity[2] = (uint16_t)(battery_model.Cells[2].EstimatedCapacity); // mAh
+
+      sim_tx_data.estimated_soc[0] = (uint16_t)(battery_model.Cells[0].EstimatedSOC);
+      sim_tx_data.estimated_soc[1] = (uint16_t)(battery_model.Cells[1].EstimatedSOC); 
+      sim_tx_data.estimated_soc[2] = (uint16_t)(battery_model.Cells[2].EstimatedSOC); 
+      sim_tx_data.pack_soc = (uint16_t)(battery_model.EstimatedSOC); 
+      sim_update = false; // Reset the simulation update flag
+      sim_reply = true; // Set the simulation reply flag
+      }
+
       soc = (uint16_t)(battery_model.EstimatedSOC * 10); // Convert to % * 10
 
       // TODO: Handle dc limit and cc limit
@@ -625,19 +669,18 @@ int main(void)
     pwm_ch3_memory = (uint32_t)(pid_output / 100.0 * htim2.Instance->ARR); // Set the PWM duty cycle to the PID output, scaled to the PWM resolution
     pwm_ch4_memory = (uint32_t)(pid_output / 100.0 * htim2.Instance->ARR); // Set the PWM duty cycle to the PID output, scaled to the PWM resolution
 
-
     // Update Event Data
     bms_data.node_id = bms_config.CanNodeID;
-    bms_data.packet_id = bms_config.BroadcastPacket; // Set the broadcast packet ID
-    bms_data.extended = bms_config.CanExtended;               // Set the extended ID flag
-    bms_data.active_faults = active_faults;                  // Set the active faults
-    bms_data.cc_limit = cc_limit; // Set the CC limit
-    bms_data.dc_limit = dc_limit; // Set the DC limit
-    bms_data.high_temp = high_cell_temp; // Set the highest cell temperature
-    bms_data.soc = soc; // Set the state of charge
-    bms_data.sdc_voltage_raw = sdc_voltage_raw; // Set the SDC voltage raw value
-    bms_data.avg_cycle_time = (uint16_t)(avg_cycle_time); // Set the average cycle time
-    Align_Events_UpdateEventData(bms_broadcast_event, &bms_data); // Update the event data for the broadcast message    
+    bms_data.packet_id = bms_config.BroadcastPacket;              // Set the broadcast packet ID
+    bms_data.extended = bms_config.CanExtended;                   // Set the extended ID flag
+    bms_data.active_faults = active_faults;                       // Set the active faults
+    bms_data.cc_limit = cc_limit;                                 // Set the CC limit
+    bms_data.dc_limit = dc_limit;                                 // Set the DC limit
+    bms_data.high_temp = high_cell_temp;                          // Set the highest cell temperature
+    bms_data.soc = soc;                                           // Set the state of charge
+    bms_data.sdc_voltage_raw = sdc_voltage_raw;                   // Set the SDC voltage raw value
+    bms_data.avg_cycle_time = (uint16_t)(avg_cycle_time);         // Set the average cycle time
+    Align_Events_UpdateEventData(bms_broadcast_event, &bms_data); // Update the event data for the broadcast message
 
     Align_Events_SetEventActive(bq_voltage_broadcast_event, bms_config.CanVoltageBroadcastEnabled);
 
@@ -648,13 +691,33 @@ int main(void)
       cell_temp_timestamp = HAL_GetTick();
     }
 
-    // Do USB communication at the end of the loop
-    if (bms_config.UsbLoggingEnabled && (usb_timestamp + bms_config.UsbLoggingInterval) <= HAL_GetTick())
-    {
-      // Every second
-      CDC_Transmit_FS((uint8_t *)&usb_log, sizeof(usb_log)); // Send data to USB CDC
+    // // Do USB communication at the end of the loop
+    // if (bms_config.UsbLoggingEnabled && (usb_timestamp + bms_config.UsbLoggingInterval) <= HAL_GetTick())
+    // {
+    //   // Every second
+    //   CDC_Transmit_FS((uint8_t *)&usb_log, sizeof(usb_log)); // Send data to USB CDC
+      
+    //   usb_timestamp = HAL_GetTick();
+    // }
 
+    // Transmit simulation data to matlab
+    if (sim_reply && (usb_timestamp + 5) <= HAL_GetTick())
+    {
+      uint8_t s = sizeof(sim_tx_data);
+      uint8_t* raw_msg = (uint8_t *)&sim_tx_data; // Copy the string to the transmit buffer
+      CDC_Transmit_FS(&sim_tx_data, sizeof(Simulation_TX_TypeDef)); // Send data to USB CDC
+      
       usb_timestamp = HAL_GetTick();
+      sim_reply = false; // Reset the simulation reply flag
+    }
+
+    // Recieve simulation data from matlab
+    if(usb_rx_ready)
+    {
+      uint8_t s = sizeof(sim_rx_data);
+      memcpy(&sim_rx_data, usb_rx_buffer, sizeof(sim_rx_data)); // Copy the string to the transmit buffer
+      usb_rx_ready = false; // Reset the USB RX ready flag
+      sim_update = true; // Set the simulation reply flag
     }
 
     if ((internal_comm_timestamp + 50) <= HAL_GetTick())
