@@ -9,15 +9,15 @@ typedef struct
     float cell_voltages[3];
     float cell_temperatures[3];
     float current;
-    uint32_t last_timestamp; // Last timestamp in milliseconds
+    uint16_t last_delta_time; // Last delta_time in milliseconds
 } Simulation_HandleTypeDef;
 
 typedef struct
 {
     uint16_t cell_voltages[3];
     uint16_t cell_temperatures[3];
-    uint16_t current;
-    uint32_t timestamp; // Timestamp in milliseconds
+    int16_t current;
+    uint16_t delta_time; // Timestamp in milliseconds
 } Simulation_RX_TypeDef;
 
 typedef struct

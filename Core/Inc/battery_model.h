@@ -67,6 +67,6 @@ void BatteryModel_Init(BatteryModel_HandleTypeDef *battery_model, CellModel_Hand
 void BatteryModel_LoadECMData(BatteryModel_HandleTypeDef *battery_model, float k0, float k1, float k2, float k3, float k4, float discharge_resistance, float charging_resistance, float hysteresis);
 void BatteryModel_InitOCVMaps(BatteryModel_HandleTypeDef *battery_model, float *voltage_point_memory_pool, TempMap_HandleTypeDef *temp_map_memory_pool,  uint8_t* temps, uint16_t amount_of_voltage_points, uint8_t num_of_maps);
 
-void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_voltages, float *cell_temperatures, float *total_current, uint32_t current_timestamp);
+void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_voltages, float *cell_temperatures, float *total_current, uint16_t current_timestamp);
 
 #endif // BATTERY_MODEL_H

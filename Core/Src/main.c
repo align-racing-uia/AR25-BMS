@@ -376,6 +376,7 @@ int main(void)
 
   BatteryModel_HandleTypeDef battery_model;
   
+  // Real
   // BatteryModel_Init(&battery_model, cell_model_memory_pool, bms_config.CellCount, bms_config.TotalCellCountInSeries, bms_config.CellCountInParallel);
   // BatteryModel_InitOCVMaps(&battery_model, bms_config.TempMapVoltagePoints, temp_map_voltage_points, temp_map_soc_points, temp_map_pool, bms_config.TempMapAmount);
   
@@ -512,6 +513,26 @@ int main(void)
           case 0x2:
             break;
           }
+        }else if(node_id == 7) // Simulations and configuration
+        {
+          switch (packet_id)
+          {
+            case 0x21:
+              
+              sim_rx_data.delta_time = ((uint16_t) rxData[0]) << 0 | ((uint16_t) rxData[1]) << 8 ; // Delta time in ms
+              sim_rx_data.cell_voltages[0] =  ((uint16_t) rxData[2]) << 0 | ((uint16_t) rxData[3]) << 8 ;
+              sim_rx_data.cell_voltages[1] =  ((uint16_t) rxData[4]) << 0 | ((uint16_t) rxData[5]) << 8 ;
+              sim_rx_data.cell_voltages[2] =  ((uint16_t) rxData[6]) << 0 | ((uint16_t) rxData[7]) << 8 ;
+              break;
+            case 0x22:
+              sim_rx_data.cell_temperatures[0] =  ((uint16_t) rxData[0]) << 0 | ((uint16_t) rxData[1]) << 8 ;
+              sim_rx_data.cell_temperatures[1] =  ((uint16_t) rxData[2]) << 0 | ((uint16_t) rxData[3]) << 8 ;
+              sim_rx_data.cell_temperatures[2] =  ((uint16_t) rxData[4]) << 0 | ((uint16_t) rxData[5]) << 8 ;
+              sim_rx_data.current = ((int16_t) rxData[6]) << 0 | ((int16_t) rxData[7]) << 8;
+              // 0x22 is always sent after 0x21
+              sim_update = true; // Set the simulation reply flag
+              break;
+          }
         }
       }
     }
@@ -608,20 +629,42 @@ int main(void)
 
       // Override, to be able to test the simulation faster
       if(sim_update){
-      UpdateSimulation(&hsim, &sim_rx_data); // Update the simulation with the new data
+        UpdateSimulation(&hsim, &sim_rx_data); // Update the simulation with the new data
 
-      BatteryModel_Update(&battery_model, hsim.cell_voltages, hsim.cell_temperatures, &hsim.current, sim_rx_data.timestamp);
+        BatteryModel_Update(&battery_model, hsim.cell_voltages, hsim.cell_temperatures, &hsim.current, sim_rx_data.delta_time);
 
-      sim_tx_data.estimated_capacity[0] = (uint16_t)(battery_model.Cells[0].EstimatedCapacity); // mAh
-      sim_tx_data.estimated_capacity[1] = (uint16_t)(battery_model.Cells[1].EstimatedCapacity); // mAh
-      sim_tx_data.estimated_capacity[2] = (uint16_t)(battery_model.Cells[2].EstimatedCapacity); // mAh
+        sim_tx_data.estimated_capacity[0] = (uint16_t)(battery_model.Cells[0].EstimatedCapacity); // mAh
+        sim_tx_data.estimated_capacity[1] = (uint16_t)(battery_model.Cells[1].EstimatedCapacity); // mAh
+        sim_tx_data.estimated_capacity[2] = (uint16_t)(battery_model.Cells[2].EstimatedCapacity); // mAh
 
-      sim_tx_data.estimated_soc[0] = (uint16_t)(battery_model.Cells[0].EstimatedSOC);
-      sim_tx_data.estimated_soc[1] = (uint16_t)(battery_model.Cells[1].EstimatedSOC); 
-      sim_tx_data.estimated_soc[2] = (uint16_t)(battery_model.Cells[2].EstimatedSOC); 
-      sim_tx_data.pack_soc = (uint16_t)(battery_model.EstimatedSOC); 
-      sim_update = false; // Reset the simulation update flag
-      sim_reply = true; // Set the simulation reply flag
+        sim_tx_data.estimated_soc[0] = (uint16_t)(battery_model.Cells[0].EstimatedSOC);
+        sim_tx_data.estimated_soc[1] = (uint16_t)(battery_model.Cells[1].EstimatedSOC); 
+        sim_tx_data.estimated_soc[2] = (uint16_t)(battery_model.Cells[2].EstimatedSOC); 
+        sim_tx_data.pack_soc = (uint16_t)(battery_model.EstimatedSOC); 
+        sim_update = false; // Reset the simulation update flag
+        
+        uint8_t data1[8] = {0};
+        data1[0] = sim_tx_data.estimated_capacity[0] >> 0;
+        data1[1] = sim_tx_data.estimated_capacity[0] >> 8;
+        data1[2] = sim_tx_data.estimated_capacity[1] >> 0;
+        data1[3] = sim_tx_data.estimated_capacity[1] >> 8;
+        data1[4] = sim_tx_data.estimated_capacity[2] >> 0;
+        data1[5] = sim_tx_data.estimated_capacity[2] >> 8;
+
+        uint8_t data2[8] = {0};
+        data2[0] = sim_tx_data.estimated_soc[0] >> 0;
+        data2[1] = sim_tx_data.estimated_soc[0] >> 8;
+        data2[2] = sim_tx_data.estimated_soc[1] >> 0;
+        data2[3] = sim_tx_data.estimated_soc[1] >> 8;
+        data2[4] = sim_tx_data.estimated_soc[2] >> 0;
+        data2[5] = sim_tx_data.estimated_soc[2] >> 8;
+
+        sim_tx_data.pack_soc = (uint16_t)(battery_model.EstimatedSOC * 10); // Convert to % * 10
+
+        // Replying with updated states
+        Align_CAN_AddToBuffer(&hfdcan1, Align_CombineCanId(0x11, 7, false), data1, 6, false);
+        Align_CAN_AddToBuffer(&hfdcan1, Align_CombineCanId(0x12, 7, false), data2, 8, false);
+
       }
 
       soc = (uint16_t)(battery_model.EstimatedSOC * 10); // Convert to % * 10
@@ -700,25 +743,7 @@ int main(void)
     //   usb_timestamp = HAL_GetTick();
     // }
 
-    // Transmit simulation data to matlab
-    if (sim_reply && (usb_timestamp + 5) <= HAL_GetTick())
-    {
-      uint8_t s = sizeof(sim_tx_data);
-      uint8_t* raw_msg = (uint8_t *)&sim_tx_data; // Copy the string to the transmit buffer
-      CDC_Transmit_FS(&sim_tx_data, sizeof(Simulation_TX_TypeDef)); // Send data to USB CDC
-      
-      usb_timestamp = HAL_GetTick();
-      sim_reply = false; // Reset the simulation reply flag
-    }
 
-    // Recieve simulation data from matlab
-    if(usb_rx_ready)
-    {
-      uint8_t s = sizeof(sim_rx_data);
-      memcpy(&sim_rx_data, usb_rx_buffer, sizeof(sim_rx_data)); // Copy the string to the transmit buffer
-      usb_rx_ready = false; // Reset the USB RX ready flag
-      sim_update = true; // Set the simulation reply flag
-    }
 
     if ((internal_comm_timestamp + 50) <= HAL_GetTick())
     {

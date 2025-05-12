@@ -28,9 +28,9 @@ void BatteryModel_Init(BatteryModel_HandleTypeDef *battery_model, CellModel_Hand
     }
 }
 
-void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_voltages, float *cell_temperatures, float *total_current, uint32_t current_timestamp)
+void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_voltages, float *cell_temperatures, float *total_current, uint16_t current_timestamp)
 {
-    float dt = ((float)(current_timestamp - battery_model->LastCycle)) / 1000.0f;
+    float dt = ((float)(current_timestamp)) / 1000.0f;
 
     // If SOC hasnt been estimated yet, use OCV maps to estimate initial SOC
     if(!battery_model->soc_estimated){
@@ -97,11 +97,10 @@ void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_
         }
         // TODO: Map temperatures to cells
 
-        battery_model->Cells[i].EstimatedCapacity -= battery_model->Cells[i].MeasuredCurrent * dt;
+        battery_model->Cells[i].EstimatedCapacity += battery_model->Cells[i].MeasuredCurrent * dt / 3.6f; // mAh
         battery_model->Cells[i].EstimatedSOC = (battery_model->Cells[i].EstimatedCapacity / battery_model->Cells[i].NominalCapacity) * 100.0f;
     }
 
-    battery_model->LastCycle = current_timestamp;
 }
 
 void BatteryModel_LoadECMData(BatteryModel_HandleTypeDef *battery_model, float k0, float k1, float k2, float k3, float k4, float discharge_resistance, float charging_resistance, float hysteresis)

@@ -114,7 +114,7 @@ void UpdateSimulation(Simulation_HandleTypeDef *simulation, Simulation_RX_TypeDe
     simulation->cell_temperatures[2] = ((float) rx_data->cell_temperatures[2]) / 10.0f;
 
     simulation->current = ((float) rx_data->current) / 100.0f; // Convert to A
-    simulation->last_timestamp = rx_data->timestamp; // Update the last timestamp
+    simulation->last_delta_time = rx_data->delta_time; // Update the last delta_time
     return;
 }
 
