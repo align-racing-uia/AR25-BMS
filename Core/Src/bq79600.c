@@ -278,7 +278,7 @@ BQ_StatusTypeDef BQ_GetAuxADCs(BQ_HandleTypeDef *hbq, uint8_t pin_map, uint8_t *
             BQ_StatusTypeDef status = BQ_Read(hbq, hbq->bqOutputBuffer + memory_offset, 0, BQ16_GPIO1_HI + i * 2, 2, BQ_STACK_READ); // Read the GPIO configuration register
             memory_offset += total_len;                                                                                              // 2 bytes for the GPIO data, 6 bytes for the header
             if (status != BQ_STATUS_OK)
-            {
+            { 
                 return status;
             }
         }

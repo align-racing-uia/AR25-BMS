@@ -11,7 +11,8 @@
         "cstdint": "c",
         "lfs_integration.h": "c",
         "compare": "c",
-        "simulation.h": "c"
+        "simulation.h": "c",
+        "stdlib.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true
 }
