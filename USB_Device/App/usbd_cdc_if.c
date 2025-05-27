@@ -22,6 +22,7 @@
 #include "usbd_cdc_if.h"
 
 /* USER CODE BEGIN INCLUDE */
+#include "stdbool.h"
 
 /* USER CODE END INCLUDE */
 
@@ -94,7 +95,9 @@ uint8_t UserRxBufferFS[APP_RX_DATA_SIZE];
 uint8_t UserTxBufferFS[APP_TX_DATA_SIZE];
 
 /* USER CODE BEGIN PRIVATE_VARIABLES */
-
+extern uint8_t usb_rx_buffer[64];
+extern uint8_t usb_rx_len; // Length of the received data
+extern bool usb_rx_ready; // Flag to indicate that USB data is ready to be processed
 /* USER CODE END PRIVATE_VARIABLES */
 
 /**
@@ -263,6 +266,18 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
   /* USER CODE BEGIN 6 */
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);
+  
+  if(!usb_rx_ready) // If the USB data is not ready to be processed, set the flag to true
+  {
+    memset (usb_rx_buffer, '\0', 64);  // clear the buffer
+    uint8_t len = (uint8_t)*Len;
+    if (len > 64) len = 64; // limit the length to 64 bytes
+    memcpy(usb_rx_buffer, Buf, len);  // copy the data to the buffer
+    memset(Buf, '\0', len);   // clear the Buf also
+    usb_rx_ready = true; // Set the flag to true
+    usb_rx_len = len; // Set the length of the data received
+  }
+
   return (USBD_OK);
   /* USER CODE END 6 */
 }
