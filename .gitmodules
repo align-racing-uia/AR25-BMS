@@ -1,3 +1,6 @@
 [submodule "asl"]
 	path = asl
 	url = https://github.com/align-racing-uia/align_standard_library
+[submodule "w25q"]
+	path = w25q
+	url = https://github.com/hrrs01/STM32-W25Q-QSPI.git
