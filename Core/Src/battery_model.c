@@ -104,7 +104,7 @@ float sim_ocv_map[] = {
     4145.73,
     4163.89,
     4183.32
-    };
+};
 
 
 void BatteryModel_Init(BatteryModel_HandleTypeDef *battery_model, CellModel_HandleTypeDef *cell_memory_pool, uint16_t cell_count, uint16_t cells_in_series, uint16_t cells_in_parallel, uint16_t nominal_cell_capacity)

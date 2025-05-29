@@ -42,43 +42,21 @@
 #include "string.h"
 #include "battery_model.h"
 #include "icm.h"
-#include "usb_logging.h"
 #include "secondary_mcu.h"
 #include "alignevents.h"
 #include "pid.h"
 #include "iwdg.h"
 #include "faults.h"
 #include "ts_statemachine.h"
-#include "bms_statemachine.h"
+#include "bms.h"
+#include "broadcasts.h"
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
-typedef struct
-{
-  uint32_t node_id;
-  uint32_t packet_id;
-  uint16_t cc_limit;
-  uint16_t dc_limit;        // DC limit in A * 10
-  uint16_t high_temp;       // Highest temperature in C * 10
-  uint16_t soc;             // State of charge in % * 10
-  uint16_t sdc_voltage_raw; // SDC voltage raw value
-  uint16_t avg_cycle_time;  // Cycle time in ms
-  uint8_t active_faults;
-  bool extended; // Extended ID or not
 
-} BMS_BroadcastTypeDef;
-
-typedef struct
-{
-  uint32_t node_id;
-  uint32_t packet_id;
-  BQ_HandleTypeDef *bq_handle; // The BQ handle to use for the broadcast
-  bool extended;               // Extended ID or not
-
-} BQ_VoltageBroadcastTypeDef;
 
 /* USER CODE END PTD */
 
@@ -144,69 +122,7 @@ void USB_CDC_RxHandler(uint8_t *Buf, uint32_t Len)
   CDC_Transmit_FS(Buf, Len);
 }
 
-bool SendBroadcastMessage(BMS_BroadcastTypeDef *data)
-{
 
-  uint8_t bms_data[8] = {0};
-  bms_data[0] = (data->dc_limit >> 8) & 0xFF;  // Should be DC_limit x 10
-  bms_data[1] = data->dc_limit & 0xFF;         // Should be DC_limit x 10
-  bms_data[2] = (data->cc_limit >> 8) & 0xFF;  // Should be CC_limit x 10
-  bms_data[3] = data->cc_limit & 0xFF;         // Should be CC_limit x 10
-  bms_data[4] = (data->high_temp >> 8) & 0xFF; // Should be avg_cell_temp x 10
-  bms_data[5] = data->high_temp & 0xFF;        // Should be avg_cell_temp x 10
-  bms_data[6] = (data->soc >> 8) & 0xFF;       // Should be soc x 10
-  bms_data[7] = data->soc & 0xFF;              // Should be soc x 10
-  uint32_t can_id = Align_CombineCanId(data->packet_id, data->node_id, data->extended);
-  Align_CAN_AddToBuffer(&hfdcan1, can_id, bms_data, 8, data->extended);
-
-  bms_data[0] = data->active_faults;          // Should be the active faults
-  bms_data[1] = data->sdc_voltage_raw >> 8;   // Should be the SDC voltage 0xFF00
-  bms_data[2] = data->sdc_voltage_raw & 0xFF; // Should be the SDC voltage 0x00FF
-  bms_data[3] = data->avg_cycle_time >> 8;    // Should be the cycle time in ms
-  bms_data[4] = data->avg_cycle_time & 0xFF;  // Should be the cycle time in ms
-  can_id = Align_CombineCanId(data->packet_id + 1, data->node_id, data->extended);
-
-  Align_CAN_AddToBuffer(&hfdcan1, can_id, bms_data, 5, data->extended); // Send the message again to make sure it is sent
-
-  return true;
-}
-
-bool SendVoltageData(BQ_VoltageBroadcastTypeDef *data)
-{
-  if (data->bq_handle->voltageLocked == true)
-  {
-    return false; // The BQ handle is locked, so we cannot send the data
-  }
-  uint8_t cell_voltage_data[8] = {0};
-  uint8_t full_messages = data->bq_handle->numOfCellsEach * data->bq_handle->numOfSlaves / 4;
-  uint8_t partial_message = data->bq_handle->numOfCellsEach * data->bq_handle->numOfSlaves % 4; // Check if there is a partial message
-  uint8_t i = 0;
-  while (full_messages > 0 || partial_message > 0)
-  {
-    if (full_messages > 0)
-    {
-
-      *((uint16_t *)cell_voltage_data) = (uint16_t)(data->bq_handle->cellVoltages[i * 4] * 10000.0);           // Convert to mV
-      *((uint16_t *)(cell_voltage_data + 2)) = (uint16_t)(data->bq_handle->cellVoltages[i * 4 + 1] * 10000.0); // Convert to mV
-      *((uint16_t *)(cell_voltage_data + 4)) = (uint16_t)(data->bq_handle->cellVoltages[i * 4 + 2] * 10000.0); // Convert to mV
-      *((uint16_t *)(cell_voltage_data + 6)) = (uint16_t)(data->bq_handle->cellVoltages[i * 4 + 3] * 10000.0); // Convert to mV
-      full_messages--;
-      Align_CAN_AddToBuffer(&hfdcan1, Align_CombineCanId(data->packet_id + i, data->node_id, data->extended), cell_voltage_data, 8, data->extended); // Send the message to the CAN bus
-    }
-    else
-    {
-      for (uint8_t j = 0; j < partial_message; j++)
-      {
-        *((uint16_t *)(cell_voltage_data + j * 2)) = (uint16_t)(data->bq_handle->cellVoltages[i * 4 + j] * 10000.0); // Convert to mV
-      }
-      Align_CAN_AddToBuffer(&hfdcan1, Align_CombineCanId(data->packet_id + i, data->node_id, data->extended), cell_voltage_data, 2 * partial_message, data->extended); // Send the message to the CAN bus
-      partial_message = 0;
-    }
-
-    i++;
-  }
-  return true;
-}
 
 /* USER CODE END PFP */
 
@@ -259,6 +175,8 @@ int main(void)
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
 
+  BMS_HandleTypeDef hbms;
+
 #if defined(WATCHDOG_ENABLE)
 
   // Enable the watchdog timer
@@ -269,19 +187,8 @@ int main(void)
   // Initialize timer for align delay
   Align_InitDelay(&htim3); // Initialize the delay function
 
-  // Tractive System State Machine
-  TS_HandleTypeDef hts_sm;
-  TS_Init(&hts_sm); // Initialize the TS state machine
-
-  BMS_HandleTypeDef hbms_sm;
-  BMS_Init(&hbms_sm); // Initialize the TS state machine
 
   bool charger_connected = false; // Charger connected flag
-  uint16_t dc_limit = 0;          // DC limit in A * 10
-  uint16_t cc_limit = 0;          // CC limit in A * 10
-  uint16_t high_cell_temp = 0;    // highest cell temperature in C * 10
-  uint16_t low_cell_temp = 0;     // lowest cell temperature in C * 10
-  uint16_t soc = 0;               // State of charge in % * 10
   uint16_t sdc_voltage_raw = 0;   // SDC voltage raw value
   bool sdc = false;               // SDC connected flag
   // Initialize timer used for PWM generation, and start the DMA
@@ -299,7 +206,7 @@ int main(void)
   W25Q_STATE res = W25Q_Init();
   if (res != W25Q_OK)
   {
-    SET_BIT(hbms_sm.ActiveFaults, BMS_NOTE_EEPROM); // Set the EEPROM warning flag
+    SET_BIT(hbms.ActiveFaults, BMS_NOTE_EEPROM); // Set the EEPROM warning flag
   }
 
   // Initilalize the BMS Config
@@ -307,7 +214,7 @@ int main(void)
   BMS_Config_Init(&bms_config); // Set the default values of the config
 
   // If the W25Q_Init caught a fault, we will not be able to read the config from flash
-  if (!READ_BIT(hbms_sm.ActiveFaults, BMS_NOTE_EEPROM))
+  if (!READ_BIT(hbms.ActiveFaults, BMS_NOTE_EEPROM))
   {
     if (BMS_Config_UpdateFromFlash(&bms_config) != BMS_CONFIG_OK)
     {
@@ -316,7 +223,7 @@ int main(void)
       BMS_Config_StatusTypeDef res = BMS_Config_WriteToFlash(&bms_config); // Write the default values to flash
       if (res != BMS_CONFIG_OK)
       {
-        SET_BIT(hbms_sm.ActiveFaults, BMS_NOTE_EEPROM); // Set the EEPROM warning flag
+        SET_BIT(hbms.ActiveFaults, BMS_NOTE_EEPROM); // Set the EEPROM warning flag
         // We have to reset the config to default values, as we could not write to flash and the write reads to verify the write
         BMS_Config_Init(&bms_config); // Set the default values of the config
       }
@@ -324,29 +231,31 @@ int main(void)
   }
 
   // Currently the BQ handle is defined manually, as there are many parameters that need to be set
+  // hbq.hspi = &hspi2;
+  // hbq.csGPIOx = GPIOB;
+  // hbq.csPin = GPIO_PIN_12;
+  // hbq.mosiGPIOx = GPIOB;
+  // hbq.mosiPin = GPIO_PIN_15;
+  // hbq.spiRdyGPIOx = GPIOB;
+  // hbq.spiRdyPin = GPIO_PIN_11;
+  // hbq.nFaultGPIOx = GPIOA;
+  // hbq.nFaultPin = GPIO_PIN_8;
+  // hbq.GpioADCMap = 0x7F;            // All GPIOs are ADCs, except GPIO8, which is an output
+  // hbq.CellTempAuxPinMap = 0x7E;   // Pin 1 is used to detect PCB temperature, and the rest are used for the temperature sensors
+  // hbq.tempMultiplexEnabled = false; // The temperature sensors are not multiplexed
+  // hbq.tempMultiplexPinIndex = 7;    // The pin used to multiplex the temperature sensors, currently 0b01111110
+  // hbq.htim = &htim3;                // The timer used for the delays
+  // hbq.connected = false;            // The BQ is not connected yet
+  
   BQ_HandleTypeDef hbq;
-  hbq.hspi = &hspi2;
-  hbq.csGPIOx = GPIOB;
-  hbq.csPin = GPIO_PIN_12;
-  hbq.mosiGPIOx = GPIOB;
-  hbq.mosiPin = GPIO_PIN_15;
-  hbq.spiRdyGPIOx = GPIOB;
-  hbq.spiRdyPin = GPIO_PIN_11;
-  hbq.nFaultGPIOx = GPIOA;
-  hbq.nFaultPin = GPIO_PIN_8;
-  hbq.gpioADCMap = 0x7F;            // All GPIOs are ADCs, except GPIO8, which is an output
-  hbq.activeTempAuxPinMap = 0x7E;   // Pin 1 is used to detect PCB temperature, and the rest are used for the temperature sensors
-  hbq.tempMultiplexEnabled = false; // The temperature sensors are not multiplexed
-  hbq.tempMultiplexPinIndex = 7;    // The pin used to multiplex the temperature sensors, currently 0b01111110
-  hbq.htim = &htim3;                // The timer used for the delays
-  hbq.connected = false;            // The BQ is not connected yet
+  BQ_PinTypeDef bq_cs_pin = {GPIOB, GPIO_PIN_12}; // Chip select pin for the BQ79600
+  BQ_PinTypeDef bq_spi_rdy_pin = {GPIOB, GPIO_PIN_11}; // SPI ready pin for the BQ79600
+  BQ_PinTypeDef bq_mosi_pin = {GPIOB, GPIO_PIN_15}; // MOSI pin for the BQ79600
+  BQ_PinTypeDef bq_fault_pin = {GPIOA, GPIO_PIN_8}; // Fault pin for the BQ79600
+
 
   BQ_BindMemory(&hbq, bms_config.NumOfSlaves, bq_output_buffer, bq_cell_voltages, bms_config.CellsEach, bq_cell_temperature_pool, bms_config.TempsEach, bq_die_temperature_pool); // Bind memory pools for the BQ79600 cell voltages
 
-  BatteryModel_HandleTypeDef battery_model;
-
-  BatteryModel_Init(&battery_model, cell_model_memory_pool, bms_config.CellCount, bms_config.TotalCellCountInSeries, bms_config.CellCountInParallel, 2650);
-  BatteryModel_InitOCVMaps(&battery_model, bms_config.TempMapVoltagePoints, temp_map_voltage_points, temp_map_soc_points, temp_map_pool, bms_config.TempMapAmount);
 
   Align_CAN_Init(&hfdcan1, ALIGN_CAN_SPEED_500KBPS, FDCAN1);
 
@@ -355,13 +264,10 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-  BMS_BroadcastTypeDef bms_data = {0};
 
   FDCAN_RxHeaderTypeDef rxHeader;
   uint8_t rxData[8];
 
-  uint32_t cell_temp_timestamp = HAL_GetTick();
-  uint32_t charger_timestamp = HAL_GetTick();
   uint32_t charger_timeout = HAL_GetTick();
   uint32_t can_timeout = HAL_GetTick();
   uint32_t alive_sig_timestamp = HAL_GetTick();
@@ -372,54 +278,42 @@ int main(void)
 
   PID_HandleTypeDef pid_controller = PID_Init(0.1, 0.01, 0.01, 0.1, 100); // Initialize the PID controller
 
-  // Start Events
-  BMS_BroadcastTypeDef bms_broadcast_data[2] = {0};                                                                                                                         // The data to send to the secondary MCU
-  bms_broadcast_data[0].node_id = bms_config.CanNodeID;                                                                                                                     // Set the node ID to use for the broadcast
-  bms_broadcast_data[0].packet_id = bms_config.BroadcastPacket;                                                                                                             // Set the broadcast packet to use for the broadcast
-  bms_broadcast_data[0].extended = bms_config.CanExtended;                                                                                                                  // Set the extended ID to use for the broadcast
-  Align_Events_EventTypeDef *bms_broadcast_event = Align_Events_AddEvent(100, bms_broadcast_data, sizeof(BMS_BroadcastTypeDef), 2, (_Bool(*)(void *))SendBroadcastMessage); // Add the event to the event handler
+  // Tractive System State Machine
+  TS_HandleTypeDef hts_sm;
+  TS_Init(&hts_sm); // Initialize the TS state machine
 
-  BQ_VoltageBroadcastTypeDef bq_voltage_broadcast_data[2] = {0};                                                                                                                            // The data to send to the secondary MCU
-  bq_voltage_broadcast_data[0].bq_handle = &hbq;                                                                                                                                            // Set the BQ handle to use for the broadcast
-  bq_voltage_broadcast_data[0].node_id = bms_config.CanVoltageNodeID;                                                                                                                       // Set the node ID to use for the broadcast
-  bq_voltage_broadcast_data[0].packet_id = 0;                                                                                                                                               // Set the broadcast packet to use for the broadcast
-  Align_Events_EventTypeDef *bq_voltage_broadcast_event = Align_Events_AddEvent(1000, bq_voltage_broadcast_data, sizeof(BQ_VoltageBroadcastTypeDef), 1, (_Bool(*)(void *))SendVoltageData); // Add the event to the event handler
+  // BMS_Init(&hbms); // Initialize the TS state machine
 
-  Align_Events_Init(&htim4); // Initialize the event handler
 
   while (1)
   {
     cycle_time_start = HAL_GetTick(); // Start the cycle time measurement
-    if (charger_connected && ((charger_timeout + bms_config.CanChargerBroadcastTimeout) <= HAL_GetTick()))
-    {
-      charger_connected = false; // Charger is not connected anymore
-    }
 
     // We should recieve a CAN message atleast as often as the broadcast interval
     if (can_timeout + bms_config.CanBroadcastInterval < HAL_GetTick())
     {
       // We have not received a CAN message for a while, set the state to fault
-      SET_BIT(hbms_sm.ActiveFaults, BMS_WARNING_CAN); // Set the CAN warning flag
+      SET_BIT(hbms.ActiveFaults, BMS_WARNING_CAN); // Set the CAN warning flag
     }
     else
     {
-      CLEAR_BIT(hbms_sm.ActiveFaults, BMS_WARNING_CAN); // Clear the CAN warning flag
+      CLEAR_BIT(hbms.ActiveFaults, BMS_WARNING_CAN); // Clear the CAN warning flag
     }
 
     if (abs(secondary_response[secondary_mcu_recieve_index].PingPongDeviation) > 100) // Check if internal communication is getting slow
     {
       // We have a ping-pong deviation, set the state to fault
-      SET_BIT(hbms_sm.ActiveFaults, BMS_WARNING_INT_COMM); // Set the CAN warning flag
+      SET_BIT(hbms.ActiveFaults, BMS_WARNING_INT_COMM); // Set the CAN warning flag
     }
     else
     {
-      CLEAR_BIT(hbms_sm.ActiveFaults, BMS_WARNING_INT_COMM); // Clear the CAN warning flag
+      CLEAR_BIT(hbms.ActiveFaults, BMS_WARNING_INT_COMM); // Clear the CAN warning flag
     }
 
     // Handle data from the secondary MCU
 
     sdc_voltage_raw = secondary_response[secondary_mcu_recieve_index].SDCVoltageRaw; // Get the SDC voltage from the secondary MCU
-    hbms_sm.SDC = (((float)sdc_voltage_raw) * 3000.0 / 4096.0) > 2500;                       // Convert to mV
+    hbms.SDC = (((float)sdc_voltage_raw) * 3000.0 / 4096.0) > 2500;                       // Convert to mV
 
     // Handle the CAN messages
     if (Align_CAN_Receive(&hfdcan1, &rxHeader, rxData))
@@ -467,70 +361,23 @@ int main(void)
       }
     }
 
-    TS_UpdateState(&hts_sm, battery_model.EstimatedSOC, sdc, false, false, hbms_sm.ActiveFaults); // Update the TS state machine
-    switch (hts_sm.State)
-    {
-    case TS_STATE_IDLE:
-    {
-      break;
-    }
-    case TS_STATE_PRECHARGE:
-    {
-      break;
-    }
-    case TS_STATE_ACTIVE:
-    {
-      break;
-    }
-    case TS_STATE_FAULT:
-    {
-      break;
-    }
-    }
+    // Update all the BMS states
+    BMS_Update(&hbms);
 
-    // Main state machine for the BMS
-    BMS_UpdateState(&hbms_sm);
-    switch (hbms_sm.State)
-    {
-    case BMS_STATE_BOOTING:
-    {
-      break;
-    }
-    case BMS_STATE_IDLE:
-    {
-      break;
-    }
-    case BMS_STATE_ACTVATING_TS:
-    {
-      break;
-    }
-    case BMS_STATE_CHARGING:
-    {
-      break;
-    }
-    case BMS_STATE_DRIVING:
-    {
-      break;
-    }
-    case BMS_STATE_FAULT:
-    {
-      break;
-    }
-    }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
 
     // Handle the PWM generation
-    if (hbq.highestCellTemperature < 40.0)
+    if (hbq.HighestCellTemperature < 40.0)
     {
-      pid_controller.Setpoint = hbq.highestCellTemperature; // Set the setpoint to the highest cell temperature
+      pid_controller.Setpoint = hbq.HighestCellTemperature; // Set the setpoint to the highest cell temperature
     }
     else
     {
       pid_controller.Setpoint = 40.0; // Set the setpoint to 40.0 degrees for now
     }
-    float pid_output = fabsf(PID_Compute(&pid_controller, hbq.highestCellTemperature)); // Calculate the PID output
+    float pid_output = fabsf(PID_Compute(&pid_controller, hbq.HighestCellTemperature)); // Calculate the PID output
     if (pid_output > 100.0)
     {
       pid_output = 100.0; // Limit the output to 100%
@@ -542,26 +389,6 @@ int main(void)
     pwm_ch3_memory = (uint32_t)(pid_output / 100.0 * htim2.Instance->ARR); // Set the PWM duty cycle to the PID output, scaled to the PWM resolution
     pwm_ch4_memory = (uint32_t)(pid_output / 100.0 * htim2.Instance->ARR); // Set the PWM duty cycle to the PID output, scaled to the PWM resolution
 
-    // Update Event Data
-    bms_data.node_id = bms_config.CanNodeID;
-    bms_data.packet_id = bms_config.BroadcastPacket;              // Set the broadcast packet ID
-    bms_data.extended = bms_config.CanExtended;                   // Set the extended ID flag
-    bms_data.active_faults = hbms_sm.ActiveFaults;                // Set the active faults
-    bms_data.cc_limit = cc_limit;                                 // Set the CC limit
-    bms_data.dc_limit = dc_limit;                                 // Set the DC limit
-    bms_data.high_temp = high_cell_temp;                          // Set the highest cell temperature
-    bms_data.soc = soc;                                           // Set the state of charge
-    bms_data.sdc_voltage_raw = sdc_voltage_raw;                   // Set the SDC voltage raw value
-    bms_data.avg_cycle_time = (uint16_t)(avg_cycle_time);         // Set the average cycle time
-    Align_Events_UpdateEventData(bms_broadcast_event, &bms_data); // Update the event data for the broadcast message
-    Align_Events_SetEventActive(bq_voltage_broadcast_event, bms_config.CanVoltageBroadcastEnabled);
-
-    if (bms_config.CanTempBroadcastEnabled && (cell_temp_timestamp + bms_config.CanTempBroadcastInterval) <= HAL_GetTick())
-    {
-      // TODO: Broadcast the cell temperatures
-
-      cell_temp_timestamp = HAL_GetTick();
-    }
 
     if ((internal_comm_timestamp + 50) <= HAL_GetTick())
     {
@@ -572,11 +399,11 @@ int main(void)
       if (status != HAL_OK)
       {
         // We have a timeout, set the state to fault
-        SET_BIT(hbms_sm.ActiveFaults, BMS_WARNING_INT_COMM); // Set the int comm warning flag
+        SET_BIT(hbms.ActiveFaults, BMS_WARNING_INT_COMM); // Set the int comm warning flag
       }
       else
       {
-        CLEAR_BIT(hbms_sm.ActiveFaults, BMS_WARNING_INT_COMM); // Clear the int comm warning flag
+        CLEAR_BIT(hbms.ActiveFaults, BMS_WARNING_INT_COMM); // Clear the int comm warning flag
       }
       internal_comm_timestamp = HAL_GetTick(); // Reset the timer
     }

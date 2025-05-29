@@ -2,7 +2,6 @@
 #define BATTERY_MODEL_H
 
 #include <stdint.h>
-#include "bq79600.h"
 #include "bms_config.h"
 
 
@@ -10,8 +9,6 @@
 
 // A battery model implemented based on the model used in the following paper:
 // https://www.sciencedirect.com/science/article/pii/S0360544211002271#sec2
-
-
 
 
 typedef struct {

@@ -14,7 +14,8 @@
         "simulation.h": "c",
         "stdlib.h": "c",
         "libs.h": "c",
-        "string.h": "c"
+        "string.h": "c",
+        "bms_config.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true,
     "C_Cpp.errorSquiggles": "enabled"

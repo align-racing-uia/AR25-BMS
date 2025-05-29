@@ -1,8 +1,8 @@
 #ifndef BQ79600_H
 #define BQ79600_H
 #include "main.h"
-#include "bms_config.h"
 #include "stdbool.h"
+#include "bms_config.h"
 
 // CONFIG
 
@@ -61,43 +61,59 @@
 #define BQ16_GPIO_CONF1_GPIO1_OUTPUT 0x5  // These can be used in the relevant positions for the rest as well
 #define BQ16_GPIO_CONF1_GPIO2_OUTPUT 0x28 // Defaults to setting the output to low
 
-typedef struct
-{
+typedef struct {
+    GPIO_TypeDef *GPIOx; // The GPIO port
+    uint16_t Pin;        // The GPIO pin
+} BQ_PinTypeDef;
+
+typedef struct {
     SPI_HandleTypeDef *hspi;
-    GPIO_TypeDef *csGPIOx;
-    GPIO_TypeDef *spiRdyGPIOx;
-    GPIO_TypeDef *mosiGPIOx;
-    GPIO_TypeDef *nFaultGPIOx;
-    uint16_t csPin;
-    uint16_t spiRdyPin;
-    uint16_t mosiPin;
-    uint16_t nFaultPin;
+    BQ_PinTypeDef CsPin;
+    BQ_PinTypeDef SpiRdyPin;
+    BQ_PinTypeDef MosiPin;
+    BQ_PinTypeDef FaultPin;
     // This parameter is a bitwise select of what GPIOs should be activated as ADCs
     // And what GPIOs should be treated as General Purpose Outputs
     //    GPIO8 GPIO7 GPIO6 ...
     //  0b  0     0     0   ...
-    uint8_t gpioADCMap;
-    uint8_t gpioConf[4]; // This is to skip the need to read the GPIO config registers when setting the GPIOs
+    uint8_t GpioADCMap;
+    uint8_t CellTempAuxPinMap; // This is a bitwise select of what GPIOs should be used for the temperature sensors
+    uint8_t TempMultiplexPinIndex; // This is the pin used to multiplex the temperature sensors
+    bool TempMultiplexEnabled;     // This is true if the temperature sensors are multiplexed
+    TIM_HandleTypeDef *htim; // The timer used for the delays
+} BQ_ConfigTypeDef;
 
-    float highestCellTemperature;
-    float lowestCellTemperature;
-    float *cellVoltages;
-    float *cellTemperatures;
+typedef struct
+{
+    SPI_HandleTypeDef *hspi;
+    BQ_PinTypeDef CsPin;
+    BQ_PinTypeDef SpiRdyPin;
+    BQ_PinTypeDef MosiPin;
+    BQ_PinTypeDef FaultPin;
+    // This parameter is a bitwise select of what GPIOs should be activated as ADCs
+    // And what GPIOs should be treated as General Purpose Outputs
+    //    GPIO8 GPIO7 GPIO6 ...
+    //  0b  0     0     0   ...
+    uint8_t GpioADCMap;
+    uint8_t GpioConf[4]; // This is to skip the need to read the GPIO config registers when setting the GPIOs
+
+    float HighestCellTemperature;
+    float LowestCellTemperature;
+    float *CellVoltages;
+    float *CellTemperatures;
     // Each board except the master has 2 internal temperature sensors, one on each chip
-    float *bqDieTemperatures;
-    uint8_t *bqOutputBuffer;
-    uint8_t numOfChips;
-    uint8_t numOfSlaves;
-    uint8_t numOfCellsEach;
-    uint8_t numOfTempsEach;
+    float *BQDieTemperatures;
+    uint8_t *BQOutputBuffer;
+    uint8_t NumOfChips;
+    uint8_t NumOfSlaves;
+    uint8_t NumOfCellsEach;
+    uint8_t NumOfTempsEach;
 
-    bool tempMultiplexEnabled;     // This is true if the temperature sensors are multiplexed
-    uint8_t tempMultiplexPinIndex; // This is the pin used to multiplex the temperature sensors
-    uint8_t activeTempAuxPinMap;   // This is the pins reading the temperature sensors
+    bool TempMultiplexEnabled;     // This is true if the temperature sensors are multiplexed
+    uint8_t TempMultiplexPinIndex; // This is the pin used to multiplex the temperature sensors
+    uint8_t CellTempPinMap;
 
-    bool voltageLocked;
-    bool tempLocked;
-    bool connected;
+    bool Connected;
 
     TIM_HandleTypeDef *htim; // The timer used for the delays
 } BQ_HandleTypeDef;
