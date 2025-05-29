@@ -3,7 +3,7 @@
 #include "stddef.h"
 
 // Private Function defines
-bool Initialize();
+bool Initialize(BMS_HandleTypeDef *hbms);
 
 void BMS_Init(BMS_HandleTypeDef *hbms, BatteryModel_HandleTypeDef *battery_model, TS_HandleTypeDef *ts, BQ_HandleTypeDef *bq, BMS_Config_HandleTypeDef *config)
 {
@@ -38,7 +38,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     {
     case BMS_STATE_INITIALIZING:
         
-        if(Initialize())
+        if(Initialize(hbms))
         {
             hbms->State = BMS_STATE_CONNECTING; // Move to the next state
         }
@@ -49,13 +49,16 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         }
         break;
     
+    case BMS_STATE_CONFIGURING:
+        break;
+
     default:
         break;
     }
 }
 
 // Private Function implementations
-bool Initialize()
+bool Initialize(BMS_HandleTypeDef *hbms)
 {
     // Perform all the initialization steps here
     // This is a placeholder function, you can add your own initialization code here
