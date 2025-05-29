@@ -12,7 +12,9 @@
         "lfs_integration.h": "c",
         "compare": "c",
         "simulation.h": "c",
-        "stdlib.h": "c"
+        "stdlib.h": "c",
+        "libs.h": "c",
+        "string.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true
 }

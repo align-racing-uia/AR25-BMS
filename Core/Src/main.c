@@ -48,8 +48,6 @@
 #include "pid.h"
 #include "iwdg.h"
 
-#include "simulation.h"
-
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -58,13 +56,19 @@
 typedef enum
 {
   BMS_STATE_BOOTING,
-  BMS_STATE_CONNECTING,
   BMS_STATE_IDLE,
+  BMS_STATE_ACTVATING_TS,
   BMS_STATE_CHARGING,
-  BMS_STATE_DISCHARGING,
-  BMS_STATE_BALANCING,
+  BMS_STATE_DRIVING,
   BMS_STATE_FAULT
 } BMS_StateTypeDef;
+
+typedef enum {
+  TS_STATE_IDLE = 0,        
+  TS_STATE_PRECHARGE = 1,    
+  TS_STATE_ACTIVE = 2,
+  TS_STATE_FAULT = 3,          
+} TS_StateTypeDef;
 
 typedef enum
 {
@@ -130,8 +134,8 @@ typedef struct
 extern float sim_ocv_map[101];
 
 uint8_t usb_rx_buffer[64] = {0}; // Buffer to store the received USB data
-uint8_t usb_rx_len = 0; // Length of the received data
-bool usb_rx_ready = false; // Flag to indicate that USB data is ready to be processed
+uint8_t usb_rx_len = 0;          // Length of the received data
+bool usb_rx_ready = false;       // Flag to indicate that USB data is ready to be processed
 
 uint32_t adc1_buffer[1];
 uint32_t adc2_buffer[1];
@@ -158,23 +162,15 @@ float bq_cell_voltages[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_CELLS_EACH];  
 float bq_die_temperature_pool[2 * BQ_MAX_AMOUNT_OF_SLAVES];                            // This is the memory pool for the die temperatures
 float bq_cell_temperature_pool[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_TEMPS_EACH]; // This is the memory pool for the cell temperatures
 
-// Memory pools for the simulation
-Simulation_HandleTypeDef hsim; // The memory pool for the simulation
-Simulation_RX_TypeDef sim_rx_data; // The data received from the simulation
-Simulation_TX_TypeDef sim_tx_data; // The data to send to the simulation
-
-bool sim_reply = false;
-bool sim_update = false; // Flag to indicate that the simulation data has been updated
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
-void USB_CDC_RxHandler(uint8_t* Buf, uint32_t Len)
+void USB_CDC_RxHandler(uint8_t *Buf, uint32_t Len)
 {
-    CDC_Transmit_FS(Buf, Len);
+  CDC_Transmit_FS(Buf, Len);
 }
 
 bool SendBroadcastMessage(BMS_BroadcastTypeDef *data)
@@ -249,9 +245,9 @@ bool SendVoltageData(BQ_VoltageBroadcastTypeDef *data)
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
+ * @brief  The application entry point.
+ * @retval int
+ */
 int main(void)
 {
 
@@ -304,6 +300,7 @@ int main(void)
 
   // Define semi-global (global for main loop) variables
   BMS_StateTypeDef bms_state = BMS_STATE_BOOTING; // The state of the BMS
+  TS_StateTypeDef ts_state = {0}; 
   uint8_t active_faults = BMS_ERROR_NONE;
   bool warning_present = false; // Warning present flag
   bool fault_present = false;   // Fault present flag
@@ -345,7 +342,7 @@ int main(void)
     if (BMS_Config_UpdateFromFlash(&bms_config) != BMS_CONFIG_OK)
     {
       // If we could not read the config from flash, we will set the default values of the config
-      BMS_Config_Init(&bms_config); // Set the default values of the config (again) as the flash read failed
+      BMS_Config_Init(&bms_config);                                        // Set the default values of the config (again) as the flash read failed
       BMS_Config_StatusTypeDef res = BMS_Config_WriteToFlash(&bms_config); // Write the default values to flash
       if (res != BMS_CONFIG_OK)
       {
@@ -375,11 +372,11 @@ int main(void)
   BQ_BindMemory(&hbq, bms_config.NumOfSlaves, bq_output_buffer, bq_cell_voltages, bms_config.CellsEach, bq_cell_temperature_pool, bms_config.TempsEach, bq_die_temperature_pool); // Bind memory pools for the BQ79600 cell voltages
 
   BatteryModel_HandleTypeDef battery_model;
-  
+
   // Real
   // BatteryModel_Init(&battery_model, cell_model_memory_pool, bms_config.CellCount, bms_config.TotalCellCountInSeries, bms_config.CellCountInParallel);
   // BatteryModel_InitOCVMaps(&battery_model, bms_config.TempMapVoltagePoints, temp_map_voltage_points, temp_map_soc_points, temp_map_pool, bms_config.TempMapAmount);
-  
+
   // Simulation
   BatteryModel_Init(&battery_model, cell_model_memory_pool, 3, 3, 1, 2650);
   uint8_t temps[1] = {26};
@@ -415,7 +412,7 @@ int main(void)
 
   PID_HandleTypeDef pid_controller = PID_Init(0.1, 0.01, 0.01, 0.1, 100); // Initialize the PID controller
 
-  bms_state = BMS_STATE_CONNECTING; // Set the state to connecting
+  bms_state = BMS_STATE_BOOTING; // Set the state to connecting
 
   // Start Events
   BMS_BroadcastTypeDef bms_broadcast_data[2] = {0};                                                                                                       // The data to send to the secondary MCU
@@ -513,25 +510,11 @@ int main(void)
           case 0x2:
             break;
           }
-        }else if(node_id == 7) // Simulations and configuration
+        }
+        else if (node_id == 7) // Simulations and configuration
         {
           switch (packet_id)
           {
-            case 0x21:
-              
-              sim_rx_data.delta_time = ((uint16_t) rxData[0]) << 0 | ((uint16_t) rxData[1]) << 8 ; // Delta time in ms
-              sim_rx_data.cell_voltages[0] =  ((uint16_t) rxData[2]) << 0 | ((uint16_t) rxData[3]) << 8 ;
-              sim_rx_data.cell_voltages[1] =  ((uint16_t) rxData[4]) << 0 | ((uint16_t) rxData[5]) << 8 ;
-              sim_rx_data.cell_voltages[2] =  ((uint16_t) rxData[6]) << 0 | ((uint16_t) rxData[7]) << 8 ;
-              break;
-            case 0x22:
-              sim_rx_data.cell_temperatures[0] =  ((uint16_t) rxData[0]) << 0 | ((uint16_t) rxData[1]) << 8 ;
-              sim_rx_data.cell_temperatures[1] =  ((uint16_t) rxData[2]) << 0 | ((uint16_t) rxData[3]) << 8 ;
-              sim_rx_data.cell_temperatures[2] =  ((uint16_t) rxData[4]) << 0 | ((uint16_t) rxData[5]) << 8 ;
-              sim_rx_data.current = ((int16_t) rxData[6]) << 0 | ((int16_t) rxData[7]) << 8;
-              // 0x22 is always sent after 0x21
-              sim_update = true; // Set the simulation reply flag
-              break;
           }
         }
       }
@@ -561,7 +544,6 @@ int main(void)
     switch (bms_state)
     {
     case BMS_STATE_BOOTING:
-    case BMS_STATE_CONNECTING:
     {
 #if defined(CONNECTED_TO_BATTERY)
       // Init BQ79600 (Could be wrapped into one function)
@@ -595,9 +577,10 @@ int main(void)
       bms_state = BMS_STATE_IDLE; // Set the state to idle
       break;
     }
+    case BMS_STATE_ACTVATING_TS:
     case BMS_STATE_IDLE:
     case BMS_STATE_CHARGING:
-    case BMS_STATE_DISCHARGING:
+    case BMS_STATE_DRIVING:
     {
       // The main tasks of the BMS
 #if defined(CONNECTED_TO_BATTERY)
@@ -614,69 +597,12 @@ int main(void)
         currentSensor = high_current_sensor;
       }
 
-      if (currentSensor < 0)
-      {
-        bms_state = BMS_STATE_CHARGING; // Set the state to charging
-      }
-      else if (currentSensor > 0)
-      {
-        bms_state = BMS_STATE_DISCHARGING; // Set the state to discharging
-      }
-      else
-      {
-        bms_state = BMS_STATE_IDLE; // Set the state to idle
-      }
-
-      // Override, to be able to test the simulation faster
-      if(sim_update){
-        UpdateSimulation(&hsim, &sim_rx_data); // Update the simulation with the new data
-
-        BatteryModel_Update(&battery_model, hsim.cell_voltages, hsim.cell_temperatures, &hsim.current, sim_rx_data.delta_time);
-
-        sim_tx_data.estimated_capacity[0] = (uint16_t)(battery_model.Cells[0].EstimatedCapacity); // mAh
-        sim_tx_data.estimated_capacity[1] = (uint16_t)(battery_model.Cells[1].EstimatedCapacity); // mAh
-        sim_tx_data.estimated_capacity[2] = (uint16_t)(battery_model.Cells[2].EstimatedCapacity); // mAh
-
-        sim_tx_data.estimated_soc[0] = (uint16_t)(battery_model.Cells[0].EstimatedSOC);
-        sim_tx_data.estimated_soc[1] = (uint16_t)(battery_model.Cells[1].EstimatedSOC); 
-        sim_tx_data.estimated_soc[2] = (uint16_t)(battery_model.Cells[2].EstimatedSOC); 
-        sim_tx_data.pack_soc = (uint16_t)(battery_model.EstimatedSOC); 
-        sim_update = false; // Reset the simulation update flag
-        
-        uint8_t data1[8] = {0};
-        data1[0] = sim_tx_data.estimated_capacity[0] >> 0;
-        data1[1] = sim_tx_data.estimated_capacity[0] >> 8;
-        data1[2] = sim_tx_data.estimated_capacity[1] >> 0;
-        data1[3] = sim_tx_data.estimated_capacity[1] >> 8;
-        data1[4] = sim_tx_data.estimated_capacity[2] >> 0;
-        data1[5] = sim_tx_data.estimated_capacity[2] >> 8;
-
-        uint8_t data2[8] = {0};
-        data2[0] = sim_tx_data.estimated_soc[0] >> 0;
-        data2[1] = sim_tx_data.estimated_soc[0] >> 8;
-        data2[2] = sim_tx_data.estimated_soc[1] >> 0;
-        data2[3] = sim_tx_data.estimated_soc[1] >> 8;
-        data2[4] = sim_tx_data.estimated_soc[2] >> 0;
-        data2[5] = sim_tx_data.estimated_soc[2] >> 8;
-
-        sim_tx_data.pack_soc = (uint16_t)(battery_model.EstimatedSOC * 10); // Convert to % * 10
-
-        // Replying with updated states
-        Align_CAN_AddToBuffer(&hfdcan1, Align_CombineCanId(0x11, 7, false), data1, 6, false);
-        Align_CAN_AddToBuffer(&hfdcan1, Align_CombineCanId(0x12, 7, false), data2, 8, false);
-
-      }
 
       soc = (uint16_t)(battery_model.EstimatedSOC * 10); // Convert to % * 10
 
       // TODO: Handle dc limit and cc limit
 
       // TODO: Open the contactors if the current is high on warning or fault
-
-      break;
-    }
-    case BMS_STATE_BALANCING:
-    {
 
       break;
     }
@@ -739,11 +665,9 @@ int main(void)
     // {
     //   // Every second
     //   CDC_Transmit_FS((uint8_t *)&usb_log, sizeof(usb_log)); // Send data to USB CDC
-      
+
     //   usb_timestamp = HAL_GetTick();
     // }
-
-
 
     if ((internal_comm_timestamp + 50) <= HAL_GetTick())
     {
@@ -784,9 +708,9 @@ int main(void)
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
+ * @brief System Clock Configuration
+ * @retval None
+ */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -794,14 +718,13 @@ void SystemClock_Config(void)
   RCC_CRSInitTypeDef pInit = {0};
 
   /** Configure the main internal regulator output voltage
-  */
+   */
   HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1_BOOST);
 
   /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSI48
-                              |RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
+   * in the RCC_OscInitTypeDef structure.
+   */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_HSI48 | RCC_OSCILLATORTYPE_LSI | RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
@@ -820,9 +743,8 @@ void SystemClock_Config(void)
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+   */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
@@ -834,15 +756,15 @@ void SystemClock_Config(void)
   }
 
   /** Enable the SYSCFG APB clock
-  */
+   */
   __HAL_RCC_CRS_CLK_ENABLE();
 
   /** Configures CRS
-  */
+   */
   pInit.Prescaler = RCC_CRS_SYNC_DIV1;
   pInit.Source = RCC_CRS_SYNC_SOURCE_USB;
   pInit.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
-  pInit.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000,1000);
+  pInit.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000, 1000);
   pInit.ErrorLimitValue = 34;
   pInit.HSI48CalibrationValue = 32;
 
@@ -854,13 +776,13 @@ void SystemClock_Config(void)
 /* USER CODE END 4 */
 
 /**
-  * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM1 interrupt took place, inside
-  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
-  * a global variable "uwTick" used as application time base.
-  * @param  htim : TIM handle
-  * @retval None
-  */
+ * @brief  Period elapsed callback in non blocking mode
+ * @note   This function is called  when TIM1 interrupt took place, inside
+ * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+ * a global variable "uwTick" used as application time base.
+ * @param  htim : TIM handle
+ * @retval None
+ */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
@@ -876,9 +798,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 }
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -890,14 +812,14 @@ void Error_Handler(void)
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
+ * @brief  Reports the name of the source file and the source line number
+ *         where the assert_param error has occurred.
+ * @param  file: pointer to the source file name
+ * @param  line: assert_param error line source number
+ * @retval None
+ */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
