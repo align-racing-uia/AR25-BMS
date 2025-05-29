@@ -58,7 +58,7 @@
 #define BQ16_ADC_CTRL3_AUXCONT 0x02
 #define BQ16_GPIO_CONF1_GPIO1_ADC (1 << 1) // These can be used in the relevant positions for the rest as well
 #define BQ16_GPIO_CONF1_GPIO2_ADC (1 << 4)
-#define BQ16_GPIO_CONF1_GPIO1_OUTPUT 0x5 // These can be used in the relevant positions for the rest as well
+#define BQ16_GPIO_CONF1_GPIO1_OUTPUT 0x5  // These can be used in the relevant positions for the rest as well
 #define BQ16_GPIO_CONF1_GPIO2_OUTPUT 0x28 // Defaults to setting the output to low
 
 typedef struct
@@ -91,12 +91,13 @@ typedef struct
     uint8_t numOfCellsEach;
     uint8_t numOfTempsEach;
 
-    bool tempMultiplexEnabled; // This is true if the temperature sensors are multiplexed
+    bool tempMultiplexEnabled;     // This is true if the temperature sensors are multiplexed
     uint8_t tempMultiplexPinIndex; // This is the pin used to multiplex the temperature sensors
-    uint8_t activeTempAuxPinMap; // This is the pins reading the temperature sensors
+    uint8_t activeTempAuxPinMap;   // This is the pins reading the temperature sensors
 
     bool voltageLocked;
     bool tempLocked;
+    bool connected;
 
     TIM_HandleTypeDef *htim; // The timer used for the delays
 } BQ_HandleTypeDef;
@@ -110,17 +111,14 @@ typedef enum
     BQ_STATUS_CRC_ERROR = 4,
 } BQ_StatusTypeDef;
 
-
-
-void BQ_Init(BQ_HandleTypeDef *hbq);
+void BQ_BindMemory(BQ_HandleTypeDef *hbq, uint8_t num_of_slave_chips, uint8_t *bq_output_buffer, float *cell_voltages_memory_pool, uint8_t num_of_cells_each, float *cell_temperature_memory_pool, uint8_t num_of_temps_each, float *bq_die_temperature_memory_pool);
 void BQ_WakePing(BQ_HandleTypeDef *hbq);
 void BQ_ClearComm(BQ_HandleTypeDef *hbq);
 bool BQ_SpiRdy(BQ_HandleTypeDef *hbq);
-void BQ_BindMemory(BQ_HandleTypeDef* hbq, uint8_t num_of_slave_chips, uint8_t *bq_output_buffer, float *cell_voltages_memory_pool, uint8_t num_of_cells_each, float *cell_temperature_memory_pool, uint8_t num_of_temps_each, float *bq_die_temperature_memory_pool);
 BQ_StatusTypeDef BQ_SetGPIOAll(BQ_HandleTypeDef *hbq, uint8_t pin, bool logicState);
 BQ_StatusTypeDef BQ_WakeMsg(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef *hbq);
-BQ_StatusTypeDef BQ_ActivateAuxADC(BQ_HandleTypeDef* hbq);
+BQ_StatusTypeDef BQ_ActivateAuxADC(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_ConfigureGPIO(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq);

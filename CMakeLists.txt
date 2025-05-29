@@ -28,7 +28,7 @@ include("cmake/gcc-arm-none-eabi.cmake")
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
 # Enable CMake support for ASM and C languages
-enable_language(C ASM)
+enable_language(C CXX ASM)
 
 # Core project settings
 project(${CMAKE_PROJECT_NAME})
@@ -54,8 +54,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Core/Src/bms_config.c
     ${CMAKE_SOURCE_DIR}/Core/Src/secondary_mcu.c
     ${CMAKE_SOURCE_DIR}/Core/Src/pid.c
-    ${CMAKE_SOURCE_DIR}/Core/Src/simulation.c
-
+    ${CMAKE_SOURCE_DIR}/Core/Src/ts_statemachine.c
+    ${CMAKE_SOURCE_DIR}/Core/Src/bms_statemachine.c
 )
 
 # Add include paths

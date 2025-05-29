@@ -16,5 +16,6 @@
         "libs.h": "c",
         "string.h": "c"
     },
-    "cortex-debug.variableUseNaturalFormat": true
+    "cortex-debug.variableUseNaturalFormat": true,
+    "C_Cpp.errorSquiggles": "enabled"
 }
