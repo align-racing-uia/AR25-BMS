@@ -27,12 +27,12 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
 {
 
     CheckForFaults(hbms);
-    
+
     switch (hbms->State)
     {
     case BMS_STATE_BOOTING:
-        
-        if(Initialize(hbms))
+
+        if (Initialize(hbms))
         {
             hbms->State = BMS_STATE_CONFIGURING; // Move to the next state
         }
@@ -42,15 +42,32 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
             hbms->State = BMS_STATE_FAULT;
         }
         break;
-    
+
     case BMS_STATE_CONFIGURING:
+        if (Configure(hbms))
+        {
+            hbms->State = BMS_STATE_CONNECTING; // Move to the next state if configuration is successful
+        }
+        else
+        {
+            // If configuration fails, set the state to fault
+            hbms->State = BMS_STATE_FAULT;
+        }
         break;
 
     case BMS_STATE_CONNECTING:
         // Check if the BQ is connected
         if (Connect(hbms))
         {
-            hbms->State = BMS_STATE_IDLE; // Move to the idle state if the BQ is connected
+            if(hbms->BQ->Connected)
+            {
+                // If the BQ is connected, move to the idle state
+                hbms->State = BMS_STATE_IDLE; // Move to the idle state if the BQ is connected
+            }else
+            {
+                // If the BQ is not connected, set the state to fault
+                hbms->State = BMS_STATE_FAULT;
+            }
         }
         else
         {
@@ -60,11 +77,18 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         break;
 
     default:
+
+        // Set the state to fault if it is not recognized
+        // We need to know what state we are in at all times, for the system
+        // to be deterministic
+        hbms->State = BMS_STATE_FAULT;
+
         break;
     }
 }
 
-void CheckForFaults(BMS_HandleTypeDef *hbms){
+void CheckForFaults(BMS_HandleTypeDef *hbms)
+{
 
     if (hbms == NULL)
     {
@@ -78,7 +102,6 @@ void CheckForFaults(BMS_HandleTypeDef *hbms){
         SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ); // Set the BQ fault flag if not connected
     }
 
-
     // Set the relevant flags based on the faults
     if (hbms->ActiveFaults & BMS_FAULT_MASK)
     {
@@ -86,13 +109,14 @@ void CheckForFaults(BMS_HandleTypeDef *hbms){
         hbms->State = BMS_STATE_FAULT;
     }
 
-    if(hbms->ActiveFaults & BMS_WARNING_MASK)
+    if (hbms->ActiveFaults & BMS_WARNING_MASK)
     {
         hbms->WarningPresent = true; // Set the warning present flag
-    }else{
+    }
+    else
+    {
         hbms->WarningPresent = false; // Clear the warning present flag
     }
-
 }
 
 bool Connect(BMS_HandleTypeDef *hbms)
@@ -112,6 +136,6 @@ bool Configure(BMS_HandleTypeDef *hbms)
 // Private Function implementations
 bool Initialize(BMS_HandleTypeDef *hbms)
 {
-   
+
     return true;
 }
