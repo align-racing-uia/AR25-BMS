@@ -67,20 +67,15 @@ typedef struct {
 } BQ_PinTypeDef;
 
 typedef struct {
-    SPI_HandleTypeDef *hspi;
-    BQ_PinTypeDef CsPin;
-    BQ_PinTypeDef SpiRdyPin;
-    BQ_PinTypeDef MosiPin;
-    BQ_PinTypeDef FaultPin;
-    // This parameter is a bitwise select of what GPIOs should be activated as ADCs
-    // And what GPIOs should be treated as General Purpose Outputs
-    //    GPIO8 GPIO7 GPIO6 ...
-    //  0b  0     0     0   ...
-    uint8_t GpioADCMap;
-    uint8_t CellTempAuxPinMap; // This is a bitwise select of what GPIOs should be used for the temperature sensors
-    uint8_t TempMultiplexPinIndex; // This is the pin used to multiplex the temperature sensors
-    bool TempMultiplexEnabled;     // This is true if the temperature sensors are multiplexed
-    TIM_HandleTypeDef *htim; // The timer used for the delays
+    uint8_t NumOfSlaves; // Number of slave chips
+    uint8_t NumOfCellsEach; // Number of cells each chip should measure
+    uint8_t NumOfTempsEach; // Number of temperature sensors each chip should measure
+
+    bool TempMultiplexEnabled;     // If the temperature sensors are multiplexed
+    uint8_t TempMultiplexPinIndex; // The pin used to multiplex the temperature sensors
+    uint8_t GpioAuxADCMap;
+    uint8_t CellTempPinMap;        // The pin map for the cell temperature sensors
+
 } BQ_ConfigTypeDef;
 
 typedef struct
@@ -94,7 +89,7 @@ typedef struct
     // And what GPIOs should be treated as General Purpose Outputs
     //    GPIO8 GPIO7 GPIO6 ...
     //  0b  0     0     0   ...
-    uint8_t GpioADCMap;
+    uint8_t GpioAuxADCMap;
     uint8_t GpioConf[4]; // This is to skip the need to read the GPIO config registers when setting the GPIOs
 
     float HighestCellTemperature;
@@ -127,7 +122,9 @@ typedef enum
     BQ_STATUS_CRC_ERROR = 4,
 } BQ_StatusTypeDef;
 
-void BQ_BindMemory(BQ_HandleTypeDef *hbq, uint8_t num_of_slave_chips, uint8_t *bq_output_buffer, float *cell_voltages_memory_pool, uint8_t num_of_cells_each, float *cell_temperature_memory_pool, uint8_t num_of_temps_each, float *bq_die_temperature_memory_pool);
+void BQ_Configure(BQ_HandleTypeDef *hbq, BQ_ConfigTypeDef *bq_config);
+void BQ_BindMemory(BQ_HandleTypeDef *hbq, uint8_t *bq_output_buffer, float *cell_voltages_memory_pool, float *cell_temperature_memory_pool, float *bq_die_temperature_memory_pool);
+void BQ_BindHardware(BQ_HandleTypeDef *hbq, SPI_HandleTypeDef *hspi, BQ_PinTypeDef cs_pin, BQ_PinTypeDef spi_rdy_pin, BQ_PinTypeDef mosi_pin, BQ_PinTypeDef fault_pin, TIM_HandleTypeDef *htim);
 void BQ_WakePing(BQ_HandleTypeDef *hbq);
 void BQ_ClearComm(BQ_HandleTypeDef *hbq);
 bool BQ_SpiRdy(BQ_HandleTypeDef *hbq);

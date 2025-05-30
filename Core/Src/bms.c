@@ -4,23 +4,82 @@
 
 // Private Function defines
 bool Initialize(BMS_HandleTypeDef *hbms);
+bool Connect(BMS_HandleTypeDef *hbms);
+bool Configure(BMS_HandleTypeDef *hbms);
+void CheckForFaults(BMS_HandleTypeDef *hbms);
 
-void BMS_Init(BMS_HandleTypeDef *hbms, BatteryModel_HandleTypeDef *battery_model, TS_HandleTypeDef *ts, BQ_HandleTypeDef *bq, BMS_Config_HandleTypeDef *config)
+// Public Function implementations
+
+void BMS_BindMemory(BMS_HandleTypeDef *hbms, BatteryModel_HandleTypeDef *battery_model, BQ_HandleTypeDef *bq)
 {
-    if (hbms == NULL || battery_model == NULL || ts == NULL || bq == NULL || config == NULL)
+    if (hbms == NULL || battery_model == NULL || bq == NULL)
     {
         // If this occurs, you have done something very wrong
         Error_Handler();
     }
 
     hbms->BatteryModel = battery_model;
-    hbms->TS = ts;
     hbms->BQ = bq;
-    hbms->Config = config;
-    hbms->State = BMS_STATE_INITIALIZING; // Initialize the state to booting
+    hbms->State = BMS_STATE_BOOTING; // Initialize the state to booting
 }
+
 void BMS_Update(BMS_HandleTypeDef *hbms)
 {
+
+    CheckForFaults(hbms);
+    
+    switch (hbms->State)
+    {
+    case BMS_STATE_BOOTING:
+        
+        if(Initialize(hbms))
+        {
+            hbms->State = BMS_STATE_CONFIGURING; // Move to the next state
+        }
+        else
+        {
+            // If initialization fails, set the state to fault
+            hbms->State = BMS_STATE_FAULT;
+        }
+        break;
+    
+    case BMS_STATE_CONFIGURING:
+        break;
+
+    case BMS_STATE_CONNECTING:
+        // Check if the BQ is connected
+        if (Connect(hbms))
+        {
+            hbms->State = BMS_STATE_IDLE; // Move to the idle state if the BQ is connected
+        }
+        else
+        {
+            // If the BQ is not connected, set the state to fault
+            hbms->State = BMS_STATE_FAULT;
+        }
+        break;
+
+    default:
+        break;
+    }
+}
+
+void CheckForFaults(BMS_HandleTypeDef *hbms){
+
+    if (hbms == NULL)
+    {
+        // If this occurs, you have done something very wrong
+        Error_Handler();
+    }
+
+    // Check the BQ for faults
+    if (!hbms->BQ->Connected)
+    {
+        SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ); // Set the BQ fault flag if not connected
+    }
+
+
+    // Set the relevant flags based on the faults
     if (hbms->ActiveFaults & BMS_FAULT_MASK)
     {
         // If there are any faults, set the state to fault
@@ -34,34 +93,25 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         hbms->WarningPresent = false; // Clear the warning present flag
     }
 
-    switch (hbms->State)
-    {
-    case BMS_STATE_INITIALIZING:
-        
-        if(Initialize(hbms))
-        {
-            hbms->State = BMS_STATE_CONNECTING; // Move to the next state
-        }
-        else
-        {
-            // If initialization fails, stay in the same state
-            hbms->State = BMS_STATE_FAULT;
-        }
-        break;
-    
-    case BMS_STATE_CONFIGURING:
-        break;
+}
 
-    default:
-        break;
-    }
+bool Connect(BMS_HandleTypeDef *hbms)
+{
+    // This function should implement the logic to connect to the BQ
+    // For now, we will just return true to simulate a successful connection
+    return true;
+}
+
+bool Configure(BMS_HandleTypeDef *hbms)
+{
+    // This function should implement the logic to configure the BQ
+    // For now, we will just return true to simulate a successful configuration
+    return true;
 }
 
 // Private Function implementations
 bool Initialize(BMS_HandleTypeDef *hbms)
 {
-    // Perform all the initialization steps here
-    // This is a placeholder function, you can add your own initialization code here
-    // For now, we will just return true to indicate that the initialization was successful
+   
     return true;
 }

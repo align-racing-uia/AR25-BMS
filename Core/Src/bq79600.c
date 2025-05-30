@@ -19,8 +19,40 @@ uint8_t reverse_bits(uint8_t b)
 // Depends on the GCC compiler
 #define NUM_OF_ONES(x) __builtin_popcount(x)
 
+void BQ_Configure(BQ_HandleTypeDef *hbq, BQ_ConfigTypeDef *bq_config){
+    if(bq_config == NULL || hbq == NULL)
+    {
+        // If this occurs, you have done something very wrong
+        Error_Handler();
+    }
+
+    hbq->NumOfSlaves = bq_config->NumOfSlaves;
+    hbq->NumOfCellsEach = bq_config->NumOfCellsEach;
+
+}
+
+void BQ_BindHardware(BQ_HandleTypeDef *hbq, SPI_HandleTypeDef *hspi, BQ_PinTypeDef cs_pin, BQ_PinTypeDef spi_rdy_pin, BQ_PinTypeDef mosi_pin, BQ_PinTypeDef fault_pin, TIM_HandleTypeDef *htim){
+    if (hbq == NULL || hspi == NULL || htim == NULL)
+    {
+        // If this occurs, youve done something very wrong
+        Error_Handler();
+    }
+
+    hbq->hspi = hspi;
+    hbq->CsPin = cs_pin;
+    hbq->SpiRdyPin = spi_rdy_pin;
+    hbq->MosiPin = mosi_pin;
+    hbq->FaultPin = fault_pin;
+    hbq->htim = htim;
+
+    // Set the GPIOs to their default state
+    HAL_GPIO_WritePin(hbq->CsPin.GPIOx, hbq->CsPin.Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(hbq->MosiPin.GPIOx, hbq->MosiPin.Pin, GPIO_PIN_RESET);
+}
+
+
 // The use of floats here is to be able to take advantage of the FPU, and to make the maths in later stages simpler
-void BQ_BindMemory(BQ_HandleTypeDef *hbq, uint8_t num_of_slave_chips, uint8_t *bq_output_buffer, float *cell_voltages_memory_pool, uint8_t num_of_cells_each, float *cell_temperature_memory_pool, uint8_t num_of_temps_each, float *bq_die_temperature_memory_pool)
+void BQ_BindMemory(BQ_HandleTypeDef *hbq, uint8_t *bq_output_buffer, float *cell_voltages_memory_pool, float *cell_temperature_memory_pool, float *bq_die_temperature_memory_pool)
 {
     if (hbq == NULL)
     {
@@ -28,29 +60,6 @@ void BQ_BindMemory(BQ_HandleTypeDef *hbq, uint8_t num_of_slave_chips, uint8_t *b
         Error_Handler();
     }
 
-    if (num_of_slave_chips > BQ_MAX_AMOUNT_OF_CHIPS)
-    {
-        // If this occurs, you have to change the BQ_MAX_AMOUNT_OF_CHIPS in bq79600.h
-        Error_Handler();
-    }
-
-    if (num_of_cells_each > BQ_MAX_AMOUNT_OF_CELLS_EACH)
-    {
-        // If this occurs, you have to change the BQ_MAX_AMOUNT_OF_CELLS_EACH in bq79600.h
-        Error_Handler();
-    }
-
-    if (num_of_temps_each > BQ_MAX_AMOUNT_OF_TEMPS_EACH)
-    {
-        // If this occurs, you have to change the BQ_MAX_AMOUNT_OF_TEMPS_EACH in bq79600.h
-        Error_Handler();
-    }
-
-    // Point the handle to the memory pools
-    hbq->NumOfChips = num_of_slave_chips + 1; // Including master
-    hbq->NumOfSlaves = num_of_slave_chips;    // Not including master
-    hbq->NumOfCellsEach = num_of_cells_each;
-    hbq->NumOfTempsEach = num_of_temps_each;
 
     hbq->BQOutputBuffer = bq_output_buffer;
     if (hbq->BQOutputBuffer == NULL)
@@ -77,11 +86,7 @@ void BQ_BindMemory(BQ_HandleTypeDef *hbq, uint8_t num_of_slave_chips, uint8_t *b
         // Handle memory allocation error
         Error_Handler();
     }
-    // Clear the used memory region
-    memset(hbq->BQOutputBuffer, 0x00, 128 * (hbq->NumOfChips));                               // Clear the output buffer
-    memset(hbq->CellVoltages, 0x00, sizeof(float) * num_of_cells_each * hbq->NumOfChips);     // Clear the cell voltages
-    memset(hbq->BQDieTemperatures, 0x00, sizeof(float) * 2 * (hbq->NumOfChips));              // Clear the die temperatures
-    memset(hbq->CellTemperatures, 0x00, sizeof(float) * num_of_temps_each * hbq->NumOfChips); // Clear the cell temperatures
+
 }
 
 // We sometimes need full control of the MOSI Pin in GPIO between SPI commands
@@ -319,7 +324,7 @@ BQ_StatusTypeDef BQ_SetGPIOAll(BQ_HandleTypeDef *hbq, uint8_t pin, bool logic_st
     return status;
 }
 
-// This function configures the GPIOs of the slaves to be either ADCs or GPIOs, based on the GpioADCMap variable
+// This function configures the GPIOs of the slaves to be either ADCs or GPIOs, based on the GpioAuxADCMap variable
 BQ_StatusTypeDef BQ_ConfigureGPIO(BQ_HandleTypeDef *hbq)
 {
 
@@ -330,7 +335,7 @@ BQ_StatusTypeDef BQ_ConfigureGPIO(BQ_HandleTypeDef *hbq)
         uint8_t data[1] = {0};
         for (int j = 0; j < 2; j++)
         {
-            if (hbq->GpioADCMap >> (j + i * 2) & 0x01)
+            if (hbq->GpioAuxADCMap >> (j + i * 2) & 0x01)
             {
                 if (j == 0)
                 {

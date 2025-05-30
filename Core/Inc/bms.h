@@ -10,7 +10,7 @@
 
 typedef enum
 {
-    BMS_STATE_INITIALIZING = 0, // Initial state, the BMS is initializing
+    BMS_STATE_BOOTING = 0, // Initial state, the BMS is initializing
     BMS_STATE_CONNECTING,
     BMS_STATE_CONFIGURING,
     BMS_STATE_IDLE,
@@ -35,7 +35,7 @@ typedef struct
 
 } BMS_HandleTypeDef;
 
-void BMS_Init(BMS_HandleTypeDef *hbms, BatteryModel_HandleTypeDef *battery_model, TS_HandleTypeDef *ts, BQ_HandleTypeDef *bq, BMS_Config_HandleTypeDef *config);      
+void BMS_BindMemory(BMS_HandleTypeDef *hbms, BatteryModel_HandleTypeDef *battery_model, BQ_HandleTypeDef *bq);      
 void BMS_Update(BMS_HandleTypeDef *hbms);
 
 #endif // BMS_STATEMACHINE_H

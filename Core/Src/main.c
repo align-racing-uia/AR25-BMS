@@ -175,7 +175,6 @@ int main(void)
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
 
-  BMS_HandleTypeDef hbms;
 
 #if defined(WATCHDOG_ENABLE)
 
@@ -184,13 +183,8 @@ int main(void)
 
 #endif
 
-  // Initialize timer for align delay
-  Align_InitDelay(&htim3); // Initialize the delay function
+  // Initiializ Hardware Peripherals
 
-
-  bool charger_connected = false; // Charger connected flag
-  uint16_t sdc_voltage_raw = 0;   // SDC voltage raw value
-  bool sdc = false;               // SDC connected flag
   // Initialize timer used for PWM generation, and start the DMA
   HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_3, &pwm_ch3_memory, 1); // Start the timer for PWM generation
   HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, &pwm_ch4_memory, 1); // Start the timer for PWM generation
@@ -202,33 +196,40 @@ int main(void)
   // Set the nFault pin high to indicate no errors on the BMS yet
   HAL_GPIO_WritePin(nFault_GPIO_Port, nFault_Pin, GPIO_PIN_SET); // Set the fault pin high to indicate no fault
 
-  // Initialize w25q32
-  W25Q_STATE res = W25Q_Init();
-  if (res != W25Q_OK)
-  {
-    SET_BIT(hbms.ActiveFaults, BMS_NOTE_EEPROM); // Set the EEPROM warning flag
-  }
+  // Initialize timer for align delay
+  Align_InitDelay(&htim3); // Initialize the delay function
+
+  // Initialize the CAN interface
+  Align_CAN_Init(&hfdcan1, ALIGN_CAN_SPEED_500KBPS, FDCAN1);
+
+
+  // // Initialize w25q32
+  // W25Q_STATE res = W25Q_Init();
+  // if (res != W25Q_OK)
+  // {
+  //   SET_BIT(hbms.ActiveFaults, BMS_NOTE_EEPROM); // Set the EEPROM warning flag
+  // }
 
   // Initilalize the BMS Config
-  BMS_Config_HandleTypeDef bms_config;
-  BMS_Config_Init(&bms_config); // Set the default values of the config
+  // BMS_Config_HandleTypeDef bms_config;
+  // BMS_Config_Init(&bms_config); // Set the default values of the config
 
-  // If the W25Q_Init caught a fault, we will not be able to read the config from flash
-  if (!READ_BIT(hbms.ActiveFaults, BMS_NOTE_EEPROM))
-  {
-    if (BMS_Config_UpdateFromFlash(&bms_config) != BMS_CONFIG_OK)
-    {
-      // If we could not read the config from flash, we will set the default values of the config
-      BMS_Config_Init(&bms_config);                                        // Set the default values of the config (again) as the flash read failed
-      BMS_Config_StatusTypeDef res = BMS_Config_WriteToFlash(&bms_config); // Write the default values to flash
-      if (res != BMS_CONFIG_OK)
-      {
-        SET_BIT(hbms.ActiveFaults, BMS_NOTE_EEPROM); // Set the EEPROM warning flag
-        // We have to reset the config to default values, as we could not write to flash and the write reads to verify the write
-        BMS_Config_Init(&bms_config); // Set the default values of the config
-      }
-    }
-  }
+  // // If the W25Q_Init caught a fault, we will not be able to read the config from flash
+  // if (!READ_BIT(hbms.ActiveFaults, BMS_NOTE_EEPROM))
+  // {
+  //   if (BMS_Config_UpdateFromFlash(&bms_config) != BMS_CONFIG_OK)
+  //   {
+  //     // If we could not read the config from flash, we will set the default values of the config
+  //     BMS_Config_Init(&bms_config);                                        // Set the default values of the config (again) as the flash read failed
+  //     BMS_Config_StatusTypeDef res = BMS_Config_WriteToFlash(&bms_config); // Write the default values to flash
+  //     if (res != BMS_CONFIG_OK)
+  //     {
+  //       SET_BIT(hbms.ActiveFaults, BMS_NOTE_EEPROM); // Set the EEPROM warning flag
+  //       // We have to reset the config to default values, as we could not write to flash and the write reads to verify the write
+  //       BMS_Config_Init(&bms_config); // Set the default values of the config
+  //     }
+  //   }
+  // }
 
   // Currently the BQ handle is defined manually, as there are many parameters that need to be set
   // hbq.hspi = &hspi2;
@@ -253,11 +254,14 @@ int main(void)
   BQ_PinTypeDef bq_mosi_pin = {GPIOB, GPIO_PIN_15}; // MOSI pin for the BQ79600
   BQ_PinTypeDef bq_fault_pin = {GPIOA, GPIO_PIN_8}; // Fault pin for the BQ79600
 
+  // Bind Memory regions
+  BQ_BindMemory(&hbq, bq_output_buffer, bq_cell_voltages, bq_cell_temperature_pool, bq_die_temperature_pool); // Bind memory pools for the BQ79600 cell voltages
+  BQ_BindHardware(&hbq, &hspi2, bq_cs_pin, bq_spi_rdy_pin, bq_mosi_pin, bq_fault_pin, &htim3); // Bind the hardware peripherals to the BQ79600 handle
 
-  BQ_BindMemory(&hbq, bms_config.NumOfSlaves, bq_output_buffer, bq_cell_voltages, bms_config.CellsEach, bq_cell_temperature_pool, bms_config.TempsEach, bq_die_temperature_pool); // Bind memory pools for the BQ79600 cell voltages
 
-
-  Align_CAN_Init(&hfdcan1, ALIGN_CAN_SPEED_500KBPS, FDCAN1);
+  // Initialize the Battery Model
+  BatteryModel_HandleTypeDef hbm;
+  BatteryModel_BindMemory(&hbm, cell_model_memory_pool); // Bind the memory pool to the battery model
 
   /* USER CODE END 2 */
 
@@ -265,11 +269,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 
 
-  FDCAN_RxHeaderTypeDef rxHeader;
-  uint8_t rxData[8];
-
-  uint32_t charger_timeout = HAL_GetTick();
-  uint32_t can_timeout = HAL_GetTick();
   uint32_t alive_sig_timestamp = HAL_GetTick();
   uint32_t internal_comm_timestamp = HAL_GetTick(); // Communication with the secondary MCU to activate relays
 
@@ -278,88 +277,86 @@ int main(void)
 
   PID_HandleTypeDef pid_controller = PID_Init(0.1, 0.01, 0.01, 0.1, 100); // Initialize the PID controller
 
-  // Tractive System State Machine
-  TS_HandleTypeDef hts_sm;
-  TS_Init(&hts_sm); // Initialize the TS state machine
 
-  // BMS_Init(&hbms); // Initialize the TS state machine
+  BMS_HandleTypeDef hbms;
+  BMS_BindMemory(&hbms, &hbm, &hbq); // Initialize the TS state machine
 
 
   while (1)
   {
     cycle_time_start = HAL_GetTick(); // Start the cycle time measurement
 
-    // We should recieve a CAN message atleast as often as the broadcast interval
-    if (can_timeout + bms_config.CanBroadcastInterval < HAL_GetTick())
-    {
-      // We have not received a CAN message for a while, set the state to fault
-      SET_BIT(hbms.ActiveFaults, BMS_WARNING_CAN); // Set the CAN warning flag
-    }
-    else
-    {
-      CLEAR_BIT(hbms.ActiveFaults, BMS_WARNING_CAN); // Clear the CAN warning flag
-    }
+    // // We should recieve a CAN message atleast as often as the broadcast interval
+    // if (can_timeout + bms_config.CanBroadcastInterval < HAL_GetTick())
+    // {
+    //   // We have not received a CAN message for a while, set the state to fault
+    //   SET_BIT(hbms.ActiveFaults, BMS_WARNING_CAN); // Set the CAN warning flag
+    // }
+    // else
+    // {
+    //   CLEAR_BIT(hbms.ActiveFaults, BMS_WARNING_CAN); // Clear the CAN warning flag
+    // }
 
-    if (abs(secondary_response[secondary_mcu_recieve_index].PingPongDeviation) > 100) // Check if internal communication is getting slow
-    {
-      // We have a ping-pong deviation, set the state to fault
-      SET_BIT(hbms.ActiveFaults, BMS_WARNING_INT_COMM); // Set the CAN warning flag
-    }
-    else
-    {
-      CLEAR_BIT(hbms.ActiveFaults, BMS_WARNING_INT_COMM); // Clear the CAN warning flag
-    }
+    // if (abs(secondary_response[secondary_mcu_recieve_index].PingPongDeviation) > 100) // Check if internal communication is getting slow
+    // {
+    //   // We have a ping-pong deviation, set the state to fault
+    //   SET_BIT(hbms.ActiveFaults, BMS_WARNING_INT_COMM); // Set the CAN warning flag
+    // }
+    // else
+    // {
+    //   CLEAR_BIT(hbms.ActiveFaults, BMS_WARNING_INT_COMM); // Clear the CAN warning flag
+    // }
 
-    // Handle data from the secondary MCU
+    // // Handle data from the secondary MCU
 
-    sdc_voltage_raw = secondary_response[secondary_mcu_recieve_index].SDCVoltageRaw; // Get the SDC voltage from the secondary MCU
-    hbms.SDC = (((float)sdc_voltage_raw) * 3000.0 / 4096.0) > 2500;                       // Convert to mV
+    // sdc_voltage_raw = secondary_response[secondary_mcu_recieve_index].SDCVoltageRaw; // Get the SDC voltage from the secondary MCU
+    // hbms.SDC = (((float)sdc_voltage_raw) * 3000.0 / 4096.0) > 2500;                       // Convert to mV
 
     // Handle the CAN messages
-    if (Align_CAN_Receive(&hfdcan1, &rxHeader, rxData))
-    {
-      // Recieved a CAN message, reset the timeout
-      can_timeout = HAL_GetTick();
+    // if (Align_CAN_Receive(&hfdcan1, &rxHeader, rxData))
+    // {
+    //   // Recieved a CAN message, reset the timeout
+    //   can_timeout = HAL_GetTick();
 
-      // Process the received data
-      uint32_t can_id = rxHeader.Identifier;
-      uint16_t packet_id = 0;
-      uint16_t node_id = 0;
-      Align_SplitCanId(can_id, &packet_id, &node_id, rxHeader.IdType == FDCAN_EXTENDED_ID);
+    //   // Process the received data
+    //   uint32_t can_id = rxHeader.Identifier;
+    //   uint16_t packet_id = 0;
+    //   uint16_t node_id = 0;
+    //   Align_SplitCanId(can_id, &packet_id, &node_id, rxHeader.IdType == FDCAN_EXTENDED_ID);
 
-      switch (can_id)
-      {
-      // We first check for special IDs in case there are devices on the network which do not follow the DTI standard
-      case 0x18FF50E5: // Insert Charger ID here
-        /* code */
-        charger_connected = true;
-        charger_timeout = HAL_GetTick();
-        break;
+    //   switch (can_id)
+    //   {
+    //   // We first check for special IDs in case there are devices on the network which do not follow the DTI standard
+    //   case 0x18FF50E5: // Insert Charger ID here
+    //     /* code */
+    //     charger_connected = true;
+    //     charger_timeout = HAL_GetTick();
+    //     break;
 
-      default:
-        // Using if statements to be able to check against node ids against set variables
-        if (node_id == bms_config.CanNodeID)
-        {
-          BMS_Config_HandleCanMessage(&bms_config, packet_id, rxData); // Handle the CAN message
-        }
-        else if (node_id == 1)
-        { // continoue downwards here
-          switch (packet_id)
-          {
-          case 0x1:
-            break;
-          case 0x2:
-            break;
-          }
-        }
-        else if (node_id == 7) // Simulations and configuration
-        {
-          switch (packet_id)
-          {
-          }
-        }
-      }
-    }
+    //   default:
+    //     // Using if statements to be able to check against node ids against set variables
+    //     if (node_id == bms_config.CanNodeID)
+    //     {
+    //       BMS_Config_HandleCanMessage(&bms_config, packet_id, rxData); // Handle the CAN message
+    //     }
+    //     else if (node_id == 1)
+    //     { // continoue downwards here
+    //       switch (packet_id)
+    //       {
+    //       case 0x1:
+    //         break;
+    //       case 0x2:
+    //         break;
+    //       }
+    //     }
+    //     else if (node_id == 7) // Simulations and configuration
+    //     {
+    //       switch (packet_id)
+    //       {
+    //       }
+    //     }
+    //   }
+    // }
 
     // Update all the BMS states
     BMS_Update(&hbms);
