@@ -265,7 +265,7 @@ int main(void)
   BMS_HandleTypeDef hbms;
   BMS_HardwareConfigTypeDef bms_hardware_config = {
       .hfdcan = &hfdcan1, // Set the FDCAN handle
-      .SdcClosedPin = {GPIOA, GPIO_PIN_0}, // Set the SdcClosed pin
+      .FaultPin = {nFault_GPIO_Port, nFault_Pin}, // Set the fault pin
   };
 
   BMS_BindMemory(&hbms, &hbm, &hbq); // Initialize the TS state machine

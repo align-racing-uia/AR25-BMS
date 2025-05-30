@@ -29,7 +29,7 @@ typedef struct
 {
 
     FDCAN_HandleTypeDef *hfdcan; // Handle for the FDCAN peripheral
-    BMS_PinTypeDef SdcClosedPin; // Pin for SdcClosed
+    BMS_PinTypeDef FaultPin;      // Pin for the fault indicator
 
 } BMS_HardwareConfigTypeDef;
 
@@ -45,7 +45,7 @@ typedef struct
     BMS_StateTypeDef State;      // The state of the BMS
     BMS_FaultFlags ActiveFaults; // Active faults bitmask
     
-    BMS_PinTypeDef SdcClosedPin; // Pin for SdcClosed
+    BMS_PinTypeDef FaultPin;     // Pin for the fault indicator
 
     uint32_t CanTimestamp;     // Timestamp for the last CAN message
     uint32_t ChargerTimestamp; // Timestamp for the last charger CAN message

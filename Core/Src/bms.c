@@ -36,15 +36,14 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
     hbms->State = BMS_STATE_CONFIGURING; // Set the initial state to configuring
     hbms->ActiveFaults = 0;              // Clear the active faults
     hbms->WarningPresent = false;        // Clear the warning present flag
-    hbms->SdcClosed = false;                   // Clear the SdcClosed connected flag
+    hbms->SdcClosed = false;             // Clear the SdcClosed connected flag
     hbms->EepromPresent = false;         // Clear the EEPROM present flag
-    TS_Init(hbms->TS); // Initialize the TS state machine
+    TS_Init(hbms->TS);                   // Initialize the TS state machine
 
-    hbms->SdcClosedPin = hardware_config->SdcClosedPin; // Bind the SdcClosed pin from the hardware configuration
-    hbms->FDCAN = hardware_config->hfdcan; // Bind the FDCAN handle from the hardware configuration
-    
-    hbms->Initialized = true;            // Clear the initialized flag
+    hbms->FaultPin = hardware_config->FaultPin;          // Bind the fault pin from the hardware configuration
+    hbms->FDCAN = hardware_config->hfdcan;              // Bind the FDCAN handle from the hardware configuration
 
+    hbms->Initialized = true; // Clear the initialized flag
 }
 
 void BMS_Update(BMS_HandleTypeDef *hbms)
@@ -89,7 +88,12 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
             hbms->State = BMS_STATE_FAULT;
         }
         break;
-
+    
+    case BMS_STATE_FAULT:
+        
+        // Send the BMS fault signal
+        HAL_GPIO_WritePin(hbms->FaultPin.Port, hbms->FaultPin.Pin, GPIO_PIN_RESET); // Set the fault pin low, to indicate a fault in the BMS
+        break;
     default:
 
         // Set the state to fault if it is not recognized
@@ -101,6 +105,8 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     }
 }
 
+// Function to monitor and update fault flags
+// Certain ActiveFaults are set elsewere, such as BQ related faults
 void UpdateFaultFlags(BMS_HandleTypeDef *hbms)
 {
 
@@ -108,6 +114,20 @@ void UpdateFaultFlags(BMS_HandleTypeDef *hbms)
     {
         // If this occurs, you have done something very wrong
         Error_Handler();
+    }
+
+    // Check if charger is still connected, timeout after 1 second, i dont believe this needs to be configurable
+    if(hbms->ChargerPresent && ((hbms->ChargerTimestamp + 1000) < HAL_GetTick()))
+    {
+        hbms->ChargerPresent = false; // Clear the charger present flag if the timeout has passed
+    }
+
+    if(hbms->CanTimestamp + 1000 < HAL_GetTick())
+    {
+        SET_BIT(hbms->ActiveFaults, BMS_WARNING_CAN); // Set the CAN timeout fault
+    }else
+    {
+        CLEAR_BIT(hbms->ActiveFaults, BMS_WARNING_CAN); // Clear the CAN timeout fault
     }
 
     // Set the relevant flags based on the faults
@@ -168,6 +188,7 @@ bool LoadConfiguration(BMS_HandleTypeDef *hbms)
         {
             // If the configuration write to flash fails, we set the EepromPresent flag to false
             // Note: The written config is also re-read from flash
+            SET_BIT(hbms->ActiveFaults, BMS_NOTE_EEPROM); // Set the EEPROM fault flag
             hbms->EepromPresent = false; // Set the EEPROM present flag to false
         }
     }
@@ -193,21 +214,40 @@ bool LoadConfiguration(BMS_HandleTypeDef *hbms)
     // Load the OCV maps from flash memory and set them in the battery model
     // TODO: Load the OCV maps
 
-
     // Apply values to the BQ
     BQ_Init(hbms->BQ); // Initialize the BQ
 
     return true;
 }
 
-void ListenForCanMessages(BMS_HandleTypeDef *hbms){
+void ListenForCanMessages(BMS_HandleTypeDef *hbms)
+{
 
     FDCAN_RxHeaderTypeDef rx_header;
     uint8_t rx_data[8]; // Buffer for the received CAN data
 
     uint8_t max_cycles = 5; // Maximum number of CAN messages to process in one main loop iteration
 
-    while(max_cycles > 0 && Align_CAN_Receive(hbms->FDCAN, &rx_header, rx_data) == HAL_OK){
+    while (max_cycles > 0 && Align_CAN_Receive(hbms->FDCAN, &rx_header, rx_data) == HAL_OK)
+    {
+        uint32_t can_id = rx_header.Identifier & 0x7FF; // Extract the CAN ID from the header
+        uint16_t packet_id;
+        uint16_t node_id;
+        Align_SplitCanId(can_id, &packet_id, &node_id, rx_header.IdType == FDCAN_EXTENDED_ID); // Split the CAN ID into the packet ID
 
+        switch (node_id)
+        {
+
+
+            default:
+                // If the node ID is not recognized, check if it is a regular ID we know
+                switch(can_id){
+                    case 0x18FF50E5:
+                        hbms->ChargerPresent = true; // Charger is present
+                        hbms->ChargerTimestamp = HAL_GetTick(); // Update the charger timestamp
+                        break; // This is the ID from the charger
+                }
+                break;
+        }
     }
 }
