@@ -24,6 +24,10 @@ void BQ_Init(BQ_HandleTypeDef *hbq)
     // Set the GPIOs to their default state
     HAL_GPIO_WritePin(hbq->CsPin.GPIOx, hbq->CsPin.Pin, GPIO_PIN_SET);
     HAL_GPIO_WritePin(hbq->MosiPin.GPIOx, hbq->MosiPin.Pin, GPIO_PIN_RESET);
+    hbq->Connected = false; // Set the BQ to not connected state
+    hbq->HighestCellTemperature = 0.0f;
+    hbq->LowestCellTemperature = 0.0f; // Set the lowest cell temperature to a high value
+
 }
 
 void BQ_Configure(BQ_HandleTypeDef *hbq, BQ_ConfigTypeDef *bq_config)

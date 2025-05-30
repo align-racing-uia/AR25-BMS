@@ -16,8 +16,8 @@ bool SendBroadcastMessage(BMS_BroadcastTypeDef *data)
   Align_CAN_AddToBuffer(data->hfdcan, can_id, can_data, 8, data->extended);
 
   can_data[0] = data->active_faults;          // Should be the active faults
-  can_data[1] = data->sdc_voltage_raw >> 8;   // Should be the SDC voltage 0xFF00
-  can_data[2] = data->sdc_voltage_raw & 0xFF; // Should be the SDC voltage 0x00FF
+  can_data[1] = data->sdc_voltage_raw >> 8;   // Should be the SdcClosed voltage 0xFF00
+  can_data[2] = data->sdc_voltage_raw & 0xFF; // Should be the SdcClosed voltage 0x00FF
   can_data[3] = data->avg_cycle_time >> 8;    // Should be the cycle time in ms
   can_data[4] = data->avg_cycle_time & 0xFF;  // Should be the cycle time in ms
   can_id = Align_CombineCanId(data->packet_id + 1, data->node_id, data->extended);

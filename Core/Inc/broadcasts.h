@@ -14,7 +14,7 @@ typedef struct
   uint16_t dc_limit;        // DC limit in A * 10
   uint16_t high_temp;       // Highest temperature in C * 10
   uint16_t soc;             // State of charge in % * 10
-  uint16_t sdc_voltage_raw; // SDC voltage raw value
+  uint16_t sdc_voltage_raw; // SdcClosed voltage raw value
   uint16_t avg_cycle_time;  // Cycle time in ms
   uint8_t active_faults;
   bool extended; // Extended ID or not

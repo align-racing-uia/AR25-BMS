@@ -2,12 +2,13 @@
 #include "bms.h"
 #include "stddef.h"
 #include "w25q_mem.h"
+#include "aligncan.h"
 
 // Private Function defines
-bool Initialize(BMS_HandleTypeDef *hbms);
 bool Connect(BMS_HandleTypeDef *hbms);
-bool Configure(BMS_HandleTypeDef *hbms);
-void CheckForFaults(BMS_HandleTypeDef *hbms);
+bool LoadConfiguration(BMS_HandleTypeDef *hbms);
+void UpdateFaultFlags(BMS_HandleTypeDef *hbms);
+void ListenForCanMessages(BMS_HandleTypeDef *hbms);
 
 // Public Function implementations
 
@@ -24,34 +25,45 @@ void BMS_BindMemory(BMS_HandleTypeDef *hbms, BatteryModel_HandleTypeDef *battery
     hbms->State = BMS_STATE_CONFIGURING; // Initialize the state to booting
 }
 
+void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_config)
+{
+    if (hbms == NULL)
+    {
+        // If this occurs, you have done something very wrong
+        Error_Handler();
+    }
+
+    hbms->State = BMS_STATE_CONFIGURING; // Set the initial state to configuring
+    hbms->ActiveFaults = 0;              // Clear the active faults
+    hbms->WarningPresent = false;        // Clear the warning present flag
+    hbms->SdcClosed = false;                   // Clear the SdcClosed connected flag
+    hbms->EepromPresent = false;         // Clear the EEPROM present flag
+    TS_Init(hbms->TS); // Initialize the TS state machine
+
+    hbms->SdcClosedPin = hardware_config->SdcClosedPin; // Bind the SdcClosed pin from the hardware configuration
+    hbms->FDCAN = hardware_config->hfdcan; // Bind the FDCAN handle from the hardware configuration
+    
+    hbms->Initialized = true;            // Clear the initialized flag
+
+}
+
 void BMS_Update(BMS_HandleTypeDef *hbms)
 {
 
-    CheckForFaults(hbms);
+    UpdateFaultFlags(hbms);
+    ListenForCanMessages(hbms); // Listen for CAN messages
 
     switch (hbms->State)
     {
 
     case BMS_STATE_CONFIGURING:
-        if (Configure(hbms))
+        if (LoadConfiguration(hbms))
         {
-            hbms->State = BMS_STATE_INITIALIZING; // Move to the next state if configuration is successful
+            hbms->State = BMS_STATE_CONNECTING; // Move to the next state if configuration is successful
         }
         else
         {
             // If configuration fails, set the state to fault
-            hbms->State = BMS_STATE_FAULT;
-        }
-        break;
-    case BMS_STATE_INITIALIZING:
-
-        if (Initialize(hbms))
-        {
-            hbms->State = BMS_STATE_CONNECTING; // Move to the next state
-        }
-        else
-        {
-            // If initialization fails, set the state to fault
             hbms->State = BMS_STATE_FAULT;
         }
         break;
@@ -89,19 +101,13 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     }
 }
 
-void CheckForFaults(BMS_HandleTypeDef *hbms)
+void UpdateFaultFlags(BMS_HandleTypeDef *hbms)
 {
 
     if (hbms == NULL)
     {
         // If this occurs, you have done something very wrong
         Error_Handler();
-    }
-
-    // Check the BQ for faults
-    if (!hbms->BQ->Connected)
-    {
-        SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ); // Set the BQ fault flag if not connected
     }
 
     // Set the relevant flags based on the faults
@@ -130,10 +136,8 @@ bool Connect(BMS_HandleTypeDef *hbms)
     return true;
 }
 
-bool Configure(BMS_HandleTypeDef *hbms)
+bool LoadConfiguration(BMS_HandleTypeDef *hbms)
 {
-    // This function should implement the logic to configure the BQ
-    // For now, we will just return true to simulate a successful configuration
 
     // Initialize the EEPROM memory
     W25Q_STATE w25q_state = W25Q_Init();
@@ -176,12 +180,11 @@ bool Configure(BMS_HandleTypeDef *hbms)
         // TODO: Add the GpioAuxADCMap and CellTempPinMap to the BMS configuration, as well as a multiplexing toggle
         .TempMultiplexEnabled = true,
         .TempMultiplexPinIndex = 7, // Pin 8 (zero indexed) is used to multiplex the temperature sensors, which is GPIO7 in the BQ
-        .GpioAuxADCMap =  0x7E,
+        .GpioAuxADCMap = 0x7E,
         .CellTempPinMap = 0x7F, // Pin 1 is used to detect PCB temperature, and the rest are used for the temperature sensors
     };
 
     BQ_Configure(hbms->BQ, &bq_config); // Configure the BQ with the BMS configuration
-
 
     // Configure the battery model with the BMS configuration
     // TODO: Make capacity a bms configuration parameter
@@ -191,19 +194,20 @@ bool Configure(BMS_HandleTypeDef *hbms)
     // TODO: Load the OCV maps
 
 
+    // Apply values to the BQ
+    BQ_Init(hbms->BQ); // Initialize the BQ
+
     return true;
 }
 
-bool Initialize(BMS_HandleTypeDef *hbms)
-{
+void ListenForCanMessages(BMS_HandleTypeDef *hbms){
 
-    hbms->ActiveFaults = 0;       // Clear the active faults
-    hbms->WarningPresent = false; // Clear the warning present flag
-    hbms->SDC = false;            // Clear the SDC connected flag
+    FDCAN_RxHeaderTypeDef rx_header;
+    uint8_t rx_data[8]; // Buffer for the received CAN data
 
-    TS_Init(hbms->TS); // Initialize the TS state machine
-    BQ_Init(hbms->BQ); // Initialize the BQ
-    
+    uint8_t max_cycles = 5; // Maximum number of CAN messages to process in one main loop iteration
 
-    return true;
+    while(max_cycles > 0 && Align_CAN_Receive(hbms->FDCAN, &rx_header, rx_data) == HAL_OK){
+
+    }
 }

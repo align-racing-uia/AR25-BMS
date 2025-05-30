@@ -231,22 +231,6 @@ int main(void)
   //   }
   // }
 
-  // Currently the BQ handle is defined manually, as there are many parameters that need to be set
-  // hbq.hspi = &hspi2;
-  // hbq.csGPIOx = GPIOB;
-  // hbq.csPin = GPIO_PIN_12;
-  // hbq.mosiGPIOx = GPIOB;
-  // hbq.mosiPin = GPIO_PIN_15;
-  // hbq.spiRdyGPIOx = GPIOB;
-  // hbq.spiRdyPin = GPIO_PIN_11;
-  // hbq.nFaultGPIOx = GPIOA;
-  // hbq.nFaultPin = GPIO_PIN_8;
-  // hbq.GpioADCMap = 0x7F;            // All GPIOs are ADCs, except GPIO8, which is an output
-  // hbq.CellTempAuxPinMap = 0x7E;   // Pin 1 is used to detect PCB temperature, and the rest are used for the temperature sensors
-  // hbq.tempMultiplexEnabled = false; // The temperature sensors are not multiplexed
-  // hbq.tempMultiplexPinIndex = 7;    // The pin used to multiplex the temperature sensors, currently 0b01111110
-  // hbq.htim = &htim3;                // The timer used for the delays
-  // hbq.connected = false;            // The BQ is not connected yet
   
   BQ_HandleTypeDef hbq;
   BQ_PinTypeDef bq_cs_pin = {GPIOB, GPIO_PIN_12}; // Chip select pin for the BQ79600
@@ -279,23 +263,20 @@ int main(void)
 
 
   BMS_HandleTypeDef hbms;
+  BMS_HardwareConfigTypeDef bms_hardware_config = {
+      .hfdcan = &hfdcan1, // Set the FDCAN handle
+      .SdcClosedPin = {GPIOA, GPIO_PIN_0}, // Set the SdcClosed pin
+  };
+
   BMS_BindMemory(&hbms, &hbm, &hbq); // Initialize the TS state machine
+  BMS_Init(&hbms, &bms_hardware_config); // Initialize the BMS state machine
 
 
   while (1)
   {
     cycle_time_start = HAL_GetTick(); // Start the cycle time measurement
 
-    // // We should recieve a CAN message atleast as often as the broadcast interval
-    // if (can_timeout + bms_config.CanBroadcastInterval < HAL_GetTick())
-    // {
-    //   // We have not received a CAN message for a while, set the state to fault
-    //   SET_BIT(hbms.ActiveFaults, BMS_WARNING_CAN); // Set the CAN warning flag
-    // }
-    // else
-    // {
-    //   CLEAR_BIT(hbms.ActiveFaults, BMS_WARNING_CAN); // Clear the CAN warning flag
-    // }
+
 
     // if (abs(secondary_response[secondary_mcu_recieve_index].PingPongDeviation) > 100) // Check if internal communication is getting slow
     // {
@@ -309,8 +290,8 @@ int main(void)
 
     // // Handle data from the secondary MCU
 
-    // sdc_voltage_raw = secondary_response[secondary_mcu_recieve_index].SDCVoltageRaw; // Get the SDC voltage from the secondary MCU
-    // hbms.SDC = (((float)sdc_voltage_raw) * 3000.0 / 4096.0) > 2500;                       // Convert to mV
+    // sdc_voltage_raw = secondary_response[secondary_mcu_recieve_index].SDCVoltageRaw; // Get the SdcClosed voltage from the secondary MCU
+    // hbms.SdcClosed = (((float)sdc_voltage_raw) * 3000.0 / 4096.0) > 2500;                       // Convert to mV
 
     // Handle the CAN messages
     // if (Align_CAN_Receive(&hfdcan1, &rxHeader, rxData))

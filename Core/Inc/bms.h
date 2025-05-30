@@ -11,7 +11,6 @@
 typedef enum
 {
     BMS_STATE_CONFIGURING, // Initial state, loading configuration
-    BMS_STATE_INITIALIZING,
     BMS_STATE_CONNECTING,
     BMS_STATE_IDLE,
     BMS_STATE_ACTVATING_TS,
@@ -20,21 +19,47 @@ typedef enum
     BMS_STATE_FAULT
 } BMS_StateTypeDef;
 
+typedef struct 
+{
+    GPIO_TypeDef *Port; // GPIO port
+    uint16_t Pin;       // GPIO pin number
+} BMS_PinTypeDef;
+
 typedef struct
 {
-    BMS_StateTypeDef State;                   // The state of the BMS
-    BMS_FaultFlags ActiveFaults;              // Active faults bitmask
+
+    FDCAN_HandleTypeDef *hfdcan; // Handle for the FDCAN peripheral
+    BMS_PinTypeDef SdcClosedPin; // Pin for SdcClosed
+
+} BMS_HardwareConfigTypeDef;
+
+typedef struct
+{
     BatteryModel_HandleTypeDef *BatteryModel; // Battery model handle
     TS_HandleTypeDef *TS;                     // Tractive system state machine handle
     BQ_HandleTypeDef *BQ;                     // BQ79600 handle
-    BMS_Config_HandleTypeDef Config;          // BMS configuration handle
+    FDCAN_HandleTypeDef *FDCAN;              // Handle for the FDCAN peripheral
 
+    BMS_Config_HandleTypeDef Config; // BMS configuration handle
+
+    BMS_StateTypeDef State;      // The state of the BMS
+    BMS_FaultFlags ActiveFaults; // Active faults bitmask
+    
+    BMS_PinTypeDef SdcClosedPin; // Pin for SdcClosed
+
+    uint32_t CanTimestamp;     // Timestamp for the last CAN message
+    uint32_t ChargerTimestamp; // Timestamp for the last charger CAN message
+    
     bool WarningPresent; // Warning present flag
-    bool SDC;            // SDC connected flag
     bool EepromPresent;  // EEPROM present flag
+    bool ChargerPresent; // Charger connected flag
+
+    bool SdcClosed;   // SdcClosed connected flag
+    bool Initialized; // Initialized flag, true if the BMS is initialized
 
 } BMS_HandleTypeDef;
 
+void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_config);
 void BMS_BindMemory(BMS_HandleTypeDef *hbms, BatteryModel_HandleTypeDef *battery_model, BQ_HandleTypeDef *bq);
 void BMS_Update(BMS_HandleTypeDef *hbms);
 
