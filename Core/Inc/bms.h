@@ -10,9 +10,9 @@
 
 typedef enum
 {
-    BMS_STATE_BOOTING = 0, // Initial state, the BMS is initializing
+    BMS_STATE_CONFIGURING, // Initial state, loading configuration
+    BMS_STATE_INITIALIZING,
     BMS_STATE_CONNECTING,
-    BMS_STATE_CONFIGURING,
     BMS_STATE_IDLE,
     BMS_STATE_ACTVATING_TS,
     BMS_STATE_CHARGING,
@@ -22,20 +22,20 @@ typedef enum
 
 typedef struct
 {
-    BMS_StateTypeDef State;                  // The state of the BMS
-    BMS_FaultFlags ActiveFaults;             // Active faults bitmask
-    BatteryModel_HandleTypeDef* BatteryModel; // Battery model handle
-    TS_HandleTypeDef* TS;                     // Tractive system state machine handle
-    BQ_HandleTypeDef* BQ;                     // BQ79600 handle
-    BMS_Config_HandleTypeDef* Config;         // BMS configuration handle
-    
-    bool WarningPresent;                     // Warning present flag
-    bool FaultPresent;                       // Fault present flag
-    bool SDC;                                // SDC connected flag
+    BMS_StateTypeDef State;                   // The state of the BMS
+    BMS_FaultFlags ActiveFaults;              // Active faults bitmask
+    BatteryModel_HandleTypeDef *BatteryModel; // Battery model handle
+    TS_HandleTypeDef *TS;                     // Tractive system state machine handle
+    BQ_HandleTypeDef *BQ;                     // BQ79600 handle
+    BMS_Config_HandleTypeDef Config;          // BMS configuration handle
+
+    bool WarningPresent; // Warning present flag
+    bool SDC;            // SDC connected flag
+    bool EepromPresent;  // EEPROM present flag
 
 } BMS_HandleTypeDef;
 
-void BMS_BindMemory(BMS_HandleTypeDef *hbms, BatteryModel_HandleTypeDef *battery_model, BQ_HandleTypeDef *bq);      
+void BMS_BindMemory(BMS_HandleTypeDef *hbms, BatteryModel_HandleTypeDef *battery_model, BQ_HandleTypeDef *bq);
 void BMS_Update(BMS_HandleTypeDef *hbms);
 
 #endif // BMS_STATEMACHINE_H

@@ -19,19 +19,28 @@ uint8_t reverse_bits(uint8_t b)
 // Depends on the GCC compiler
 #define NUM_OF_ONES(x) __builtin_popcount(x)
 
-void BQ_Configure(BQ_HandleTypeDef *hbq, BQ_ConfigTypeDef *bq_config){
-    if(bq_config == NULL || hbq == NULL)
+void BQ_Init(BQ_HandleTypeDef *hbq)
+{
+    // Set the GPIOs to their default state
+    HAL_GPIO_WritePin(hbq->CsPin.GPIOx, hbq->CsPin.Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(hbq->MosiPin.GPIOx, hbq->MosiPin.Pin, GPIO_PIN_RESET);
+}
+
+void BQ_Configure(BQ_HandleTypeDef *hbq, BQ_ConfigTypeDef *bq_config)
+{
+    if (bq_config == NULL || hbq == NULL)
     {
         // If this occurs, you have done something very wrong
         Error_Handler();
     }
 
     hbq->NumOfSlaves = bq_config->NumOfSlaves;
+    hbq->NumOfChips = bq_config->NumOfSlaves + 1; // The master chip is always present
     hbq->NumOfCellsEach = bq_config->NumOfCellsEach;
-
 }
 
-void BQ_BindHardware(BQ_HandleTypeDef *hbq, SPI_HandleTypeDef *hspi, BQ_PinTypeDef cs_pin, BQ_PinTypeDef spi_rdy_pin, BQ_PinTypeDef mosi_pin, BQ_PinTypeDef fault_pin, TIM_HandleTypeDef *htim){
+void BQ_BindHardware(BQ_HandleTypeDef *hbq, SPI_HandleTypeDef *hspi, BQ_PinTypeDef cs_pin, BQ_PinTypeDef spi_rdy_pin, BQ_PinTypeDef mosi_pin, BQ_PinTypeDef fault_pin, TIM_HandleTypeDef *htim)
+{
     if (hbq == NULL || hspi == NULL || htim == NULL)
     {
         // If this occurs, youve done something very wrong
@@ -44,12 +53,7 @@ void BQ_BindHardware(BQ_HandleTypeDef *hbq, SPI_HandleTypeDef *hspi, BQ_PinTypeD
     hbq->MosiPin = mosi_pin;
     hbq->FaultPin = fault_pin;
     hbq->htim = htim;
-
-    // Set the GPIOs to their default state
-    HAL_GPIO_WritePin(hbq->CsPin.GPIOx, hbq->CsPin.Pin, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(hbq->MosiPin.GPIOx, hbq->MosiPin.Pin, GPIO_PIN_RESET);
 }
-
 
 // The use of floats here is to be able to take advantage of the FPU, and to make the maths in later stages simpler
 void BQ_BindMemory(BQ_HandleTypeDef *hbq, uint8_t *bq_output_buffer, float *cell_voltages_memory_pool, float *cell_temperature_memory_pool, float *bq_die_temperature_memory_pool)
@@ -59,7 +63,6 @@ void BQ_BindMemory(BQ_HandleTypeDef *hbq, uint8_t *bq_output_buffer, float *cell
         // If this occurs, youve done something very wrong
         Error_Handler();
     }
-
 
     hbq->BQOutputBuffer = bq_output_buffer;
     if (hbq->BQOutputBuffer == NULL)
@@ -86,7 +89,6 @@ void BQ_BindMemory(BQ_HandleTypeDef *hbq, uint8_t *bq_output_buffer, float *cell
         // Handle memory allocation error
         Error_Handler();
     }
-
 }
 
 // We sometimes need full control of the MOSI Pin in GPIO between SPI commands
