@@ -9,22 +9,30 @@ typedef struct {
     SPI_HandleTypeDef *hspi; // Handle for the SPI peripheral
     GPIO_TypeDef *CsPinPort;  // GPIO port for the chip select pin
     uint16_t CsPin;           // Chip select pin number
+    
+    // Cyclic data buffers
+    SecondaryMCU_TransmitTypeDef TransmitData[3]; // Data to transmit to the secondary MCU
+    SecondaryMCU_ResponseTypeDef RecieveData[3];  // Data received from the secondary MCU
+    uint8_t TransmitIndex; // Index for the transmit data buffer
+    uint8_t RecieveIndex;  // Index for the receive data buffer
+
+    
+
 } SecondaryMCU_HandleTypeDef;
 
 typedef struct
 {
-    uint16_t SDCVoltageRaw; // Voltage of the SdcClosed
-    int16_t PingPongDeviation; // The deviation from the last ping-pong signal (optimal time 250ms)
+    int16_t PingPongDeviation; // The deviation from the last ping-pong signal (optimal time 100ms)
     uint8_t RelayStates;
+    bool SdcClosed; // SdcClosed state
 
 } SecondaryMCU_ResponseTypeDef;
 
 typedef struct
 {
-    uint8_t RelayRequest;
+    uint8_t TsRequest; // Request for the tractive system state
 } SecondaryMCU_TransmitTypeDef;
 
-extern uint8_t secondary_mcu_recieve_index; // Alternate what buffer is read / written to
 
 void SecondaryMCU_RecieveCallback(DMA_HandleTypeDef *hdma);
 

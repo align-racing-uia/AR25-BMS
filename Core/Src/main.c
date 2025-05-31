@@ -254,7 +254,6 @@ int main(void)
 
 
   uint32_t alive_sig_timestamp = HAL_GetTick();
-  uint32_t internal_comm_timestamp = HAL_GetTick(); // Communication with the secondary MCU to activate relays
 
   uint32_t cycle_time_start = 0;
   uint32_t avg_cycle_time = 0;
@@ -368,28 +367,10 @@ int main(void)
     pwm_ch4_memory = (uint32_t)(pid_output / 100.0 * htim2.Instance->ARR); // Set the PWM duty cycle to the PID output, scaled to the PWM resolution
 
 
-    if ((internal_comm_timestamp + 50) <= HAL_GetTick())
-    {
-      HAL_SPI_Transmit(&hspi1, (uint8_t *)&secondary_transmit, sizeof(SecondaryMCU_TransmitTypeDef), 10); // Send the PWM data to the secondary MCU
-      HAL_StatusTypeDef status = HAL_SPI_Receive(&hspi1,                                                  // !secondary_mcu_recieve_index is used to place it in the next buffer
-                                                 (uint8_t *)&(secondary_response[!secondary_mcu_recieve_index]),
-                                                 sizeof(SecondaryMCU_ResponseTypeDef), 10); // Receive the response from the secondary MCU
-      if (status != HAL_OK)
-      {
-        // We have a timeout, set the state to fault
-        SET_BIT(hbms.ActiveFaults, BMS_WARNING_INT_COMM); // Set the int comm warning flag
-      }
-      else
-      {
-        CLEAR_BIT(hbms.ActiveFaults, BMS_WARNING_INT_COMM); // Clear the int comm warning flag
-      }
-      internal_comm_timestamp = HAL_GetTick(); // Reset the timer
-    }
-
     // Alive sig ping-pong with the secondary MCU
-    if ((alive_sig_timestamp + 250) <= HAL_GetTick())
+    if ((alive_sig_timestamp + 100) <= HAL_GetTick())
     {
-      // Every second
+      // Every 100 ms, toggle the alive signal pin
       HAL_GPIO_TogglePin(GPIOA, Alive_Sig_Pin); // Toggle the alive signal pin
       alive_sig_timestamp = HAL_GetTick();
     }
