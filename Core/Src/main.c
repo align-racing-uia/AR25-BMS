@@ -218,19 +218,6 @@ int main(void)
   BatteryModel_HandleTypeDef hbm;
   BatteryModel_BindMemory(&hbm, cell_model_memory_pool); // Bind the memory pool to the battery model
 
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-
-
-  uint32_t alive_sig_timestamp = HAL_GetTick();
-
-  uint32_t cycle_time_start = 0;
-  uint32_t avg_cycle_time = 0;
-
-  PID_HandleTypeDef pid_controller = PID_Init(0.1, 0.01, 0.01, 0.1, 100); // Initialize the PID controller
-
 
   BMS_HandleTypeDef hbms;
   BMS_HardwareConfigTypeDef bms_hardware_config = {
@@ -242,6 +229,20 @@ int main(void)
 
   BMS_BindMemory(&hbms, &hbm, &hbq); // Initialize the TS state machine
   BMS_Init(&hbms, &bms_hardware_config); // Initialize the BMS state machine
+
+  // PID Controller for fan control - Not used in the BMS, but needed for the ACU functionality
+  PID_HandleTypeDef pid_controller = PID_Init(0.1, 0.01, 0.01, 0.1, 100);
+
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+
+
+  uint32_t alive_sig_timestamp = HAL_GetTick();
+
+  uint32_t cycle_time_start = 0;
+  uint32_t avg_cycle_time = 0;
 
 
   while (1)

@@ -12,7 +12,7 @@ bool Connect(BMS_HandleTypeDef *hbms);
 bool LoadConfiguration(BMS_HandleTypeDef *hbms);
 void UpdateFaultFlags(BMS_HandleTypeDef *hbms);
 void ListenForCanMessages(BMS_HandleTypeDef *hbms);
-void TsActive(BMS_HandleTypeDef *hbms);
+void UpdateTSState(BMS_HandleTypeDef *hbms);
 
 // Public Function implementations
 
@@ -42,7 +42,7 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
     hbms->WarningPresent = false;        // Clear the warning present flag
     hbms->SdcClosed = false;             // Clear the SdcClosed connected flag
     hbms->EepromPresent = false;         // Clear the EEPROM present flag
-    TS_Init(hbms->TS);                   // Initialize the TS state machine
+    hbms->TSState = TS_STATE_IDLE;       // Set the TS state to idle
 
     hbms->FDCAN = hardware_config->hfdcan;      // Bind the FDCAN handle from the hardware configuration
     hbms->FaultPin = hardware_config->FaultPin; // Bind the fault pin from the hardware configuration
@@ -136,11 +136,10 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
 }
 
 
-void TsActive(BMS_HandleTypeDef *hbms)
+void UpdateTSState(BMS_HandleTypeDef *hbms)
 {
     // Unsure if this is the right way to go
     // TODO: See if the separate TS state machine is needed
-    TS_UpdateState(hbms->TS, hbms->BatteryModel->EstimatedSOC, hbms->SdcClosed, true, hbms->ChargerPresent, hbms->ActiveFaults); // Update the TS state machine
 }
 
 // Function to monitor and update fault flags

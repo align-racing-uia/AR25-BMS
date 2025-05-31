@@ -51,7 +51,7 @@ typedef struct
     BMS_Config_HandleTypeDef Config; // BMS configuration handle
 
     BMS_StateTypeDef State;      // The state of the BMS
-    BMS_TS_StateTypeDef TS_State; // The state of the TS
+    BMS_TS_StateTypeDef TSState; // The state of the TS
     BMS_FaultFlags ActiveFaults; // Active faults bitmask
 
     BMS_PinTypeDef FaultPin;             // Pin for the fault indicator
