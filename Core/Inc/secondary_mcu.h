@@ -4,7 +4,6 @@
 #include "stdint.h"
 #include "stdbool.h"
 #include "spi.h"
-#include "ts_statemachine.h"
 
 typedef struct
 {

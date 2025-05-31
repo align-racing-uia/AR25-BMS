@@ -4,7 +4,6 @@
 #include "faults.h"
 #include "stdbool.h"
 #include "battery_model.h"
-#include "ts_statemachine.h"
 #include "bq79600.h"
 #include "bms_config.h"
 

@@ -47,7 +47,6 @@
 #include "pid.h"
 #include "iwdg.h"
 #include "faults.h"
-#include "ts_statemachine.h"
 #include "bms.h"
 #include "broadcasts.h"
 
