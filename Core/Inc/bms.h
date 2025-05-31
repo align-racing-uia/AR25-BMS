@@ -30,6 +30,8 @@ typedef struct
 
     FDCAN_HandleTypeDef *hfdcan; // Handle for the FDCAN peripheral
     BMS_PinTypeDef FaultPin;     // Pin for the fault indicator
+    BMS_PinTypeDef LowCurrentSensorPin; // Pin for the low current sensor
+    BMS_PinTypeDef HighCurrentSensorPin; // Pin for the high current sensor
 
 } BMS_HardwareConfigTypeDef;
 
@@ -46,6 +48,8 @@ typedef struct
     BMS_FaultFlags ActiveFaults; // Active faults bitmask
 
     BMS_PinTypeDef FaultPin; // Pin for the fault indicator
+    BMS_PinTypeDef LowCurrentSensorPin; // Pin for the low current sensor
+    BMS_PinTypeDef HighCurrentSensorPin; // Pin for the high current sensor
 
     uint32_t CanTimestamp;     // Timestamp for the last CAN message
     uint32_t ChargerTimestamp; // Timestamp for the last charger CAN message

@@ -202,33 +202,6 @@ int main(void)
   // Initialize the CAN interface
   Align_CAN_Init(&hfdcan1, ALIGN_CAN_SPEED_500KBPS, FDCAN1);
 
-  // // Initialize w25q32
-  // W25Q_STATE res = W25Q_Init();
-  // if (res != W25Q_OK)
-  // {
-  //   SET_BIT(hbms.ActiveFaults, BMS_NOTE_EEPROM); // Set the EEPROM warning flag
-  // }
-
-  // Initilalize the BMS Config
-  // BMS_Config_HandleTypeDef bms_config;
-  // BMS_Config_Init(&bms_config); // Set the default values of the config
-
-  // // If the W25Q_Init caught a fault, we will not be able to read the config from flash
-  // if (!READ_BIT(hbms.ActiveFaults, BMS_NOTE_EEPROM))
-  // {
-  //   if (BMS_Config_UpdateFromFlash(&bms_config) != BMS_CONFIG_OK)
-  //   {
-  //     // If we could not read the config from flash, we will set the default values of the config
-  //     BMS_Config_Init(&bms_config);                                        // Set the default values of the config (again) as the flash read failed
-  //     BMS_Config_StatusTypeDef res = BMS_Config_WriteToFlash(&bms_config); // Write the default values to flash
-  //     if (res != BMS_CONFIG_OK)
-  //     {
-  //       SET_BIT(hbms.ActiveFaults, BMS_NOTE_EEPROM); // Set the EEPROM warning flag
-  //       // We have to reset the config to default values, as we could not write to flash and the write reads to verify the write
-  //       BMS_Config_Init(&bms_config); // Set the default values of the config
-  //     }
-  //   }
-  // }
 
   
   BQ_HandleTypeDef hbq;
@@ -264,6 +237,8 @@ int main(void)
   BMS_HardwareConfigTypeDef bms_hardware_config = {
       .hfdcan = &hfdcan1, // Set the FDCAN handle
       .FaultPin = {nFault_GPIO_Port, nFault_Pin}, // Set the fault pin
+      .LowCurrentSensorPin = {Low_Current_Sensor_GPIO_Port, Low_Current_Sensor_Pin}, // Set the low current sensor pin
+      .HighCurrentSensorPin = {High_Current_Sensor_GPIO_Port, High_Current_Sensor_Pin}, // Set the high current sensor pin
   };
 
   BMS_BindMemory(&hbms, &hbm, &hbq); // Initialize the TS state machine
@@ -275,74 +250,14 @@ int main(void)
     cycle_time_start = HAL_GetTick(); // Start the cycle time measurement
 
 
-
-    // if (abs(secondary_response[secondary_mcu_recieve_index].PingPongDeviation) > 100) // Check if internal communication is getting slow
-    // {
-    //   // We have a ping-pong deviation, set the state to fault
-    //   SET_BIT(hbms.ActiveFaults, BMS_WARNING_INT_COMM); // Set the CAN warning flag
-    // }
-    // else
-    // {
-    //   CLEAR_BIT(hbms.ActiveFaults, BMS_WARNING_INT_COMM); // Clear the CAN warning flag
-    // }
-
-    // // Handle data from the secondary MCU
-
-    // sdc_voltage_raw = secondary_response[secondary_mcu_recieve_index].SDCVoltageRaw; // Get the SdcClosed voltage from the secondary MCU
-    // hbms.SdcClosed = (((float)sdc_voltage_raw) * 3000.0 / 4096.0) > 2500;                       // Convert to mV
-
-    // Handle the CAN messages
-    // if (Align_CAN_Receive(&hfdcan1, &rxHeader, rxData))
-    // {
-    //   // Recieved a CAN message, reset the timeout
-    //   can_timeout = HAL_GetTick();
-
-    //   // Process the received data
-    //   uint32_t can_id = rxHeader.Identifier;
-    //   uint16_t packet_id = 0;
-    //   uint16_t node_id = 0;
-    //   Align_SplitCanId(can_id, &packet_id, &node_id, rxHeader.IdType == FDCAN_EXTENDED_ID);
-
-    //   switch (can_id)
-    //   {
-    //   // We first check for special IDs in case there are devices on the network which do not follow the DTI standard
-    //   case 0x18FF50E5: // Insert Charger ID here
-    //     /* code */
-    //     charger_connected = true;
-    //     charger_timeout = HAL_GetTick();
-    //     break;
-
-    //   default:
-    //     // Using if statements to be able to check against node ids against set variables
-    //     if (node_id == bms_config.CanNodeID)
-    //     {
-    //       BMS_Config_HandleCanMessage(&bms_config, packet_id, rxData); // Handle the CAN message
-    //     }
-    //     else if (node_id == 1)
-    //     { // continoue downwards here
-    //       switch (packet_id)
-    //       {
-    //       case 0x1:
-    //         break;
-    //       case 0x2:
-    //         break;
-    //       }
-    //     }
-    //     else if (node_id == 7) // Simulations and configuration
-    //     {
-    //       switch (packet_id)
-    //       {
-    //       }
-    //     }
-    //   }
-    // }
-
     // Update all the BMS states
     BMS_Update(&hbms);
 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+
+    // Functionality not directly related to the BMS, but still needed for the BMS to work as an ACU
 
     // Handle the PWM generation
     if (hbq.HighestCellTemperature < 40.0)
