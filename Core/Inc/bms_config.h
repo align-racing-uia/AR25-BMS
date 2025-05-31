@@ -108,6 +108,9 @@ typedef enum
 } BMS_Config_StatusTypeDef;
 
 void BMS_Config_Init(BMS_Config_HandleTypeDef *bms_config); // This cannot really fail, so it does not return anything
+
+void BMS_Config_SetParameter(BMS_Config_HandleTypeDef *bms_config, uint8_t index, uint16_t value); // Set a parameter in the configuration, index is the parameter index, value is the value to set
+
 BMS_Config_StatusTypeDef BMS_Config_WriteToFlash(BMS_Config_HandleTypeDef *bms_config);
 BMS_Config_StatusTypeDef BMS_Config_UpdateFromFlash(BMS_Config_HandleTypeDef *bms_config);
 BMS_Config_StatusTypeDef BMS_Config_HandleCanMessage(BMS_Config_HandleTypeDef *bms_config, uint16_t packet_id, uint8_t *data);

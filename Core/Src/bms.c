@@ -3,6 +3,7 @@
 #include "stddef.h"
 #include "w25q_mem.h"
 #include "aligncan.h"
+#include <stm32g4xx.h>
 
 // Private Function defines
 bool Connect(BMS_HandleTypeDef *hbms);
@@ -40,8 +41,8 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
     hbms->EepromPresent = false;         // Clear the EEPROM present flag
     TS_Init(hbms->TS);                   // Initialize the TS state machine
 
-    hbms->FaultPin = hardware_config->FaultPin;          // Bind the fault pin from the hardware configuration
-    hbms->FDCAN = hardware_config->hfdcan;              // Bind the FDCAN handle from the hardware configuration
+    hbms->FaultPin = hardware_config->FaultPin; // Bind the fault pin from the hardware configuration
+    hbms->FDCAN = hardware_config->hfdcan;      // Bind the FDCAN handle from the hardware configuration
 
     hbms->Initialized = true; // Clear the initialized flag
 }
@@ -88,9 +89,9 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
             hbms->State = BMS_STATE_FAULT;
         }
         break;
-    
+
     case BMS_STATE_FAULT:
-        
+
         // Send the BMS fault signal
         HAL_GPIO_WritePin(hbms->FaultPin.Port, hbms->FaultPin.Pin, GPIO_PIN_RESET); // Set the fault pin low, to indicate a fault in the BMS
         break;
@@ -117,15 +118,16 @@ void UpdateFaultFlags(BMS_HandleTypeDef *hbms)
     }
 
     // Check if charger is still connected, timeout after 1 second, i dont believe this needs to be configurable
-    if(hbms->ChargerPresent && ((hbms->ChargerTimestamp + 1000) < HAL_GetTick()))
+    if (hbms->ChargerPresent && ((hbms->ChargerTimestamp + 1000) < HAL_GetTick()))
     {
         hbms->ChargerPresent = false; // Clear the charger present flag if the timeout has passed
     }
 
-    if(hbms->CanTimestamp + 1000 < HAL_GetTick())
+    if (hbms->CanTimestamp + 1000 < HAL_GetTick())
     {
         SET_BIT(hbms->ActiveFaults, BMS_WARNING_CAN); // Set the CAN timeout fault
-    }else
+    }
+    else
     {
         CLEAR_BIT(hbms->ActiveFaults, BMS_WARNING_CAN); // Clear the CAN timeout fault
     }
@@ -189,7 +191,7 @@ bool LoadConfiguration(BMS_HandleTypeDef *hbms)
             // If the configuration write to flash fails, we set the EepromPresent flag to false
             // Note: The written config is also re-read from flash
             SET_BIT(hbms->ActiveFaults, BMS_NOTE_EEPROM); // Set the EEPROM fault flag
-            hbms->EepromPresent = false; // Set the EEPROM present flag to false
+            hbms->EepromPresent = false;                  // Set the EEPROM present flag to false
         }
     }
 
@@ -235,19 +237,53 @@ void ListenForCanMessages(BMS_HandleTypeDef *hbms)
         uint16_t node_id;
         Align_SplitCanId(can_id, &packet_id, &node_id, rx_header.IdType == FDCAN_EXTENDED_ID); // Split the CAN ID into the packet ID
 
-        switch (node_id)
+        // First check for exact matches of the CAN ID
+        switch (can_id)
         {
+        case 0x18FF50E5:
+            hbms->ChargerPresent = true;            // Charger is present
+            hbms->ChargerTimestamp = HAL_GetTick(); // Update the charger timestamp
+            break;                                  // This is the ID from the charger
+        default:
+            // If no exact match is found, we can check for the node ID
+            {
+                if (node_id == hbms->Config.CanNodeID)
+                {
+                    // This is the BMS node ID, and its not sent by the BMS itself
+                    // It is related to the BMS configuration
+                    // We can process the packet based on the packet ID
+                    switch (packet_id)
+                    {
+                    case 0x63:
+                    {                                                                  // This is used to set configuration parameters directly
+                        uint8_t config_param_id1 = rx_data[0];                         // The first byte is the configuration parameter ID
+                        uint16_t config_param_value1 = (rx_data[1] << 8) | rx_data[2]; // The next two bytes are the configuration parameter value
 
+                        BMS_Config_SetParameter(&hbms->Config, config_param_id1, config_param_value1); // Set the configuration parameter in the BMS configuration
 
-            default:
-                // If the node ID is not recognized, check if it is a regular ID we know
-                switch(can_id){
-                    case 0x18FF50E5:
-                        hbms->ChargerPresent = true; // Charger is present
-                        hbms->ChargerTimestamp = HAL_GetTick(); // Update the charger timestamp
-                        break; // This is the ID from the charger
+                        Align_CAN_Send(hbms->FDCAN, Align_CombineCanId(0x62, hbms->Config.CanNodeID, rx_header.IdType == FDCAN_EXTENDED_ID), rx_data, 6, rx_header.IdType == FDCAN_EXTENDED_ID); // Send the message back to the CAN bus to acknowledge the change
+
+                        break;
+                    }
+                    case 0x01:
+                        // This tells the BMS to write the configuration to flash memory, and reset
+                        if (BMS_Config_WriteToFlash(&hbms->Config) == BMS_CONFIG_OK)
+                        {
+                            // If the configuration write is successful, reset the BMS
+                            NVIC_SystemReset(); // Reset the system
+                        }
+                        else
+                        {
+                            // If the configuration write fails, set the EEPROM fault flag
+                            SET_BIT(hbms->ActiveFaults, BMS_NOTE_EEPROM); // Set the EEPROM fault flag
+                        }
+                    default:
+                        // Unknown packet ID, ignore it
+                        break;
+                    }
                 }
-                break;
+            }
+            break;
         }
     }
 }

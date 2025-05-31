@@ -1,6 +1,13 @@
 #include "bms_config.h"
 #include "w25q_mem.h"
 
+typedef enum
+{
+    BMS_CONFIG_PARAM_VERSION = 0, // Config version, this should increment on large config changes
+    BMS_CONFIG_PARAM_CELL_COUNT = 1, // Total number of cells
+    BMS_CONFIG_PARAM_NUM_OF_SLAVES = 2, // The number of slaves in the system
+} BMS_ConfigParameters;
+
 void BMS_Config_Init(BMS_Config_HandleTypeDef *bms_config)
 {
     // Setting the default values of the config
@@ -40,6 +47,29 @@ void BMS_Config_Init(BMS_Config_HandleTypeDef *bms_config)
     bms_config->CanChargerBroadcastTimeout = DEFAULT_CAN_CHARGER_BROADCAST_TIMEOUT;   // 5s
     bms_config->BalanceWhileCharging = DEFAULT_BALANCE_WHILE_CHARGING;                // Should the BMS balance while charging or not
     bms_config->Checksum = 0x00;                                                      // TODO: Implement CRC checksum
+}
+
+
+// Set a parameter in the configuration, index is the parameter index, value is the value to set
+// TODO: Implement more parameters
+void BMS_Config_SetParameter(BMS_Config_HandleTypeDef *bms_config, uint8_t index, uint16_t value)
+{
+    switch(index){
+        case BMS_CONFIG_PARAM_VERSION:
+            bms_config->ConfigVersion = value;
+            break;
+        case BMS_CONFIG_PARAM_CELL_COUNT:
+            bms_config->CellCount = value;
+            bms_config->TotalCellCountInSeries = value / bms_config->CellsEach;
+            bms_config->CellCountInParallel = 1; // TODO: Implement parallel cells
+            break;
+        case BMS_CONFIG_PARAM_NUM_OF_SLAVES:
+            bms_config->NumOfSlaves = value;
+            break;
+        default:
+            // Invalid parameter index, do nothing
+            break;
+    }
 }
 
 BMS_Config_StatusTypeDef BMS_Config_WriteToFlash(BMS_Config_HandleTypeDef *bms_config)
