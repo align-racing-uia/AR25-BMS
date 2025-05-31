@@ -10,6 +10,7 @@ bool Connect(BMS_HandleTypeDef *hbms);
 bool LoadConfiguration(BMS_HandleTypeDef *hbms);
 void UpdateFaultFlags(BMS_HandleTypeDef *hbms);
 void ListenForCanMessages(BMS_HandleTypeDef *hbms);
+void TsActive(BMS_HandleTypeDef *hbms);
 
 // Public Function implementations
 
@@ -80,6 +81,22 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
             hbms->State = BMS_STATE_FAULT;
         }
         break;
+    case BMS_STATE_IDLE: // Much of this functionality will be shared
+    case BMS_STATE_DRIVING:
+    TsActive(hbms); // Functionality needed for when the TS is active 
+    case BMS_STATE_CHARGING:
+        // In the charging state, we need to monitor the charger and the BQ
+        if (hbms->ChargerPresent)
+        {
+            // If the charger is present, we can charge the battery
+            hbms->State = BMS_STATE_CHARGING; // Stay in the charging state
+        }
+        else
+        {
+            // If the charger is not present, we need to move to the idle state
+            hbms->State = BMS_STATE_IDLE;
+        }
+        break;
 
     case BMS_STATE_FAULT:
 
@@ -97,6 +114,14 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     }
 }
 
+
+void TsActive(BMS_HandleTypeDef *hbms)
+{
+    // Unsure if this is the right way to go
+    // TODO: See if the separate TS state machine is needed
+    TS_UpdateState(hbms->TS, hbms->BatteryModel->EstimatedSOC, hbms->SdcClosed, true, hbms->ChargerPresent, hbms->ActiveFaults); // Update the TS state machine
+}
+
 // Function to monitor and update fault flags
 // Certain ActiveFaults are set elsewere, such as BQ related faults
 void UpdateFaultFlags(BMS_HandleTypeDef *hbms)
@@ -108,11 +133,7 @@ void UpdateFaultFlags(BMS_HandleTypeDef *hbms)
         Error_Handler();
     }
 
-    // Check if charger is still connected, timeout after 1 second, i dont believe this needs to be configurable
-    if (hbms->ChargerPresent && ((hbms->ChargerTimestamp + 1000) < HAL_GetTick()))
-    {
-        hbms->ChargerPresent = false; // Clear the charger present flag if the timeout has passed
-    }
+
 
     if (hbms->CanTimestamp + 1000 < HAL_GetTick())
     {
@@ -148,8 +169,8 @@ bool Connect(BMS_HandleTypeDef *hbms)
     // For now, we will just return true to simulate a successful connection
 
     BQ_StatusTypeDef bq_status; // Attempt to connect to the BQ
-    BQ_WakePing(hbms->BQ); // Wake up the BQ
-    BQ_WakePing(hbms->BQ); // Wake up the BQ
+    BQ_WakePing(hbms->BQ);      // Wake up the BQ
+    BQ_WakePing(hbms->BQ);      // Wake up the BQ
 
     bq_status = BQ_WakeMsg(hbms->BQ); // Send the wake message to the BQ subdevices
 
@@ -161,7 +182,7 @@ bool Connect(BMS_HandleTypeDef *hbms)
         return false;
     }
 
-    BQ_ClearComm(hbms->BQ); // Clear the BQ communication buffer
+    BQ_ClearComm(hbms->BQ);               // Clear the BQ communication buffer
     bq_status = BQ_AutoAddress(hbms->BQ); // Attempt to auto address the BQ
     if (bq_status != BQ_STATUS_OK)
     {
@@ -209,7 +230,7 @@ bool LoadConfiguration(BMS_HandleTypeDef *hbms)
         {
             // If the configuration write to flash fails, we set the EepromPresent flag to false
             // Note: The written config is also re-read from flash
-            hbms->EepromPresent = false;                  // Set the EEPROM present flag to false
+            hbms->EepromPresent = false; // Set the EEPROM present flag to false
         }
     }
 
@@ -237,7 +258,8 @@ bool LoadConfiguration(BMS_HandleTypeDef *hbms)
     // Apply values to the BQ
     BQ_Init(hbms->BQ); // Initialize the BQ
 
-    if(!hbms->EepromPresent){
+    if (!hbms->EepromPresent)
+    {
         SET_BIT(hbms->ActiveFaults, BMS_NOTE_EEPROM); // Set the EEPROM fault flag
     }
 
