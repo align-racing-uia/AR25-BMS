@@ -16,7 +16,9 @@
         "libs.h": "c",
         "string.h": "c",
         "bms_config.h": "c",
-        "stddef.h": "c"
+        "stddef.h": "c",
+        "secondary_mcu.h": "c",
+        "ts_statemachine.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true,
     "C_Cpp.errorSquiggles": "enabled"

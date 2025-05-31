@@ -40,8 +40,10 @@ typedef struct {
     bool  soc_estimated; // If the first SOC estimation is done
     float AverageTemperature;
     float EstimatedSOC;
-    uint16_t PackVoltage;
-    int16_t PackCurrent; 
+    float PackVoltage;
+    float PackCurrent; 
+    float AverageCellVoltage; // Average cell voltage in the pack
+    float AverageCellTemperature; // Average cell temperature in the pack
     uint16_t CellCount;
     uint16_t CellsInSeries;
     uint16_t CellsInParallel;

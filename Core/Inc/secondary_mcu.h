@@ -4,6 +4,7 @@
 #include "stdint.h"
 #include "stdbool.h"
 #include "spi.h"
+#include "ts_statemachine.h"
 
 typedef struct
 {
@@ -42,7 +43,7 @@ typedef struct {
 
 
 void SecondaryMCU_Init(SecondaryMCU_HandleTypeDef *hsecondary, SPI_HandleTypeDef *hspi, GPIO_TypeDef *CsPinPort, uint16_t CsPin);
-void SecondaryMCU_RequestState(SecondaryMCU_HandleTypeDef *hsecondary);
+void SecondaryMCU_RequestState(SecondaryMCU_HandleTypeDef *hsecondary, TS_StateTypeDef state);
 void SecondaryMCU_Update(SecondaryMCU_HandleTypeDef *hsecondary);
 void SecondaryMCU_Poll(SecondaryMCU_HandleTypeDef *hsecondary);
 

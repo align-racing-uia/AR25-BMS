@@ -5,6 +5,8 @@
 #include "aligncan.h"
 #include <stm32g4xx.h>
 
+#define BQ_DISABLE
+
 // Private Function defines
 bool Connect(BMS_HandleTypeDef *hbms);
 bool LoadConfiguration(BMS_HandleTypeDef *hbms);
@@ -42,8 +44,26 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
     hbms->EepromPresent = false;         // Clear the EEPROM present flag
     TS_Init(hbms->TS);                   // Initialize the TS state machine
 
-    hbms->FaultPin = hardware_config->FaultPin; // Bind the fault pin from the hardware configuration
     hbms->FDCAN = hardware_config->hfdcan;      // Bind the FDCAN handle from the hardware configuration
+    hbms->FaultPin = hardware_config->FaultPin; // Bind the fault pin from the hardware configuration
+    hbms->LowCurrentSensorPin = hardware_config->LowCurrentSensorPin; // Bind the low current sensor pin
+    hbms->HighCurrentSensorPin = hardware_config->HighCurrentSensorPin; // Bind the high current sensor pin
+
+    hbms->CanTimestamp = HAL_GetTick(); // Initialize the CAN timestamp to the current time
+    hbms->ChargerTimestamp = HAL_GetTick(); // Initialize the charger timestamp to the current time
+    hbms->ChargerPresent = false; // Initialize the charger present flag to false
+
+    hbms->BqConnected = false; // Initialize the BQ connected flag to false
+
+    hbms->PackCurrent = &hbms->MeasuredCurrent; // Bind the pack current pointer to the measured current, we do it like this to keep it consistent with the other pointers
+    hbms->PackVoltage = &hbms->BatteryModel->PackVoltage; // Bind the pack voltage pointer
+    hbms->AverageCellTemperature = &hbms->BatteryModel->AverageTemperature; // Bind the average cell temperature pointer
+    hbms->AverageCellVoltage = &hbms->BatteryModel->AverageCellVoltage; // Bind the average cell voltage pointer
+
+    hbms->HighestCellTemperature = &hbms->BQ->HighestCellTemperature; // Bind the highest cell temperature pointer
+    hbms->LowestCellTemperature = &hbms->BQ->LowestCellTemperature; // Bind the lowest cell temperature pointer
+    hbms->CellVoltages = hbms->BQ->CellVoltages; // Bind the cell voltages pointer
+    hbms->CellTemperatures = hbms->BQ->CellTemperatures; // Bind the cell temperatures pointer
 
     hbms->Initialized = true; // Clear the initialized flag
 }
@@ -58,6 +78,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     {
 
     case BMS_STATE_CONFIGURING:
+    {
         if (LoadConfiguration(hbms))
         {
             hbms->State = BMS_STATE_CONNECTING; // Move to the next state if configuration is successful
@@ -68,9 +89,9 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
             hbms->State = BMS_STATE_FAULT;
         }
         break;
-
+    }
     case BMS_STATE_CONNECTING:
-        // Check if the BQ is connected
+    {    // Check if the BQ is connected
         if (Connect(hbms))
         {
             hbms->State = BMS_STATE_IDLE; // Move to the idle state if the BQ is connected
@@ -81,9 +102,9 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
             hbms->State = BMS_STATE_FAULT;
         }
         break;
+    }
     case BMS_STATE_IDLE: // Much of this functionality will be shared
     case BMS_STATE_DRIVING:
-    TsActive(hbms); // Functionality needed for when the TS is active 
     case BMS_STATE_CHARGING:
         // In the charging state, we need to monitor the charger and the BQ
         if (hbms->ChargerPresent)
@@ -165,6 +186,11 @@ void UpdateFaultFlags(BMS_HandleTypeDef *hbms)
 
 bool Connect(BMS_HandleTypeDef *hbms)
 {
+
+#if defined(BQ_DISABLE)
+    return true; // If BQ is disabled, return true, so other parts of the code can still run    
+#endif
+    
     // This function should implement the logic to connect to the BQ
     // For now, we will just return true to simulate a successful connection
 
@@ -274,7 +300,7 @@ void ListenForCanMessages(BMS_HandleTypeDef *hbms)
 
     uint8_t max_cycles = 5; // Maximum number of CAN messages to process in one main loop iteration
 
-    while (max_cycles > 0 && Align_CAN_Receive(hbms->FDCAN, &rx_header, rx_data) == HAL_OK)
+    while (max_cycles > 0 && Align_CAN_Receive(hbms->FDCAN, &rx_header, rx_data))
     {
         uint32_t can_id = rx_header.Identifier & 0x7FF; // Extract the CAN ID from the header
         uint16_t packet_id;

@@ -19,6 +19,14 @@ typedef enum
     BMS_STATE_FAULT
 } BMS_StateTypeDef;
 
+typedef enum
+{
+  TS_STATE_IDLE = 0,
+  TS_STATE_PRECHARGE = 1,
+  TS_STATE_ACTIVE = 2,
+  TS_STATE_FAULT = 3,
+} BMS_TS_StateTypeDef;
+
 typedef struct
 {
     GPIO_TypeDef *Port; // GPIO port
@@ -28,9 +36,9 @@ typedef struct
 typedef struct
 {
 
-    FDCAN_HandleTypeDef *hfdcan; // Handle for the FDCAN peripheral
-    BMS_PinTypeDef FaultPin;     // Pin for the fault indicator
-    BMS_PinTypeDef LowCurrentSensorPin; // Pin for the low current sensor
+    FDCAN_HandleTypeDef *hfdcan;         // Handle for the FDCAN peripheral
+    BMS_PinTypeDef FaultPin;             // Pin for the fault indicator
+    BMS_PinTypeDef LowCurrentSensorPin;  // Pin for the low current sensor
     BMS_PinTypeDef HighCurrentSensorPin; // Pin for the high current sensor
 
 } BMS_HardwareConfigTypeDef;
@@ -38,26 +46,40 @@ typedef struct
 typedef struct
 {
     BatteryModel_HandleTypeDef *BatteryModel; // Battery model handle
-    TS_HandleTypeDef *TS;                     // Tractive system state machine handle
     BQ_HandleTypeDef *BQ;                     // BQ79600 handle
     FDCAN_HandleTypeDef *FDCAN;               // Handle for the FDCAN peripheral
 
     BMS_Config_HandleTypeDef Config; // BMS configuration handle
 
     BMS_StateTypeDef State;      // The state of the BMS
+    BMS_TS_StateTypeDef TS_State; // The state of the TS
     BMS_FaultFlags ActiveFaults; // Active faults bitmask
 
-    BMS_PinTypeDef FaultPin; // Pin for the fault indicator
-    BMS_PinTypeDef LowCurrentSensorPin; // Pin for the low current sensor
+    BMS_PinTypeDef FaultPin;             // Pin for the fault indicator
+    BMS_PinTypeDef LowCurrentSensorPin;  // Pin for the low current sensor
     BMS_PinTypeDef HighCurrentSensorPin; // Pin for the high current sensor
 
     uint32_t CanTimestamp;     // Timestamp for the last CAN message
     uint32_t ChargerTimestamp; // Timestamp for the last charger CAN message
 
+    float MeasuredCurrent; // Measured current from the sensors
+
+    // Exposed state variables, from other handles
+    float *HighestCellTemperature; // Highest cell temperature in the pack
+    float *LowestCellTemperature;  // Lowest cell temperature in the pack
+    float *AverageCellVoltage;     // Average cell voltage in the pack
+    float *AverageCellTemperature; // Average cell temperature in the pack
+    float *PackVoltage;            // Pack voltage
+    float *PackCurrent;            // Pack current
+    float *HighestCellVoltage;     // Highest cell voltage in the pack
+    float *LowestCellVoltage;      // Lowest cell voltage in the pack
+    float *CellVoltages;           // Array of cell voltages
+    float *CellTemperatures;       // Array of cell temperatures
+
     bool WarningPresent; // Warning present flag
     bool EepromPresent;  // EEPROM present flag
     bool ChargerPresent; // Charger connected flag
-    bool BqConnected;     // BQ connected flag
+    bool BqConnected;    // BQ connected flag
 
     bool SdcClosed;   // SdcClosed connected flag
     bool Initialized; // Initialized flag, true if the BMS is initialized
