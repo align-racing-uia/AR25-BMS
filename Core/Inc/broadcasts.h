@@ -4,6 +4,7 @@
 #include "stdbool.h"
 #include "bq79600.h"
 #include "fdcan.h"
+#include "aligncan.h"
 
 typedef struct
 {

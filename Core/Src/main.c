@@ -202,7 +202,6 @@ int main(void)
   // Initialize the CAN interface
   Align_CAN_Init(&hfdcan1, ALIGN_CAN_SPEED_500KBPS, FDCAN1);
 
-
   // // Initialize w25q32
   // W25Q_STATE res = W25Q_Init();
   // if (res != W25Q_OK)
