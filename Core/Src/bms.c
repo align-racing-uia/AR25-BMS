@@ -72,16 +72,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         // Check if the BQ is connected
         if (Connect(hbms))
         {
-            if (hbms->BQ->Connected)
-            {
-                // If the BQ is connected, move to the idle state
-                hbms->State = BMS_STATE_IDLE; // Move to the idle state if the BQ is connected
-            }
-            else
-            {
-                // If the BQ is not connected, set the state to fault
-                hbms->State = BMS_STATE_FAULT;
-            }
+            hbms->State = BMS_STATE_IDLE; // Move to the idle state if the BQ is connected
         }
         else
         {
@@ -155,6 +146,50 @@ bool Connect(BMS_HandleTypeDef *hbms)
 {
     // This function should implement the logic to connect to the BQ
     // For now, we will just return true to simulate a successful connection
+
+    BQ_StatusTypeDef bq_status; // Attempt to connect to the BQ
+    BQ_WakePing(hbms->BQ); // Wake up the BQ
+    BQ_WakePing(hbms->BQ); // Wake up the BQ
+
+    bq_status = BQ_WakeMsg(hbms->BQ); // Send the wake message to the BQ subdevices
+
+    if (bq_status != BQ_STATUS_OK)
+    {
+        // If the BQ is not connected, return false
+        // This will set the state to fault in the main loop
+        SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ); // Set the BQ fault flag
+        return false;
+    }
+
+    BQ_ClearComm(hbms->BQ); // Clear the BQ communication buffer
+    bq_status = BQ_AutoAddress(hbms->BQ); // Attempt to auto address the BQ
+    if (bq_status != BQ_STATUS_OK)
+    {
+        // If the auto addressing fails, return false
+        // This will set the state to fault in the main loop
+        SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ); // Set the BQ fault flag
+        return false;
+    }
+
+    bq_status = BQ_ConfigureGPIO(hbms->BQ); // Configure the GPIOs of the BQ
+    if (bq_status != BQ_STATUS_OK)
+    {
+        // If the GPIO configuration fails, return false
+        // This will set the state to fault in the main loop
+        SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ); // Set the BQ fault flag
+        return false;
+    }
+
+    bq_status = BQ_ActivateSlaveADC(hbms->BQ); // Activate the slave ADCs
+    if (bq_status != BQ_STATUS_OK)
+    {
+        // If the slave ADC activation fails, return false
+        // This will set the state to fault in the main loop
+        SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ); // Set the BQ fault flag
+        return false;
+    }
+    // If all the above steps are successful, we can consider the BQ connected
+    hbms->BqConnected = true; // Set the BQ connected flag to true
     return true;
 }
 
@@ -165,23 +200,7 @@ bool LoadConfiguration(BMS_HandleTypeDef *hbms)
     W25Q_STATE w25q_state = W25Q_Init();
     hbms->EepromPresent = w25q_state == W25Q_OK;
 
-    BMS_Config_Init(&hbms->Config); // Initialize the BMS configuration
-
-    if (!hbms->EepromPresent)
-    {
-        // If the EEPROM is not present, we cannot update the configuration from flash
-        // But we use default values for the configuration
-        // This is indicated by the EepromPresent flag
-        return true;
-    }
-
-    if (BMS_Config_UpdateFromFlash(&hbms->Config) == BMS_CONFIG_OK) // Update the configuration from flash memory
-    {
-        // If the configuration update is successful, we can proceed
-        // This will also set the ConfigVersion to the correct value
-        return true;
-    }
-    else
+    if (BMS_Config_UpdateFromFlash(&hbms->Config) != BMS_CONFIG_OK) // Update the configuration from flash memory
     {
         // If this fails, it can still indicate that the EEPROM is present
         // But the configuration is invalid or corrupted
@@ -190,7 +209,6 @@ bool LoadConfiguration(BMS_HandleTypeDef *hbms)
         {
             // If the configuration write to flash fails, we set the EepromPresent flag to false
             // Note: The written config is also re-read from flash
-            SET_BIT(hbms->ActiveFaults, BMS_NOTE_EEPROM); // Set the EEPROM fault flag
             hbms->EepromPresent = false;                  // Set the EEPROM present flag to false
         }
     }
@@ -218,6 +236,10 @@ bool LoadConfiguration(BMS_HandleTypeDef *hbms)
 
     // Apply values to the BQ
     BQ_Init(hbms->BQ); // Initialize the BQ
+
+    if(!hbms->EepromPresent){
+        SET_BIT(hbms->ActiveFaults, BMS_NOTE_EEPROM); // Set the EEPROM fault flag
+    }
 
     return true;
 }

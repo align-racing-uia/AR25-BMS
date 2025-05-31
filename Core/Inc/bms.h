@@ -19,7 +19,7 @@ typedef enum
     BMS_STATE_FAULT
 } BMS_StateTypeDef;
 
-typedef struct 
+typedef struct
 {
     GPIO_TypeDef *Port; // GPIO port
     uint16_t Pin;       // GPIO pin number
@@ -29,7 +29,7 @@ typedef struct
 {
 
     FDCAN_HandleTypeDef *hfdcan; // Handle for the FDCAN peripheral
-    BMS_PinTypeDef FaultPin;      // Pin for the fault indicator
+    BMS_PinTypeDef FaultPin;     // Pin for the fault indicator
 
 } BMS_HardwareConfigTypeDef;
 
@@ -38,21 +38,22 @@ typedef struct
     BatteryModel_HandleTypeDef *BatteryModel; // Battery model handle
     TS_HandleTypeDef *TS;                     // Tractive system state machine handle
     BQ_HandleTypeDef *BQ;                     // BQ79600 handle
-    FDCAN_HandleTypeDef *FDCAN;              // Handle for the FDCAN peripheral
+    FDCAN_HandleTypeDef *FDCAN;               // Handle for the FDCAN peripheral
 
     BMS_Config_HandleTypeDef Config; // BMS configuration handle
 
     BMS_StateTypeDef State;      // The state of the BMS
     BMS_FaultFlags ActiveFaults; // Active faults bitmask
-    
-    BMS_PinTypeDef FaultPin;     // Pin for the fault indicator
+
+    BMS_PinTypeDef FaultPin; // Pin for the fault indicator
 
     uint32_t CanTimestamp;     // Timestamp for the last CAN message
     uint32_t ChargerTimestamp; // Timestamp for the last charger CAN message
-    
+
     bool WarningPresent; // Warning present flag
     bool EepromPresent;  // EEPROM present flag
     bool ChargerPresent; // Charger connected flag
+    bool BqConnected;     // BQ connected flag
 
     bool SdcClosed;   // SdcClosed connected flag
     bool Initialized; // Initialized flag, true if the BMS is initialized

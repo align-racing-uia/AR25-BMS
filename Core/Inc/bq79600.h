@@ -108,7 +108,6 @@ typedef struct
     uint8_t TempMultiplexPinIndex; // This is the pin used to multiplex the temperature sensors
     uint8_t CellTempPinMap;
 
-    bool Connected;
 
     TIM_HandleTypeDef *htim; // The timer used for the delays
 } BQ_HandleTypeDef;
