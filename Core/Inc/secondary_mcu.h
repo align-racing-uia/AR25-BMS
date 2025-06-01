@@ -4,6 +4,7 @@
 #include "stdint.h"
 #include "stdbool.h"
 #include "spi.h"
+#include "bms.h"
 
 typedef struct
 {
@@ -29,6 +30,7 @@ typedef struct {
     bool SdcClosed; // Flag to indicate if the SdcClosed is connected
     uint8_t RelayStates; // States of the relays
     
+    // 
     SecondaryMCU_TransmitTypeDef TransmitData; // Data to transmit to the secondary MCU
 
     // Cyclic (Alternating) data buffer
@@ -42,7 +44,7 @@ typedef struct {
 
 
 void SecondaryMCU_Init(SecondaryMCU_HandleTypeDef *hsecondary, SPI_HandleTypeDef *hspi, GPIO_TypeDef *CsPinPort, uint16_t CsPin);
-void SecondaryMCU_RequestState(SecondaryMCU_HandleTypeDef *hsecondary, TS_StateTypeDef state);
+void SecondaryMCU_RequestState(SecondaryMCU_HandleTypeDef *hsecondary, BMS_TS_StateTypeDef state);
 void SecondaryMCU_Update(SecondaryMCU_HandleTypeDef *hsecondary);
 void SecondaryMCU_Poll(SecondaryMCU_HandleTypeDef *hsecondary);
 

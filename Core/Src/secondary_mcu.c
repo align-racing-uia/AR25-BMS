@@ -1,5 +1,4 @@
 #include "secondary_mcu.h"
-#include "ts_statemachine.h"
 
 extern SecondaryMCU_HandleTypeDef *global_secondary_mcu_handle; // Global handle for the secondary MCU, used in the DMA callback
 
@@ -28,7 +27,7 @@ void SecondaryMCU_Init(SecondaryMCU_HandleTypeDef *hsecondary, SPI_HandleTypeDef
     HAL_DMA_RegisterCallback(hsecondary->hspi->hdmarx, HAL_DMA_XFER_CPLT_CB_ID, SecondaryMCU_RecieveCallback); // Register the receive callback for the DMA
 }
 
-void SecondaryMCU_RequestState(SecondaryMCU_HandleTypeDef *hsecondary, TS_StateTypeDef state)
+void SecondaryMCU_RequestState(SecondaryMCU_HandleTypeDef *hsecondary, BMS_TS_StateTypeDef state)
 {
     hsecondary->TransmitData.TsRequest = state;    // Get the current state of the tractive system
     HAL_SPI_Transmit_DMA(hsecondary->hspi, (uint8_t *)&hsecondary->TransmitData, sizeof(SecondaryMCU_TransmitTypeDef)); // Transmit the data to the secondary MCU
@@ -50,8 +49,9 @@ void SecondaryMCU_Poll(SecondaryMCU_HandleTypeDef *hsecondary)
 {
 
     if (HAL_SPI_GetState(hsecondary->hspi) == HAL_SPI_STATE_READY)
-    {                                                                                                                                                    // Check if the SPI peripheral is ready
-        HAL_SPI_Receive_DMA(hsecondary->hspi, (uint8_t *)&hsecondary->RecieveData[hsecondary->RecieveWriteIndex], sizeof(SecondaryMCU_ResponseTypeDef)); // Start the DMA receive operation
+    {
+        uint8_t poll = 0xFF; // Polling byte to send to the secondary MCU
+        HAL_SPI_TransmitReceive_DMA(hsecondary->hspi, &poll, (uint8_t *)&hsecondary->RecieveData[hsecondary->RecieveWriteIndex], sizeof(SecondaryMCU_TransmitTypeDef)); // Transmit and receive data using DMA                                                                                                                                      
     }
 }
 
