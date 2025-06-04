@@ -42,7 +42,7 @@ void MX_QUADSPI1_Init(void)
   hqspi1.Init.FifoThreshold = 1;
   hqspi1.Init.SampleShifting = QSPI_SAMPLE_SHIFTING_NONE;
   hqspi1.Init.FlashSize = 11;
-  hqspi1.Init.ChipSelectHighTime = QSPI_CS_HIGH_TIME_2_CYCLE;
+  hqspi1.Init.ChipSelectHighTime = QSPI_CS_HIGH_TIME_1_CYCLE;
   hqspi1.Init.ClockMode = QSPI_CLOCK_MODE_0;
   hqspi1.Init.FlashID = QSPI_FLASH_ID_1;
   hqspi1.Init.DualFlash = QSPI_DUALFLASH_DISABLE;
