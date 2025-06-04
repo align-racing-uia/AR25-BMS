@@ -21,18 +21,15 @@
 #include "adc.h"
 #include "crc.h"
 #include "dma.h"
-#include "i2c.h"
 #include "quadspi.h"
 #include "spi.h"
 #include "tim.h"
-#include "usb_device.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
 #include "bms_config.h"
-#include "usbd_cdc_if.h"
 #include "stdbool.h"
 #include "SEGGER_RTT.h"
 #include "alignutils.h"
@@ -41,7 +38,6 @@
 #include "w25q_mem.h"
 #include "string.h"
 #include "battery_model.h"
-#include "icm.h"
 #include "secondary_mcu.h"
 #include "alignevents.h"
 #include "pid.h"
@@ -116,10 +112,6 @@ float bq_cell_temperature_pool[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_TEMPS_
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
-void USB_CDC_RxHandler(uint8_t *Buf, uint32_t Len)
-{
-  CDC_Transmit_FS(Buf, Len);
-}
 
 
 
@@ -162,13 +154,10 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_QUADSPI1_Init();
-  MX_SPI1_Init();
   MX_SPI2_Init();
   MX_TIM2_Init();
   MX_CRC_Init();
-  MX_USB_Device_Init();
   MX_ADC2_Init();
-  MX_I2C1_Init();
   MX_ADC1_Init();
   MX_TIM3_Init();
   MX_TIM4_Init();
@@ -309,7 +298,6 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-  RCC_CRSInitTypeDef pInit = {0};
 
   /** Configure the main internal regulator output voltage
   */
@@ -318,13 +306,12 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSI48
-                              |RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSI
+                              |RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.LSIState = RCC_LSI_ON;
-  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV3;
@@ -350,21 +337,6 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-
-  /** Enable the SYSCFG APB clock
-  */
-  __HAL_RCC_CRS_CLK_ENABLE();
-
-  /** Configures CRS
-  */
-  pInit.Prescaler = RCC_CRS_SYNC_DIV1;
-  pInit.Source = RCC_CRS_SYNC_SOURCE_USB;
-  pInit.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
-  pInit.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000,1000);
-  pInit.ErrorLimitValue = 34;
-  pInit.HSI48CalibrationValue = 32;
-
-  HAL_RCCEx_CRSConfig(&pInit);
 }
 
 /* USER CODE BEGIN 4 */

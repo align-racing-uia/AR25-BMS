@@ -20,7 +20,8 @@
         "secondary_mcu.h": "c",
         "ts_statemachine.h": "c",
         "alignevents.h": "c",
-        "bms.h": "c"
+        "bms.h": "c",
+        "icm.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true,
     "C_Cpp.errorSquiggles": "enabled"
