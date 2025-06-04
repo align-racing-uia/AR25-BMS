@@ -5,7 +5,7 @@
 #include "aligncan.h"
 #include <stm32g4xx.h>
 
-#define BQ_DISABLE
+// #define BQ_DISABLE
 
 // Private Function defines
 bool Connect(BMS_HandleTypeDef *hbms);
@@ -48,6 +48,15 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
     hbms->FaultPin = hardware_config->FaultPin; // Bind the fault pin from the hardware configuration
     hbms->LowCurrentSensorPin = hardware_config->LowCurrentSensorPin; // Bind the low current sensor pin
     hbms->HighCurrentSensorPin = hardware_config->HighCurrentSensorPin; // Bind the high current sensor pin
+
+    hbms->PlusAIR = hardware_config->PlusAIR; // Bind the plus AIR pin
+    hbms->MinusAIR = hardware_config->MinusAIR; // Bind the minus AIR pin
+    hbms->PrechargeAIR = hardware_config->PrechargeAIR; // Bind the precharge AIR pin
+
+    HAL_GPIO_WritePin(hbms->FaultPin.Port, hbms->FaultPin.Pin, GPIO_PIN_SET); // Set the fault pin high, to indicate no fault in the BMS
+    HAL_GPIO_WritePin(hbms->PlusAIR.Port, hbms->PlusAIR.Pin, GPIO_PIN_RESET); // Set the plus AIR pin low, to indicate no fault in the BMS
+    HAL_GPIO_WritePin(hbms->MinusAIR.Port, hbms->MinusAIR.Pin, GPIO_PIN_RESET); // Set the minus AIR pin low, to indicate no fault in the BMS
+    HAL_GPIO_WritePin(hbms->PrechargeAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_RESET); // Set the precharge AIR pin low, to indicate no fault in the BMS
 
     hbms->CanTimestamp = HAL_GetTick(); // Initialize the CAN timestamp to the current time
     hbms->ChargerTimestamp = HAL_GetTick(); // Initialize the charger timestamp to the current time
@@ -94,6 +103,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     {    // Check if the BQ is connected
         if (Connect(hbms))
         {
+            BQ_EnableCommTimeout(hbms->BQ); // Enable the BQ communication timeout
             hbms->State = BMS_STATE_IDLE; // Move to the idle state if the BQ is connected
         }
         else
@@ -104,6 +114,8 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         break;
     }
     case BMS_STATE_IDLE: // Much of this functionality will be shared
+        BQ_GetCellVoltages(hbms->BQ); // Get the cell voltages from the BQ
+        BQ_GetCellTemperatures(hbms->BQ); // Get the cell temperatures from the BQ
     case BMS_STATE_DRIVING:
     case BMS_STATE_CHARGING:
         // In the charging state, we need to monitor the charger and the BQ

@@ -40,6 +40,11 @@ void BQ_Configure(BQ_HandleTypeDef *hbq, BQ_ConfigTypeDef *bq_config)
     hbq->NumOfSlaves = bq_config->NumOfSlaves;
     hbq->NumOfChips = bq_config->NumOfSlaves + 1; // The master chip is always present
     hbq->NumOfCellsEach = bq_config->NumOfCellsEach;
+    
+    hbq->TempMultiplexEnabled = bq_config->TempMultiplexEnabled;
+    hbq->TempMultiplexPinIndex = bq_config->TempMultiplexPinIndex;
+    hbq->GpioAuxADCMap = bq_config->GpioAuxADCMap;
+    hbq->CellTempPinMap = bq_config->CellTempPinMap;
 }
 
 void BQ_BindHardware(BQ_HandleTypeDef *hbq, SPI_HandleTypeDef *hspi, BQ_PinTypeDef cs_pin, BQ_PinTypeDef spi_rdy_pin, BQ_PinTypeDef mosi_pin, BQ_PinTypeDef fault_pin, TIM_HandleTypeDef *htim)
@@ -238,6 +243,21 @@ BQ_StatusTypeDef BQ_AutoAddress(BQ_HandleTypeDef *hbq)
     }
     return status;
 }
+
+BQ_StatusTypeDef BQ_EnableCommTimeout(BQ_HandleTypeDef *hbq){
+    if (hbq == NULL)
+    {
+        // If this occurs, youve done something very wrong
+        Error_Handler();
+    }
+
+    // Set the timeout duration for loss of communication (Which occurs)
+    // We default to 10s for the long comm timeout
+    uint8_t data = 0b00001011; // 10 seconds, and shutdown on long comm timeout
+    return BQ_Write(hbq, &data, BQ_SELF_ID, BQ16_COMM_TIMEOUT_CONF, 1, BQ_STACK_WRITE);
+}
+
+
 
 // Activates the main ADC on all slaves
 // Num of cells correspond to the number of cells in series each IC should measure (max 16)

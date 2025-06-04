@@ -211,9 +211,12 @@ int main(void)
   BMS_HandleTypeDef hbms;
   BMS_HardwareConfigTypeDef bms_hardware_config = {
       .hfdcan = &hfdcan1, // Set the FDCAN handle
-      .FaultPin = {nFault_GPIO_Port, nFault_Pin}, // Set the fault pin
+      .FaultPin = {AMS_Fault_GPIO_Port, AMS_Fault_Pin}, // Set the fault pin
       .LowCurrentSensorPin = {Low_Current_Sensor_GPIO_Port, Low_Current_Sensor_Pin}, // Set the low current sensor pin
       .HighCurrentSensorPin = {High_Current_Sensor_GPIO_Port, High_Current_Sensor_Pin}, // Set the high current sensor pin
+      .MinusAIR = {Minus_GPIO_Port, Minus_Pin}, // Set the minus AIR pin
+      .PlusAIR = {Plus_GPIO_Port, Plus_Pin}, // Set the plus AIR pin
+      .PrechargeAIR = {Precharge_GPIO_Port, Precharge_Pin} // Set the precharge AIR pin
   };
 
   BMS_BindMemory(&hbms, &hbm, &hbq); // Initialize the TS state machine
@@ -226,7 +229,6 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-
 
   uint32_t alive_sig_timestamp = HAL_GetTick();
 
@@ -273,8 +275,8 @@ int main(void)
     // Alive sig ping-pong with the secondary MCU
     if ((alive_sig_timestamp + 100) <= HAL_GetTick())
     {
-      // Every 100 ms, toggle the alive signal pin
-      HAL_GPIO_TogglePin(GPIOA, Alive_Sig_Pin); // Toggle the alive signal pin
+      // Every 100 ms, toggle the watchdog pin to indicate that the BMS is alive
+      HAL_GPIO_TogglePin(Ext_WD_Sig_GPIO_Port, Ext_WD_Sig_Pin); // Toggle the alive signal pin
       alive_sig_timestamp = HAL_GetTick();
     }
     // Cycle time filter, pretty agressive, as we want it to spike up when the system is under load

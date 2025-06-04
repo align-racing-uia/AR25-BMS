@@ -5,7 +5,7 @@
 #include "stddef.h"
 #include "stdbool.h"
 
-#define BMS_CONFIG_VERSION 2 // This number will automatically increment when the config changes
+#define BMS_CONFIG_VERSION 1 // This number will automatically increment when the config changes
 
 // These are absolute maxes for the battery model, not the actual values
 // The actual values are set in the battery model init function
@@ -24,7 +24,7 @@
 // These values are only used if the EEPROM is empty, corrupt, or not present
 #define DEFAULT_TOTAL_CHIPS 3       // Including master
 #define DEFAULT_TOTAL_SLAVES (DEFAULT_TOTAL_CHIPS-1)     // Number of slaves in the system
-#define DEFAULT_CELLS_EACH 16       // Number of cells in series on each slave
+#define DEFAULT_CELLS_EACH 14       // Number of cells in series on each slave
 #define DEFAULT_TEMPS_EACH 6       // Number of temperature sensors on each slave
 #define DEFAULT_TEMP_MAP_VOLTAGE_POINTS 5 // Number of voltage points in each temperature map
 #define DEFAULT_TEMP_MAP_AMOUNT 3 // Number of temperature maps
@@ -47,6 +47,9 @@
 #define DEFAULT_CAN_CHARGER_BROADCAST_INTERVAL 1000 // The interval for the CAN charger broadcast
 #define DEFAULT_CAN_CHARGER_BROADCAST_TIMEOUT 5000 // The timeout for the charger broadcast packet  
 #define DEFAULT_BALANCE_WHILE_CHARGING false // Should the BMS balance while charging or not
+
+#define DEFAULT_MULTIPLEX_ENABLED true // If the temperature sensors are multiplexed
+#define DEFAULT_MULTIPLEX_PIN_INDEX 7 // The pin used to multiplex the temperature sensors
 
 #define DEFAULT_TOTAL_CELLS (DEFAULT_TOTAL_SLAVES * DEFAULT_CELLS_EACH * DEFAULT_CELLS_IN_PARALLEL)
 #define DEFAULT_TOTAL_CELLS_IN_SERIES (DEFAULT_TOTAL_SLAVES * DEFAULT_CELLS_EACH)

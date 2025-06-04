@@ -61,6 +61,8 @@
 #define BQ16_GPIO_CONF1_GPIO1_OUTPUT 0x5  // These can be used in the relevant positions for the rest as well
 #define BQ16_GPIO_CONF1_GPIO2_OUTPUT 0x28 // Defaults to setting the output to low
 
+#define BQ16_COMM_TIMEOUT_CONF 0x0019
+
 typedef struct {
     GPIO_TypeDef *GPIOx; // The GPIO port
     uint16_t Pin;        // The GPIO pin
@@ -136,6 +138,7 @@ BQ_StatusTypeDef BQ_ConfigureGPIO(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_GetSpecificAuxADC(BQ_HandleTypeDef *hbq, uint8_t pin);
+BQ_StatusTypeDef BQ_EnableCommTimeout(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_AutoAddress(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_GetDieTemperatures(BQ_HandleTypeDef *hbq);
 
