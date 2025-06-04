@@ -51,13 +51,23 @@ void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, Alive_Sig_Pin|Co_MCU_CS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(Ext_WD_Sig_GPIO_Port, Ext_WD_Sig_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, AMS_Fault_Pin|Co_MCU_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, SPI2_CS_Pin|Precharge_Pin|Minus_Pin|Plus_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : Alive_Sig_Pin Co_MCU_CS_Pin */
-  GPIO_InitStruct.Pin = Alive_Sig_Pin|Co_MCU_CS_Pin;
+  /*Configure GPIO pin : Ext_WD_Sig_Pin */
+  GPIO_InitStruct.Pin = Ext_WD_Sig_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(Ext_WD_Sig_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : AMS_Fault_Pin Co_MCU_CS_Pin */
+  GPIO_InitStruct.Pin = AMS_Fault_Pin|Co_MCU_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;

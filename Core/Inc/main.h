@@ -60,14 +60,18 @@ void USB_CDC_RxHandler(uint8_t*, uint32_t);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define Ext_WD_Sig_Pin GPIO_PIN_13
+#define Ext_WD_Sig_GPIO_Port GPIOC
 #define Low_Current_Sensor_Pin GPIO_PIN_0
 #define Low_Current_Sensor_GPIO_Port GPIOA
-#define Alive_Sig_Pin GPIO_PIN_1
-#define Alive_Sig_GPIO_Port GPIOA
+#define AMS_Fault_Pin GPIO_PIN_1
+#define AMS_Fault_GPIO_Port GPIOA
 #define Co_MCU_CS_Pin GPIO_PIN_4
 #define Co_MCU_CS_GPIO_Port GPIOA
 #define High_Current_Sensor_Pin GPIO_PIN_5
 #define High_Current_Sensor_GPIO_Port GPIOA
+#define Temperature_Pin GPIO_PIN_2
+#define Temperature_GPIO_Port GPIOB
 #define SPIRDY_Pin GPIO_PIN_11
 #define SPIRDY_GPIO_Port GPIOB
 #define SPI2_CS_Pin GPIO_PIN_12
