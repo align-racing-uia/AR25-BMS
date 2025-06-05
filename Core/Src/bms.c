@@ -115,7 +115,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     }
     case BMS_STATE_IDLE: // Much of this functionality will be shared
         BQ_GetCellVoltages(hbms->BQ); // Get the cell voltages from the BQ
-        BQ_GetCellTemperatures(hbms->BQ); // Get the cell temperatures from the BQ
+        BQ_GetCellTemperatures(hbms->BQ, 1.0); // Get the cell temperatures from the BQ
     case BMS_STATE_DRIVING:
     case BMS_STATE_CHARGING:
         // In the charging state, we need to monitor the charger and the BQ

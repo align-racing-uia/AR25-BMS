@@ -62,6 +62,8 @@
 #define BQ16_GPIO_CONF1_GPIO2_OUTPUT 0x28 // Defaults to setting the output to low
 
 #define BQ16_COMM_TIMEOUT_CONF 0x0019
+#define BQ16_CONTROL2 0x030A
+#define BQ16_TSREF_HI 0x058C // TSREF pin control register high byte
 
 typedef struct {
     GPIO_TypeDef *GPIOx; // The GPIO port
@@ -136,8 +138,9 @@ BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_ActivateAuxADC(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_ConfigureGPIO(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq);
-BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq);
-BQ_StatusTypeDef BQ_GetSpecificAuxADC(BQ_HandleTypeDef *hbq, uint8_t pin);
+BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta);
+BQ_StatusTypeDef BQ_GetGpioMeasurements(BQ_HandleTypeDef *hbq, uint8_t pin_map, uint8_t *data_out);
+BQ_StatusTypeDef BQ_EnableTsRef(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_EnableCommTimeout(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_AutoAddress(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_GetDieTemperatures(BQ_HandleTypeDef *hbq);

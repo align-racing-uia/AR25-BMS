@@ -257,6 +257,19 @@ BQ_StatusTypeDef BQ_EnableCommTimeout(BQ_HandleTypeDef *hbq){
     return BQ_Write(hbq, &data, BQ_SELF_ID, BQ16_COMM_TIMEOUT_CONF, 1, BQ_STACK_WRITE);
 }
 
+BQ_StatusTypeDef BQ_EnableTsRef(BQ_HandleTypeDef *hbq)
+{
+    if (hbq == NULL)
+    {
+        // If this occurs, youve done something very wrong
+        Error_Handler();
+    }
+
+    // Enable the TSREF pin on all slaves
+    uint8_t data = 0b00000001; // Enable TSREF pin
+    return BQ_Write(hbq, &data, BQ_SELF_ID, BQ16_CONTROL2, 1, BQ_STACK_WRITE);
+}
+
 
 
 // Activates the main ADC on all slaves
@@ -290,14 +303,14 @@ BQ_StatusTypeDef BQ_ActivateAuxADC(BQ_HandleTypeDef *hbq)
 }
 
 // Function to read the Auxilery ADCs of the slaves
-BQ_StatusTypeDef BQ_GetAuxADCs(BQ_HandleTypeDef *hbq, uint8_t pin_map, uint8_t *data_out)
+BQ_StatusTypeDef BQ_GetGpioMeasurements(BQ_HandleTypeDef *hbq, uint8_t pin_map, uint8_t *data_out)
 {
     // The pin map is a bitwise select of what GPIOs should be read as ADCs
     //    GPIO8 GPIO7 GPIO6 ...
     //  0b  0     0     0   ...
 
     // TODO: Implement proper CRC verification
-
+    uint8_t output_buffer[8*2*hbq->NumOfSlaves]; // A maximum of 8 GPIOs, each with 2 bytes of data each, for each slave
     size_t memory_offset = 0;
     size_t total_len = 8; // For each message
     for (int i = 0; i < 8; i++)
@@ -305,7 +318,7 @@ BQ_StatusTypeDef BQ_GetAuxADCs(BQ_HandleTypeDef *hbq, uint8_t pin_map, uint8_t *
         if ((pin_map >> i) & 0x01)
         {
 
-            BQ_StatusTypeDef status = BQ_Read(hbq, hbq->BQOutputBuffer + memory_offset, 0, BQ16_GPIO1_HI + i * 2, 2, BQ_STACK_READ); // Read the GPIO configuration register
+            BQ_StatusTypeDef status = BQ_Read(hbq, output_buffer, 0, BQ16_GPIO1_HI + i * 2, 2, BQ_STACK_READ); // Read the GPIO configuration register
             memory_offset += total_len;                                                                                              // 2 bytes for the GPIO data, 6 bytes for the header
             if (status != BQ_STATUS_OK)
             {
@@ -316,11 +329,26 @@ BQ_StatusTypeDef BQ_GetAuxADCs(BQ_HandleTypeDef *hbq, uint8_t pin_map, uint8_t *
     size_t number_of_pins = NUM_OF_ONES(pin_map); // Number of pins to read
     for (size_t i = 0; i < number_of_pins; i++)
     {
-        data_out[2 * i] = hbq->BQOutputBuffer[total_len * i - 2];
-        data_out[2 * i + 1] = hbq->BQOutputBuffer[total_len * i - 1]; // Put data in the output buffer
+        data_out[2 * i] = output_buffer[total_len * i - 2];
+        data_out[2 * i + 1] = output_buffer[total_len * i - 1]; // Put data in the output buffer
     }
 
     return BQ_STATUS_OK;
+}
+
+BQ_StatusTypeDef BQ_GetTsRefMeasurements(BQ_HandleTypeDef *hbq, uint8_t *data_out)
+{
+    // The TSREF pin is used to measure the temperature of the BQ79600 chip itself
+    // It is a single ADC channel, so we only need to read one register
+    // The data is 2 bytes long, and we will return it in the data_out buffer
+
+    BQ_StatusTypeDef status = BQ_Read(hbq, data_out, 0, BQ16_TSREF_HI, 2, BQ_STACK_READ);
+    if (status != BQ_STATUS_OK)
+    {
+        return status;
+    }
+
+    return status;
 }
 
 // This sets the selected GPIO of all the slaves the GPIO are 0 indexed
@@ -431,7 +459,7 @@ BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq)
     return status;
 }
 
-BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq)
+BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
 {
     BQ_StatusTypeDef status = BQ_STATUS_OK;
 
@@ -444,7 +472,7 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq)
             return status;
         }
 
-        status = BQ_GetAuxADCs(hbq, hbq->CellTempPinMap, hbq->CellTemperatures);
+        status = BQ_GetGpioMeasurements(hbq, hbq->CellTempPinMap, hbq->BQOutputBuffer); // Read the first set of temperatures
 
         if (status != BQ_STATUS_OK)
         {
@@ -460,13 +488,28 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq)
             return status;
         }
 
-        status = BQ_GetAuxADCs(hbq, hbq->CellTempPinMap, hbq->CellTemperatures + hbq->NumOfTempsEach); // In reality it is hbq->NumOfTempsEach * 2 / 2
+        status = BQ_GetGpioMeasurements(hbq, hbq->CellTempPinMap, hbq->BQOutputBuffer + (hbq->NumOfTempsEach * hbq->NumOfSlaves * 2)); // 2 Bytes for each temperature
         // Last one is returned either way
     }
     else
     {
-        status = BQ_GetAuxADCs(hbq, hbq->CellTempPinMap, hbq->CellTemperatures);
+        status = BQ_GetGpioMeasurements(hbq, hbq->CellTempPinMap, hbq->BQOutputBuffer);
         // Last one is returned either way
+    }
+
+    uint8_t total_num_of_temps = hbq->NumOfTempsEach * hbq->NumOfSlaves; // Total number of temperatures to read
+    if(hbq->TempMultiplexEnabled){
+        total_num_of_temps *= 2; // If we are multiplexing, we have two sets of temperatures
+    }
+
+    for(int i=0; i<total_num_of_temps; i++)
+    {
+        // Convert the raw ADC values to temperatures in place
+        uint16_t adcValue = ((uint16_t *) hbq->BQOutputBuffer)[i];
+        float voltage = (((float) adcValue) * 152.59) / 1000.0; // Result in mV
+
+        // Convert the voltage to temperature using the beta formula
+        
     }
 
     return status;
