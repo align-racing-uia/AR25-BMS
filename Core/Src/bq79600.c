@@ -310,7 +310,6 @@ BQ_StatusTypeDef BQ_GetGpioMeasurements(BQ_HandleTypeDef *hbq, uint8_t pin_map, 
     //  0b  0     0     0   ...
 
     // TODO: Implement proper CRC verification
-    uint8_t output_buffer[8*2*hbq->NumOfSlaves]; // A maximum of 8 GPIOs, each with 2 bytes of data each, for each slave
     size_t memory_offset = 0;
     size_t total_len = 8; // For each message
     for (int i = 0; i < 8; i++)
@@ -318,7 +317,7 @@ BQ_StatusTypeDef BQ_GetGpioMeasurements(BQ_HandleTypeDef *hbq, uint8_t pin_map, 
         if ((pin_map >> i) & 0x01)
         {
 
-            BQ_StatusTypeDef status = BQ_Read(hbq, output_buffer, 0, BQ16_GPIO1_HI + i * 2, 2, BQ_STACK_READ); // Read the GPIO configuration register
+            BQ_StatusTypeDef status = BQ_Read(hbq, hbq->BQOutputBuffer+memory_offset, 0, BQ16_GPIO1_HI + i * 2, 2, BQ_STACK_READ); // Read the GPIO configuration register
             memory_offset += total_len;                                                                                              // 2 bytes for the GPIO data, 6 bytes for the header
             if (status != BQ_STATUS_OK)
             {
@@ -329,8 +328,8 @@ BQ_StatusTypeDef BQ_GetGpioMeasurements(BQ_HandleTypeDef *hbq, uint8_t pin_map, 
     size_t number_of_pins = NUM_OF_ONES(pin_map); // Number of pins to read
     for (size_t i = 0; i < number_of_pins; i++)
     {
-        data_out[2 * i] = output_buffer[total_len * i - 2];
-        data_out[2 * i + 1] = output_buffer[total_len * i - 1]; // Put data in the output buffer
+        data_out[2 * i] = hbq->BQOutputBuffer[total_len * i - 2];
+        data_out[2 * i + 1] = hbq->BQOutputBuffer[total_len * i - 1]; // Put data in the output buffer
     }
 
     return BQ_STATUS_OK;
@@ -472,7 +471,7 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
             return status;
         }
 
-        status = BQ_GetGpioMeasurements(hbq, hbq->CellTempPinMap, hbq->BQOutputBuffer); // Read the first set of temperatures
+        status = BQ_GetGpioMeasurements(hbq, hbq->CellTempPinMap, hbq->CellTemperatures); // Read the first set of temperatures
 
         if (status != BQ_STATUS_OK)
         {
@@ -488,12 +487,12 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
             return status;
         }
 
-        status = BQ_GetGpioMeasurements(hbq, hbq->CellTempPinMap, hbq->BQOutputBuffer + (hbq->NumOfTempsEach * hbq->NumOfSlaves * 2)); // 2 Bytes for each temperature
+        status = BQ_GetGpioMeasurements(hbq, hbq->CellTempPinMap, hbq->CellTemperatures + (hbq->NumOfTempsEach * hbq->NumOfSlaves * 2)); // 2 Bytes for each temperature
         // Last one is returned either way
     }
     else
     {
-        status = BQ_GetGpioMeasurements(hbq, hbq->CellTempPinMap, hbq->BQOutputBuffer);
+        status = BQ_GetGpioMeasurements(hbq, hbq->CellTempPinMap, hbq->CellTemperatures);
         // Last one is returned either way
     }
 
@@ -505,7 +504,7 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
     for(int i=0; i<total_num_of_temps; i++)
     {
         // Convert the raw ADC values to temperatures in place
-        uint16_t adcValue = ((uint16_t *) hbq->BQOutputBuffer)[i];
+        uint16_t adcValue = ((uint16_t *) hbq->CellTemperatures)[i];
         float voltage = (((float) adcValue) * 152.59) / 1000.0; // Result in mV
 
         // Convert the voltage to temperature using the beta formula
