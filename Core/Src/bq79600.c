@@ -309,7 +309,6 @@ BQ_StatusTypeDef BQ_GetGpioMeasurements(BQ_HandleTypeDef *hbq, uint8_t pin_map, 
     //    GPIO8 GPIO7 GPIO6 ...
     //  0b  0     0     0   ...
 
-    // TODO: Implement proper CRC verification
     size_t memory_offset = 0;
     size_t total_len = 8; // For each message
     for (int i = 0; i < 8; i++)
@@ -328,8 +327,8 @@ BQ_StatusTypeDef BQ_GetGpioMeasurements(BQ_HandleTypeDef *hbq, uint8_t pin_map, 
     size_t number_of_pins = NUM_OF_ONES(pin_map); // Number of pins to read
     for (size_t i = 0; i < number_of_pins; i++)
     {
-        data_out[2 * i] = hbq->BQOutputBuffer[total_len * i - 2];
-        data_out[2 * i + 1] = hbq->BQOutputBuffer[total_len * i - 1]; // Put data in the output buffer
+        data_out[2 * i] = hbq->BQOutputBuffer[total_len * i - 3];
+        data_out[2 * i + 1] = hbq->BQOutputBuffer[total_len * i - 2]; // Put data in the output buffer
     }
 
     return BQ_STATUS_OK;
@@ -341,10 +340,27 @@ BQ_StatusTypeDef BQ_GetTsRefMeasurements(BQ_HandleTypeDef *hbq, uint8_t *data_ou
     // It is a single ADC channel, so we only need to read one register
     // The data is 2 bytes long, and we will return it in the data_out buffer
 
-    BQ_StatusTypeDef status = BQ_Read(hbq, data_out, 0, BQ16_TSREF_HI, 2, BQ_STACK_READ);
+    // The TSREF pin is a single ADC channel, so we only need to read TSREF_HI and TSREF_LO registers
+    // Each response is 6 + 2 bytes long, where 6 bytes are the header and 2 bytes are the data
+
+    BQ_StatusTypeDef status = BQ_Read(hbq, hbq->BQOutputBuffer, 0, BQ16_TSREF_HI, 2, BQ_STACK_READ);
+
     if (status != BQ_STATUS_OK)
     {
         return status;
+    }
+
+    for(int i=0; i<hbq->NumOfSlaves; i++)
+    {
+        // The responses are always:
+        // 1 bytes for message length (minus 1), 1 byte for device id, 2 bytes for register, data inbetween, 2 bytes for CRC
+        uint8_t len = hbq->BQOutputBuffer[i * (6 + 2)] + 1; // Should be known, but might as well
+        if (len != 6 + 2)
+        {
+            return BQ_STATUS_DATA_ERROR; // If the length is not what we expect, something is wrong
+        }
+        data_out[2 * i] = hbq->BQOutputBuffer[i * (6 + 2) + 3];
+        data_out[2 * i + 1] = hbq->BQOutputBuffer[i * (6 + 2) + 4]; // Put data in the output buffer
     }
 
     return status;
@@ -501,13 +517,27 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
         total_num_of_temps *= 2; // If we are multiplexing, we have two sets of temperatures
     }
 
+    uint8_t ts_refs[hbq->NumOfSlaves * 2]; // TSREF temperatures, 2 bytes for each slave
+    status = BQ_GetTsRefMeasurements(hbq, ts_refs); // Read the TSREF temperatures
+    if (status != BQ_STATUS_OK)
+    {
+        return status;
+    }
+
     for(int i=0; i<total_num_of_temps; i++)
     {
         // Convert the raw ADC values to temperatures in place
-        uint16_t adcValue = ((uint16_t *) hbq->CellTemperatures)[i];
-        float voltage = (((float) adcValue) * 152.59) / 1000.0; // Result in mV
+        uint16_t adcValueGpio = ((uint16_t *) hbq->CellTemperatures)[i];
+        uint16_t adcValueTsRef = ((uint16_t *) ts_refs)[i % hbq->NumOfTempsEach]; // Get the TSREF value for the current temperature
 
-        // Convert the voltage to temperature using the beta formula
+        // Vgpio / Vtsref = (Rntc + R2) / (Rntc + R1 + R2)
+        float ratio = ((float)adcValueGpio) / ((float)adcValueTsRef); // Ratio of the ADC values
+
+        float rntc = (ratio * (3600.0f + 15000.0f) - 15000.0f) / (1.0f - ratio); // Calculate the NTC resistance, assuming R1 = 3600R and R2 = 15k
+
+        // Convert the Rntc to temperature using the beta formula
+        float temp = 1/((1/25.0) + (1/beta) * logf(rntc / 10000.0f)); // Convert the temperature to Kelvin, assuming a beta value of 25C and a reference resistance of 10k
+        
         
     }
 

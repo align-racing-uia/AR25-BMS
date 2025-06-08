@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "adc.h"
+#include "cordic.h"
 #include "crc.h"
 #include "dma.h"
 #include "quadspi.h"
@@ -161,6 +162,7 @@ int main(void)
   MX_ADC1_Init();
   MX_TIM3_Init();
   MX_TIM4_Init();
+  MX_CORDIC_Init();
   /* USER CODE BEGIN 2 */
 
 
