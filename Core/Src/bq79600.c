@@ -8,8 +8,8 @@
 #include "cordic.h"
 
 
-#define KELVIN(x) ((x) + 273.15f) // Convert Celsius to Kelvin
-#define CELSIUS(x) ((x) - 273.15f) // Convert Kelvin to Celsius
+#define C_TO_K(x) ((x) + 273.15f) // Convert Celsius to Kelvin
+#define K_TO_C(x) ((x) - 273.15f) // Convert Kelvin to Celsius
 
 // Private helper function
 
@@ -69,7 +69,7 @@ void BQ_BindHardware(BQ_HandleTypeDef *hbq, SPI_HandleTypeDef *hspi, BQ_PinTypeD
 }
 
 // The use of floats here is to be able to take advantage of the FPU, and to make the maths in later stages simpler
-void BQ_BindMemory(BQ_HandleTypeDef *hbq, uint8_t *bq_output_buffer, float *cell_voltages_memory_pool, float *cell_temperature_memory_pool, float *bq_die_temperature_memory_pool)
+void BQ_BindMemory(BQ_HandleTypeDef *hbq, uint8_t *bq_output_buffer, float *cell_voltages_memory_pool, uint8_t *raw_cell_temperature_memory_pool, float *cell_temperature_memory_pool, float *bq_die_temperature_memory_pool)
 {
     if (hbq == NULL)
     {
@@ -98,6 +98,13 @@ void BQ_BindMemory(BQ_HandleTypeDef *hbq, uint8_t *bq_output_buffer, float *cell
     }
     hbq->CellTemperatures = cell_temperature_memory_pool;
     if (hbq->CellTemperatures == NULL)
+    {
+        // Handle memory allocation error
+        Error_Handler();
+    }
+
+    hbq->RawCellTemperatures = cell_temperature_memory_pool;
+    if (hbq->RawCellTemperatures == NULL)
     {
         // Handle memory allocation error
         Error_Handler();
@@ -486,7 +493,7 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
             return status;
         }
 
-        status = BQ_GetGpioMeasurements(hbq, hbq->CellTempPinMap, hbq->CellTemperatures); // Read the first set of temperatures
+        status = BQ_GetGpioMeasurements(hbq, hbq->CellTempPinMap, hbq->RawCellTemperatures); // Read the first set of temperatures
 
         if (status != BQ_STATUS_OK)
         {
@@ -502,12 +509,12 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
             return status;
         }
 
-        status = BQ_GetGpioMeasurements(hbq, hbq->CellTempPinMap, hbq->CellTemperatures + (hbq->NumOfTempsEach * hbq->NumOfSlaves * 2)); // 2 Bytes for each temperature
+        status = BQ_GetGpioMeasurements(hbq, hbq->CellTempPinMap, hbq->RawCellTemperatures + (hbq->NumOfTempsEach * hbq->NumOfSlaves * 2)); // 2 Bytes for each temperature
         // Last one is returned either way
     }
     else
     {
-        status = BQ_GetGpioMeasurements(hbq, hbq->CellTempPinMap, hbq->CellTemperatures);
+        status = BQ_GetGpioMeasurements(hbq, hbq->CellTempPinMap, hbq->RawCellTemperatures);
         // Last one is returned either way
     }
 
@@ -527,21 +534,17 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
 
     for (int i = 0; i < total_num_of_temps; i++)
     {
-        
         // Convert the raw ADC values to temperatures in place
-        uint16_t adcValueGpio = ((uint16_t *)hbq->CellTemperatures)[i];
-        uint16_t adcValueTsRef = ((uint16_t *)ts_refs)[i / hbq->NumOfTempsEach]; // Get the TSREF value for the current temperature
+        uint16_t adcValueGpio = ((uint16_t *)hbq->RawCellTemperatures)[i];
+        uint16_t adcValueTsRef = ((uint16_t *)ts_refs)[i % hbq->NumOfSlaves]; // Get the TSREF value for the current slave
 
         // Vgpio / Vtsref = (Rntc + R2) / (Rntc + R1 + R2)
         float ratio = ((float)adcValueGpio) / ((float)adcValueTsRef); // Ratio of the ADC values
 
         float rntc = (ratio * (3600.0f + 15000.0f) - 15000.0f) / (1.0f - ratio); // Calculate the NTC resistance, assuming R1 = 3600R and R2 = 15k
 
-
-
         // Convert the Rntc to temperature using the beta formula
-        float temp = CELSIUS(1 / ((1 / KELVIN(25.0)) + (1 / beta) * logf(rntc / 10000.0f))); // Convert the temperature to Kelvin, assuming a beta value of 25C and a reference resistance of 10k
-        temp;
+        hbq->CellTemperatures[i] = K_TO_C(1 / ((1 / C_TO_K(25.0)) + (1 / beta) * logf(rntc / 10000.0f))); // Convert the temperature to Kelvin, assuming a beta value of 25C and a reference resistance of 10k
     }
 
     return status;

@@ -100,6 +100,7 @@ typedef struct
     float LowestCellTemperature;
     float *CellVoltages;
     float *CellTemperatures;
+    uint8_t *RawCellTemperatures; // This is the raw cell temperatures read from the BQ79600
     // Each board except the master has 2 internal temperature sensors, one on each chip
     float *BQDieTemperatures;
     uint8_t *BQOutputBuffer;
@@ -127,7 +128,7 @@ typedef enum
 
 void BQ_Init(BQ_HandleTypeDef *hbq);
 void BQ_Configure(BQ_HandleTypeDef *hbq, BQ_ConfigTypeDef *bq_config);
-void BQ_BindMemory(BQ_HandleTypeDef *hbq, uint8_t *bq_output_buffer, float *cell_voltages_memory_pool, float *cell_temperature_memory_pool, float *bq_die_temperature_memory_pool);
+void BQ_BindMemory(BQ_HandleTypeDef *hbq, uint8_t *bq_output_buffer, float *cell_voltages_memory_pool, uint8_t *raw_cell_temperature_memory_pool, float *cell_temperature_memory_pool, float *bq_die_temperature_memory_pool);
 void BQ_BindHardware(BQ_HandleTypeDef *hbq, SPI_HandleTypeDef *hspi, BQ_PinTypeDef cs_pin, BQ_PinTypeDef spi_rdy_pin, BQ_PinTypeDef mosi_pin, BQ_PinTypeDef fault_pin, TIM_HandleTypeDef *htim);
 void BQ_WakePing(BQ_HandleTypeDef *hbq);
 void BQ_ClearComm(BQ_HandleTypeDef *hbq);

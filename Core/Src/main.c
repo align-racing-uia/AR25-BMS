@@ -103,6 +103,7 @@ uint8_t bq_output_buffer[BQ_MAX_AMOUNT_OF_CHIPS * 128];                         
 float bq_cell_voltages[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_CELLS_EACH];         // This is the memory pool for the cell voltages
 float bq_die_temperature_pool[2 * BQ_MAX_AMOUNT_OF_SLAVES];                            // This is the memory pool for the die temperatures
 float bq_cell_temperature_pool[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_TEMPS_EACH]; // This is the memory pool for the cell temperatures
+uint8_t bq_raw_cell_temperature_pool[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_TEMPS_EACH * 2]; // This is the memory pool for the cell temperatures
 
 /* USER CODE END PV */
 
@@ -193,7 +194,7 @@ int main(void)
   BQ_PinTypeDef bq_fault_pin = {GPIOA, GPIO_PIN_8};    // Fault pin for the BQ79600
 
   // Bind Memory regions
-  BQ_BindMemory(&hbq, bq_output_buffer, bq_cell_voltages, bq_cell_temperature_pool, bq_die_temperature_pool); // Bind memory pools for the BQ79600 cell voltages
+  BQ_BindMemory(&hbq, bq_output_buffer, bq_cell_voltages, bq_raw_cell_temperature_pool, bq_cell_temperature_pool, bq_die_temperature_pool); // Bind memory pools for the BQ79600 cell voltages
   BQ_BindHardware(&hbq, &hspi2, bq_cs_pin, bq_spi_rdy_pin, bq_mosi_pin, bq_fault_pin, &htim3);                // Bind the hardware peripherals to the BQ79600 handle
 
   // Initialize the Battery Model
