@@ -5,6 +5,11 @@
 #include "crc.h"
 #include "math.h"
 #include "stdlib.h"
+#include "cordic.h"
+
+
+#define KELVIN(x) ((x) + 273.15f) // Convert Celsius to Kelvin
+#define CELSIUS(x) ((x) - 273.15f) // Convert Kelvin to Celsius
 
 // Private helper function
 
@@ -26,7 +31,6 @@ void BQ_Init(BQ_HandleTypeDef *hbq)
     HAL_GPIO_WritePin(hbq->MosiPin.GPIOx, hbq->MosiPin.Pin, GPIO_PIN_RESET);
     hbq->HighestCellTemperature = 0.0f;
     hbq->LowestCellTemperature = 0.0f; // Set the lowest cell temperature to a high value
-
 }
 
 void BQ_Configure(BQ_HandleTypeDef *hbq, BQ_ConfigTypeDef *bq_config)
@@ -40,7 +44,8 @@ void BQ_Configure(BQ_HandleTypeDef *hbq, BQ_ConfigTypeDef *bq_config)
     hbq->NumOfSlaves = bq_config->NumOfSlaves;
     hbq->NumOfChips = bq_config->NumOfSlaves + 1; // The master chip is always present
     hbq->NumOfCellsEach = bq_config->NumOfCellsEach;
-    
+    hbq->NumOfTempsEach = bq_config->NumOfTempsEach;
+
     hbq->TempMultiplexEnabled = bq_config->TempMultiplexEnabled;
     hbq->TempMultiplexPinIndex = bq_config->TempMultiplexPinIndex;
     hbq->GpioAuxADCMap = bq_config->GpioAuxADCMap;
@@ -244,7 +249,8 @@ BQ_StatusTypeDef BQ_AutoAddress(BQ_HandleTypeDef *hbq)
     return status;
 }
 
-BQ_StatusTypeDef BQ_EnableCommTimeout(BQ_HandleTypeDef *hbq){
+BQ_StatusTypeDef BQ_EnableCommTimeout(BQ_HandleTypeDef *hbq)
+{
     if (hbq == NULL)
     {
         // If this occurs, youve done something very wrong
@@ -269,8 +275,6 @@ BQ_StatusTypeDef BQ_EnableTsRef(BQ_HandleTypeDef *hbq)
     uint8_t data = 0b00000001; // Enable TSREF pin
     return BQ_Write(hbq, &data, BQ_SELF_ID, BQ16_CONTROL2, 1, BQ_STACK_WRITE);
 }
-
-
 
 // Activates the main ADC on all slaves
 // Num of cells correspond to the number of cells in series each IC should measure (max 16)
@@ -316,7 +320,7 @@ BQ_StatusTypeDef BQ_GetGpioMeasurements(BQ_HandleTypeDef *hbq, uint8_t pin_map, 
         if ((pin_map >> i) & 0x01)
         {
 
-            BQ_StatusTypeDef status = BQ_Read(hbq, hbq->BQOutputBuffer+memory_offset, 0, BQ16_GPIO1_HI + i * 2, 2, BQ_STACK_READ); // Read the GPIO configuration register
+            BQ_StatusTypeDef status = BQ_Read(hbq, hbq->BQOutputBuffer + memory_offset, 0, BQ16_GPIO1_HI + i * 2, 2, BQ_STACK_READ); // Read the GPIO configuration register
             memory_offset += total_len;                                                                                              // 2 bytes for the GPIO data, 6 bytes for the header
             if (status != BQ_STATUS_OK)
             {
@@ -350,15 +354,10 @@ BQ_StatusTypeDef BQ_GetTsRefMeasurements(BQ_HandleTypeDef *hbq, uint8_t *data_ou
         return status;
     }
 
-    for(int i=0; i<hbq->NumOfSlaves; i++)
+    for (int i = 0; i < hbq->NumOfSlaves; i++)
     {
         // The responses are always:
         // 1 bytes for message length (minus 1), 1 byte for device id, 2 bytes for register, data inbetween, 2 bytes for CRC
-        uint8_t len = hbq->BQOutputBuffer[i * (6 + 2)] + 1; // Should be known, but might as well
-        if (len != 6 + 2)
-        {
-            return BQ_STATUS_DATA_ERROR; // If the length is not what we expect, something is wrong
-        }
         data_out[2 * i] = hbq->BQOutputBuffer[i * (6 + 2) + 3];
         data_out[2 * i + 1] = hbq->BQOutputBuffer[i * (6 + 2) + 4]; // Put data in the output buffer
     }
@@ -513,32 +512,36 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
     }
 
     uint8_t total_num_of_temps = hbq->NumOfTempsEach * hbq->NumOfSlaves; // Total number of temperatures to read
-    if(hbq->TempMultiplexEnabled){
+    if (hbq->TempMultiplexEnabled)
+    {
         total_num_of_temps *= 2; // If we are multiplexing, we have two sets of temperatures
     }
 
-    uint8_t ts_refs[hbq->NumOfSlaves * 2]; // TSREF temperatures, 2 bytes for each slave
+    uint8_t ts_refs[hbq->NumOfSlaves * 2];          // TSREF temperatures, 2 bytes for each slave
     status = BQ_GetTsRefMeasurements(hbq, ts_refs); // Read the TSREF temperatures
     if (status != BQ_STATUS_OK)
     {
         return status;
     }
 
-    for(int i=0; i<total_num_of_temps; i++)
+
+    for (int i = 0; i < total_num_of_temps; i++)
     {
+        
         // Convert the raw ADC values to temperatures in place
-        uint16_t adcValueGpio = ((uint16_t *) hbq->CellTemperatures)[i];
-        uint16_t adcValueTsRef = ((uint16_t *) ts_refs)[i % hbq->NumOfTempsEach]; // Get the TSREF value for the current temperature
+        uint16_t adcValueGpio = ((uint16_t *)hbq->CellTemperatures)[i];
+        uint16_t adcValueTsRef = ((uint16_t *)ts_refs)[i / hbq->NumOfTempsEach]; // Get the TSREF value for the current temperature
 
         // Vgpio / Vtsref = (Rntc + R2) / (Rntc + R1 + R2)
         float ratio = ((float)adcValueGpio) / ((float)adcValueTsRef); // Ratio of the ADC values
 
         float rntc = (ratio * (3600.0f + 15000.0f) - 15000.0f) / (1.0f - ratio); // Calculate the NTC resistance, assuming R1 = 3600R and R2 = 15k
 
+
+
         // Convert the Rntc to temperature using the beta formula
-        float temp = 1/((1/25.0) + (1/beta) * logf(rntc / 10000.0f)); // Convert the temperature to Kelvin, assuming a beta value of 25C and a reference resistance of 10k
-        
-        
+        float temp = CELSIUS(1 / ((1 / KELVIN(25.0)) + (1 / beta) * logf(rntc / 10000.0f))); // Convert the temperature to Kelvin, assuming a beta value of 25C and a reference resistance of 10k
+        temp;
     }
 
     return status;

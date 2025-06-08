@@ -19,7 +19,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "adc.h"
-#include "cordic.h"
 #include "crc.h"
 #include "dma.h"
 #include "quadspi.h"
@@ -51,8 +50,6 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
-
 
 /* USER CODE END PTD */
 
@@ -113,9 +110,6 @@ float bq_cell_temperature_pool[BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_TEMPS_
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
-
-
-
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -162,9 +156,7 @@ int main(void)
   MX_ADC1_Init();
   MX_TIM3_Init();
   MX_TIM4_Init();
-  MX_CORDIC_Init();
   /* USER CODE BEGIN 2 */
-
 
 #if defined(WATCHDOG_ENABLE)
 
@@ -193,35 +185,33 @@ int main(void)
   Align_CAN_Init(&hfdcan1, ALIGN_CAN_SPEED_500KBPS, FDCAN1);
 
 
-  
+
   BQ_HandleTypeDef hbq;
-  BQ_PinTypeDef bq_cs_pin = {GPIOB, GPIO_PIN_12}; // Chip select pin for the BQ79600
+  BQ_PinTypeDef bq_cs_pin = {GPIOB, GPIO_PIN_12};      // Chip select pin for the BQ79600
   BQ_PinTypeDef bq_spi_rdy_pin = {GPIOB, GPIO_PIN_11}; // SPI ready pin for the BQ79600
-  BQ_PinTypeDef bq_mosi_pin = {GPIOB, GPIO_PIN_15}; // MOSI pin for the BQ79600
-  BQ_PinTypeDef bq_fault_pin = {GPIOA, GPIO_PIN_8}; // Fault pin for the BQ79600
+  BQ_PinTypeDef bq_mosi_pin = {GPIOB, GPIO_PIN_15};    // MOSI pin for the BQ79600
+  BQ_PinTypeDef bq_fault_pin = {GPIOA, GPIO_PIN_8};    // Fault pin for the BQ79600
 
   // Bind Memory regions
   BQ_BindMemory(&hbq, bq_output_buffer, bq_cell_voltages, bq_cell_temperature_pool, bq_die_temperature_pool); // Bind memory pools for the BQ79600 cell voltages
-  BQ_BindHardware(&hbq, &hspi2, bq_cs_pin, bq_spi_rdy_pin, bq_mosi_pin, bq_fault_pin, &htim3); // Bind the hardware peripherals to the BQ79600 handle
-
+  BQ_BindHardware(&hbq, &hspi2, bq_cs_pin, bq_spi_rdy_pin, bq_mosi_pin, bq_fault_pin, &htim3);                // Bind the hardware peripherals to the BQ79600 handle
 
   // Initialize the Battery Model
   BatteryModel_HandleTypeDef hbm;
   BatteryModel_BindMemory(&hbm, cell_model_memory_pool); // Bind the memory pool to the battery model
 
-
   BMS_HandleTypeDef hbms;
   BMS_HardwareConfigTypeDef bms_hardware_config = {
-      .hfdcan = &hfdcan1, // Set the FDCAN handle
-      .FaultPin = {AMS_Fault_GPIO_Port, AMS_Fault_Pin}, // Set the fault pin
-      .LowCurrentSensorPin = {Low_Current_Sensor_GPIO_Port, Low_Current_Sensor_Pin}, // Set the low current sensor pin
+      .hfdcan = &hfdcan1,                                                               // Set the FDCAN handle
+      .FaultPin = {AMS_Fault_GPIO_Port, AMS_Fault_Pin},                                 // Set the fault pin
+      .LowCurrentSensorPin = {Low_Current_Sensor_GPIO_Port, Low_Current_Sensor_Pin},    // Set the low current sensor pin
       .HighCurrentSensorPin = {High_Current_Sensor_GPIO_Port, High_Current_Sensor_Pin}, // Set the high current sensor pin
-      .MinusAIR = {Minus_GPIO_Port, Minus_Pin}, // Set the minus AIR pin
-      .PlusAIR = {Plus_GPIO_Port, Plus_Pin}, // Set the plus AIR pin
-      .PrechargeAIR = {Precharge_GPIO_Port, Precharge_Pin} // Set the precharge AIR pin
+      .MinusAIR = {Minus_GPIO_Port, Minus_Pin},                                         // Set the minus AIR pin
+      .PlusAIR = {Plus_GPIO_Port, Plus_Pin},                                            // Set the plus AIR pin
+      .PrechargeAIR = {Precharge_GPIO_Port, Precharge_Pin}                              // Set the precharge AIR pin
   };
 
-  BMS_BindMemory(&hbms, &hbm, &hbq); // Initialize the TS state machine
+  BMS_BindMemory(&hbms, &hbm, &hbq);     // Initialize the TS state machine
   BMS_Init(&hbms, &bms_hardware_config); // Initialize the BMS state machine
 
   // PID Controller for fan control - Not used in the BMS, but needed for the ACU functionality
@@ -237,11 +227,9 @@ int main(void)
   uint32_t cycle_time_start = 0;
   uint32_t avg_cycle_time = 0;
 
-
   while (1)
   {
     cycle_time_start = HAL_GetTick(); // Start the cycle time measurement
-
 
     // Update all the BMS states
     BMS_Update(&hbms);
@@ -272,7 +260,6 @@ int main(void)
     }
     pwm_ch3_memory = (uint32_t)(pid_output / 100.0 * htim2.Instance->ARR); // Set the PWM duty cycle to the PID output, scaled to the PWM resolution
     pwm_ch4_memory = (uint32_t)(pid_output / 100.0 * htim2.Instance->ARR); // Set the PWM duty cycle to the PID output, scaled to the PWM resolution
-
 
     // Alive sig ping-pong with the secondary MCU
     if ((alive_sig_timestamp + 100) <= HAL_GetTick())

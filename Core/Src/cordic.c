@@ -24,8 +24,6 @@
 
 /* USER CODE END 0 */
 
-CORDIC_HandleTypeDef hcordic;
-
 /* CORDIC init function */
 void MX_CORDIC_Init(void)
 {
@@ -34,50 +32,19 @@ void MX_CORDIC_Init(void)
 
   /* USER CODE END CORDIC_Init 0 */
 
+  /* Peripheral clock enable */
+  LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_CORDIC);
+
   /* USER CODE BEGIN CORDIC_Init 1 */
 
   /* USER CODE END CORDIC_Init 1 */
-  hcordic.Instance = CORDIC;
-  if (HAL_CORDIC_Init(&hcordic) != HAL_OK)
-  {
-    Error_Handler();
-  }
+
+  /* nothing else to be configured */
+
   /* USER CODE BEGIN CORDIC_Init 2 */
 
   /* USER CODE END CORDIC_Init 2 */
 
-}
-
-void HAL_CORDIC_MspInit(CORDIC_HandleTypeDef* cordicHandle)
-{
-
-  if(cordicHandle->Instance==CORDIC)
-  {
-  /* USER CODE BEGIN CORDIC_MspInit 0 */
-
-  /* USER CODE END CORDIC_MspInit 0 */
-    /* CORDIC clock enable */
-    __HAL_RCC_CORDIC_CLK_ENABLE();
-  /* USER CODE BEGIN CORDIC_MspInit 1 */
-
-  /* USER CODE END CORDIC_MspInit 1 */
-  }
-}
-
-void HAL_CORDIC_MspDeInit(CORDIC_HandleTypeDef* cordicHandle)
-{
-
-  if(cordicHandle->Instance==CORDIC)
-  {
-  /* USER CODE BEGIN CORDIC_MspDeInit 0 */
-
-  /* USER CODE END CORDIC_MspDeInit 0 */
-    /* Peripheral clock disable */
-    __HAL_RCC_CORDIC_CLK_DISABLE();
-  /* USER CODE BEGIN CORDIC_MspDeInit 1 */
-
-  /* USER CODE END CORDIC_MspDeInit 1 */
-  }
 }
 
 /* USER CODE BEGIN 1 */

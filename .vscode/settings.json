@@ -21,7 +21,13 @@
         "ts_statemachine.h": "c",
         "alignevents.h": "c",
         "bms.h": "c",
-        "icm.h": "c"
+        "icm.h": "c",
+        "arm_fp16.h": "c",
+        "core_armv81mml.h": "c",
+        "cordic.h": "c",
+        "cmsis_armcc.h": "c",
+        "math.h": "c",
+        "arm_mve.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true,
     "C_Cpp.errorSquiggles": "enabled"
