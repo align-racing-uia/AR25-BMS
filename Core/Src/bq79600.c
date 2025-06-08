@@ -358,8 +358,8 @@ BQ_StatusTypeDef BQ_GetTsRefMeasurements(BQ_HandleTypeDef *hbq, uint8_t *data_ou
     {
         // The responses are always:
         // 1 bytes for message length (minus 1), 1 byte for device id, 2 bytes for register, data inbetween, 2 bytes for CRC
-        data_out[2 * i] = hbq->BQOutputBuffer[i * (6 + 2) + 3];
-        data_out[2 * i + 1] = hbq->BQOutputBuffer[i * (6 + 2) + 4]; // Put data in the output buffer
+        data_out[2 * i] = hbq->BQOutputBuffer[i * (6 + 2) + 4];
+        data_out[2 * i + 1] = hbq->BQOutputBuffer[i * (6 + 2) + 5]; // Put data in the output buffer
     }
 
     return status;

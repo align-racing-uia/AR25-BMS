@@ -44,35 +44,35 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
     hbms->EepromPresent = false;         // Clear the EEPROM present flag
     hbms->TSState = TS_STATE_IDLE;       // Set the TS state to idle
 
-    hbms->FDCAN = hardware_config->hfdcan;      // Bind the FDCAN handle from the hardware configuration
-    hbms->FaultPin = hardware_config->FaultPin; // Bind the fault pin from the hardware configuration
-    hbms->LowCurrentSensorPin = hardware_config->LowCurrentSensorPin; // Bind the low current sensor pin
+    hbms->FDCAN = hardware_config->hfdcan;                              // Bind the FDCAN handle from the hardware configuration
+    hbms->FaultPin = hardware_config->FaultPin;                         // Bind the fault pin from the hardware configuration
+    hbms->LowCurrentSensorPin = hardware_config->LowCurrentSensorPin;   // Bind the low current sensor pin
     hbms->HighCurrentSensorPin = hardware_config->HighCurrentSensorPin; // Bind the high current sensor pin
 
-    hbms->PlusAIR = hardware_config->PlusAIR; // Bind the plus AIR pin
-    hbms->MinusAIR = hardware_config->MinusAIR; // Bind the minus AIR pin
+    hbms->PlusAIR = hardware_config->PlusAIR;           // Bind the plus AIR pin
+    hbms->MinusAIR = hardware_config->MinusAIR;         // Bind the minus AIR pin
     hbms->PrechargeAIR = hardware_config->PrechargeAIR; // Bind the precharge AIR pin
 
-    HAL_GPIO_WritePin(hbms->FaultPin.Port, hbms->FaultPin.Pin, GPIO_PIN_SET); // Set the fault pin high, to indicate no fault in the BMS
-    HAL_GPIO_WritePin(hbms->PlusAIR.Port, hbms->PlusAIR.Pin, GPIO_PIN_RESET); // Set the plus AIR pin low, to indicate no fault in the BMS
-    HAL_GPIO_WritePin(hbms->MinusAIR.Port, hbms->MinusAIR.Pin, GPIO_PIN_RESET); // Set the minus AIR pin low, to indicate no fault in the BMS
+    HAL_GPIO_WritePin(hbms->FaultPin.Port, hbms->FaultPin.Pin, GPIO_PIN_SET);           // Set the fault pin high, to indicate no fault in the BMS
+    HAL_GPIO_WritePin(hbms->PlusAIR.Port, hbms->PlusAIR.Pin, GPIO_PIN_RESET);           // Set the plus AIR pin low, to indicate no fault in the BMS
+    HAL_GPIO_WritePin(hbms->MinusAIR.Port, hbms->MinusAIR.Pin, GPIO_PIN_RESET);         // Set the minus AIR pin low, to indicate no fault in the BMS
     HAL_GPIO_WritePin(hbms->PrechargeAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_RESET); // Set the precharge AIR pin low, to indicate no fault in the BMS
 
-    hbms->CanTimestamp = HAL_GetTick(); // Initialize the CAN timestamp to the current time
+    hbms->CanTimestamp = HAL_GetTick();     // Initialize the CAN timestamp to the current time
     hbms->ChargerTimestamp = HAL_GetTick(); // Initialize the charger timestamp to the current time
-    hbms->ChargerPresent = false; // Initialize the charger present flag to false
+    hbms->ChargerPresent = false;           // Initialize the charger present flag to false
 
     hbms->BqConnected = false; // Initialize the BQ connected flag to false
 
-    hbms->PackCurrent = &hbms->MeasuredCurrent; // Bind the pack current pointer to the measured current, we do it like this to keep it consistent with the other pointers
-    hbms->PackVoltage = &hbms->BatteryModel->PackVoltage; // Bind the pack voltage pointer
+    hbms->PackCurrent = &hbms->MeasuredCurrent;                             // Bind the pack current pointer to the measured current, we do it like this to keep it consistent with the other pointers
+    hbms->PackVoltage = &hbms->BatteryModel->PackVoltage;                   // Bind the pack voltage pointer
     hbms->AverageCellTemperature = &hbms->BatteryModel->AverageTemperature; // Bind the average cell temperature pointer
-    hbms->AverageCellVoltage = &hbms->BatteryModel->AverageCellVoltage; // Bind the average cell voltage pointer
+    hbms->AverageCellVoltage = &hbms->BatteryModel->AverageCellVoltage;     // Bind the average cell voltage pointer
 
     hbms->HighestCellTemperature = &hbms->BQ->HighestCellTemperature; // Bind the highest cell temperature pointer
-    hbms->LowestCellTemperature = &hbms->BQ->LowestCellTemperature; // Bind the lowest cell temperature pointer
-    hbms->CellVoltages = hbms->BQ->CellVoltages; // Bind the cell voltages pointer
-    hbms->CellTemperatures = hbms->BQ->CellTemperatures; // Bind the cell temperatures pointer
+    hbms->LowestCellTemperature = &hbms->BQ->LowestCellTemperature;   // Bind the lowest cell temperature pointer
+    hbms->CellVoltages = hbms->BQ->CellVoltages;                      // Bind the cell voltages pointer
+    hbms->CellTemperatures = hbms->BQ->CellTemperatures;              // Bind the cell temperatures pointer
 
     hbms->Initialized = true; // Clear the initialized flag
 }
@@ -100,11 +100,12 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         break;
     }
     case BMS_STATE_CONNECTING:
-    {    // Check if the BQ is connected
+    { // Check if the BQ is connected
         if (Connect(hbms))
         {
             BQ_EnableCommTimeout(hbms->BQ); // Enable the BQ communication timeout
-            hbms->State = BMS_STATE_IDLE; // Move to the idle state if the BQ is connected
+            BQ_EnableTsRef(hbms->BQ);       // Enable the TS reference for the BQ
+            hbms->State = BMS_STATE_IDLE;   // Move to the idle state if the BQ is connected
         }
         else
         {
@@ -113,8 +114,8 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         }
         break;
     }
-    case BMS_STATE_IDLE: // Much of this functionality will be shared
-        BQ_GetCellVoltages(hbms->BQ); // Get the cell voltages from the BQ
+    case BMS_STATE_IDLE:                          // Much of this functionality will be shared
+        BQ_GetCellVoltages(hbms->BQ);             // Get the cell voltages from the BQ
         BQ_GetCellTemperatures(hbms->BQ, 4250.0); // Get the cell temperatures from the BQ
     case BMS_STATE_DRIVING:
     case BMS_STATE_CHARGING:
@@ -147,7 +148,6 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     }
 }
 
-
 void UpdateTSState(BMS_HandleTypeDef *hbms)
 {
     // Unsure if this is the right way to go
@@ -164,8 +164,6 @@ void UpdateFaultFlags(BMS_HandleTypeDef *hbms)
         // If this occurs, you have done something very wrong
         Error_Handler();
     }
-
-
 
     if (hbms->CanTimestamp + 1000 < HAL_GetTick())
     {
@@ -199,9 +197,9 @@ bool Connect(BMS_HandleTypeDef *hbms)
 {
 
 #if defined(BQ_DISABLE)
-    return true; // If BQ is disabled, return true, so other parts of the code can still run    
+    return true; // If BQ is disabled, return true, so other parts of the code can still run
 #endif
-    
+
     // This function should implement the logic to connect to the BQ
     // For now, we will just return true to simulate a successful connection
 
