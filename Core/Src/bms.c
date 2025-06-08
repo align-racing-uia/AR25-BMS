@@ -105,6 +105,8 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         {
             BQ_EnableCommTimeout(hbms->BQ); // Enable the BQ communication timeout
             BQ_EnableTsRef(hbms->BQ);       // Enable the TS reference for the BQ
+            BQ_ActivateSlaveADC(hbms->BQ); // Activate the slave ADCs
+
             hbms->State = BMS_STATE_IDLE;   // Move to the idle state if the BQ is connected
         }
         else
@@ -236,14 +238,6 @@ bool Connect(BMS_HandleTypeDef *hbms)
         return false;
     }
 
-    bq_status = BQ_ActivateSlaveADC(hbms->BQ); // Activate the slave ADCs
-    if (bq_status != BQ_STATUS_OK)
-    {
-        // If the slave ADC activation fails, return false
-        // This will set the state to fault in the main loop
-        SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ); // Set the BQ fault flag
-        return false;
-    }
     // If all the above steps are successful, we can consider the BQ connected
     hbms->BqConnected = true; // Set the BQ connected flag to true
     return true;
@@ -277,8 +271,8 @@ bool LoadConfiguration(BMS_HandleTypeDef *hbms)
         // TODO: Add the GpioAuxADCMap and CellTempPinMap to the BMS configuration, as well as a multiplexing toggle
         .TempMultiplexEnabled = true,
         .TempMultiplexPinIndex = 7, // Pin 8 (zero indexed) is used to multiplex the temperature sensors, which is GPIO7 in the BQ
-        .GpioAuxADCMap = 0x7E,
-        .CellTempPinMap = 0x7F, // Pin 1 is used to detect PCB temperature, and the rest are used for the temperature sensors
+        .GpioAuxADCMap = 0x7F,
+        .CellTempPinMap = 0x7E, // Pin 1 is used to detect PCB temperature, and the rest are used for the temperature sensors
     };
 
     BQ_Configure(hbms->BQ, &bq_config); // Configure the BQ with the BMS configuration

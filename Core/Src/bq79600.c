@@ -102,7 +102,7 @@ void BQ_BindMemory(BQ_HandleTypeDef *hbq, uint8_t *bq_output_buffer, float *cell
         Error_Handler();
     }
 
-    hbq->RawCellTemperatures = cell_temperature_memory_pool;
+    hbq->RawCellTemperatures = raw_cell_temperature_memory_pool;
     if (hbq->RawCellTemperatures == NULL)
     {
         // Handle memory allocation error
@@ -536,13 +536,16 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
     for (int i = 0; i < total_num_of_temps; i++)
     {
         // Convert the raw ADC values to temperatures in place
-        uint16_t adcValueGpio = ((uint16_t *)hbq->RawCellTemperatures)[i];
-        uint16_t adcValueTsRef = ((uint16_t *)ts_refs)[i % hbq->NumOfSlaves]; // Get the TSREF value for the current slave
+        uint16_t adcValueGpio = ((uint16_t)hbq->RawCellTemperatures[2*i+1]) << 8 | ((uint16_t)hbq->RawCellTemperatures[2*i ]); // Get the ADC value for the current GPIO
+        uint16_t adcValueTsRef = ((uint16_t) ts_refs[2*(i % hbq->NumOfSlaves)+1]) << 8 | ((uint16_t) ts_refs[2*(i % hbq->NumOfSlaves)]); // Get the TSREF value for the current slave
 
         // Vgpio / Vtsref = (Rntc + R2) / (Rntc + R1 + R2)
-        float ratio = ((float)adcValueGpio) / ((float)adcValueTsRef); // Ratio of the ADC values
+        float ratio = (((float)adcValueGpio) * 152.59) / (((float)adcValueTsRef) * 169.54); // Ratio of the ADC values
 
-        float rntc = (ratio * (3600.0f + 15000.0f) - 15000.0f) / (1.0f - ratio); // Calculate the NTC resistance, assuming R1 = 3600R and R2 = 15k
+        // Formula for the PCB NTC thermistor resistance
+        // float rntc = - (ratio * 3600.0f * 15000.0f) / (ratio * (3600.0f + 15000.0f) - 15000.0f); // Calculate the NTC resistance, assuming R1 = 3600R and R2 = 15k
+
+        float rntc = (10000.0f/(1-ratio)) - 10000.0f;
 
         // Convert the Rntc to temperature using the beta formula
         hbq->CellTemperatures[i] = K_TO_C(1 / ((1 / C_TO_K(25.0)) + (1 / beta) * logf(rntc / 10000.0f))); // Convert the temperature to Kelvin, assuming a beta value of 25C and a reference resistance of 10k
