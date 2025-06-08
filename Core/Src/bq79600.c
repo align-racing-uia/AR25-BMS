@@ -7,7 +7,6 @@
 #include "stdlib.h"
 #include "cordic.h"
 
-
 #define C_TO_K(x) ((x) + 273.15f) // Convert Celsius to Kelvin
 #define K_TO_C(x) ((x) - 273.15f) // Convert Kelvin to Celsius
 
@@ -328,7 +327,7 @@ BQ_StatusTypeDef BQ_GetGpioMeasurements(BQ_HandleTypeDef *hbq, uint8_t pin_map, 
         {
 
             BQ_StatusTypeDef status = BQ_Read(hbq, hbq->BQOutputBuffer + memory_offset, 0, BQ16_GPIO1_HI + i * 2, 2, BQ_STACK_READ); // Read the GPIO configuration register
-            memory_offset += total_len;                                                                                              // 2 bytes for the GPIO data, 6 bytes for the header
+            memory_offset += total_len * hbq->NumOfSlaves;                                                                           // 2 bytes for the GPIO data, 6 bytes for the header
             if (status != BQ_STATUS_OK)
             {
                 return status;
@@ -338,8 +337,11 @@ BQ_StatusTypeDef BQ_GetGpioMeasurements(BQ_HandleTypeDef *hbq, uint8_t pin_map, 
     size_t number_of_pins = NUM_OF_ONES(pin_map); // Number of pins to read
     for (size_t i = 0; i < number_of_pins; i++)
     {
-        data_out[2 * i] = hbq->BQOutputBuffer[total_len * i - 3];
-        data_out[2 * i + 1] = hbq->BQOutputBuffer[total_len * i - 2]; // Put data in the output buffer
+        for (size_t j = 0; j < hbq->NumOfSlaves; j++)
+        {
+            data_out[2 * (i * hbq->NumOfSlaves + j)] = hbq->BQOutputBuffer[total_len * i - 3];
+            data_out[2 * (i * hbq->NumOfSlaves + j) + 1] = hbq->BQOutputBuffer[total_len * i - 2]; // Put data in the output buffer
+        }
     }
 
     return BQ_STATUS_OK;
@@ -530,7 +532,6 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
     {
         return status;
     }
-
 
     for (int i = 0; i < total_num_of_temps; i++)
     {
