@@ -105,9 +105,9 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         {
             BQ_EnableCommTimeout(hbms->BQ); // Enable the BQ communication timeout
             BQ_EnableTsRef(hbms->BQ);       // Enable the TS reference for the BQ
-            BQ_ActivateSlaveADC(hbms->BQ); // Activate the slave ADCs
+            BQ_ActivateSlaveADC(hbms->BQ);  // Activate the slave ADCs
 
-            hbms->State = BMS_STATE_IDLE;   // Move to the idle state if the BQ is connected
+            hbms->State = BMS_STATE_IDLE; // Move to the idle state if the BQ is connected
         }
         else
         {
@@ -116,7 +116,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         }
         break;
     }
-    case BMS_STATE_IDLE:                          // Much of this functionality will be shared
+    case BMS_STATE_IDLE:                          // Much of this functionality will be shared so we let it fall through
         BQ_GetCellVoltages(hbms->BQ);             // Get the cell voltages from the BQ
         BQ_GetCellTemperatures(hbms->BQ, 4250.0); // Get the cell temperatures from the BQ
     case BMS_STATE_DRIVING:
