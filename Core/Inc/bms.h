@@ -70,6 +70,8 @@ typedef struct
 
     uint32_t CanTimestamp;     // Timestamp for the last CAN message
     uint32_t ChargerTimestamp; // Timestamp for the last charger CAN message
+    uint32_t TempTimestamp;    // Timestamp for the last temperature measurement
+    uint32_t VoltageTimestamp; // Timestamp for the last voltage measurement
 
     float MeasuredCurrent; // Measured current from the sensors
 

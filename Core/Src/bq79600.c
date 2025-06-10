@@ -283,9 +283,7 @@ BQ_StatusTypeDef BQ_EnableTsRef(BQ_HandleTypeDef *hbq)
     return BQ_Write(hbq, &data, BQ_SELF_ID, BQ16_CONTROL2, 1, BQ_STACK_WRITE);
 }
 
-// Activates the main ADC on all slaves
-// Num of cells correspond to the number of cells in series each IC should measure (max 16)
-BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef *hbq)
+BQ_StatusTypeDef BQ_ConfigureMainADC(BQ_HandleTypeDef *hbq)
 {
     // Activate on the whole stack
     uint8_t data = hbq->NumOfCellsEach - 6; // 0x00 => 6 measured cells
@@ -295,10 +293,25 @@ BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef *hbq)
     {
         return status;
     }
-    data = BQ16_ADC_CTRL1_ADCCONT | BQ16_ADC_CTRL1_MAINGO;
+    Align_DelayUs(hbq->htim, 192 + (5 * hbq->NumOfChips));
+
+    // data = BQ16_ADC_CONF1_LPF_13HZ;                                       // Set the ADC to continuous mode and start the ADC
+    // status = BQ_Write(hbq, &data, 0, BQ16_GPIO_CONF1, 1, BQ_STACK_WRITE); // Set the GPIO configuration to default
+    // Align_DelayUs(hbq->htim, 192 + (5 * hbq->NumOfChips));
+
+    return status;
+}
+
+// Activates the main ADC on all slaves
+// Num of cells correspond to the number of cells in series each IC should measure (max 16)
+BQ_StatusTypeDef BQ_ActivateMainADC(BQ_HandleTypeDef *hbq)
+{
+    BQ_StatusTypeDef status;
+    uint8_t data = BQ16_ADC_CTRL1_ADCCONT | BQ16_ADC_CTRL1_MAINGO;
     status = BQ_Write(hbq, &data, 0, BQ16_ADC_CTRL1, 1, BQ_STACK_WRITE);
     // Wait for everyone to get the message
     Align_DelayUs(hbq->htim, 192 + (5 * hbq->NumOfChips));
+
     return status;
 }
 
@@ -320,6 +333,9 @@ BQ_StatusTypeDef BQ_GetGpioMeasurements(BQ_HandleTypeDef *hbq, uint8_t pin_map, 
     //    GPIO8 GPIO7 GPIO6 ...
     //  0b  0     0     0   ...
 
+    // Ensure proper measurement of the GPIOs
+    Align_DelayUs(hbq->htim, 1000); // Wait for the ADCs to stabilize
+
     size_t memory_offset = 0;
     size_t total_len = 8; // For each message
     for (int i = 0; i < 8; i++)
@@ -340,8 +356,8 @@ BQ_StatusTypeDef BQ_GetGpioMeasurements(BQ_HandleTypeDef *hbq, uint8_t pin_map, 
     {
         for (size_t j = 0; j < hbq->NumOfSlaves; j++)
         {
-            data_out[2 * (i * hbq->NumOfSlaves + j)] = hbq->BQOutputBuffer[total_len * (i * hbq->NumOfSlaves + j) - 3];
-            data_out[2 * (i * hbq->NumOfSlaves + j) + 1] = hbq->BQOutputBuffer[total_len * (i * hbq->NumOfSlaves + j) - 2]; // Put data in the output buffer
+            data_out[2 * (i * hbq->NumOfSlaves + j)] = hbq->BQOutputBuffer[total_len * (i * hbq->NumOfSlaves + j) + 4];
+            data_out[2 * (i * hbq->NumOfSlaves + j) + 1] = hbq->BQOutputBuffer[total_len * (i * hbq->NumOfSlaves + j) + 5]; // Put data in the output buffer
         }
     }
 
@@ -404,8 +420,7 @@ BQ_StatusTypeDef BQ_SetGPIOAll(BQ_HandleTypeDef *hbq, uint8_t pin, bool logic_st
         return status;
     }
 
-    status = BQ_ActivateSlaveADC(hbq); // Re-activate the ADCs to read the new GPIO state
-
+    status = BQ_ActivateMainADC(hbq); // Re-activate the ADCs to read the new GPIO state
 
     return status;
 }
@@ -549,13 +564,19 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
         uint16_t adcValueGpio = ((uint16_t)hbq->RawCellTemperatures[2 * i]) << 8 | ((uint16_t)hbq->RawCellTemperatures[2 * i + 1]);          // Get the ADC value for the current GPIO
         uint16_t adcValueTsRef = ((uint16_t)ts_refs[2 * (i % hbq->NumOfSlaves)]) << 8 | ((uint16_t)ts_refs[2 * (i % hbq->NumOfSlaves) + 1]); // Get the TSREF value for the current slave
 
-        // Vgpio / Vtsref = (Rntc + R2) / (Rntc + R1 + R2)
-        float ratio = (((float)adcValueGpio)) / (((float)adcValueTsRef)); // Ratio of the ADC values
+        float tsRefVoltage = ((float)adcValueTsRef * 169.54f / 1000.0f); // Convert the TSREF ADC value to voltage, assuming a reference voltage of 5V and a gain of 169.54
+        float gpioVoltage = ((float)adcValueGpio * 152.59f / 1000.0f); // Convert the GPIO ADC value to voltage, assuming a reference voltage of 5V and a gain of 152.59
 
-        // Formula for the PCB NTC thermistor resistance
-        // float rntc = - (ratio * 3600.0f * 15000.0f) / (ratio * (3600.0f + 15000.0f) - 15000.0f); // Calculate the NTC resistance, assuming R1 = 3600R and R2 = 15k
+        // Vgpio / Vtsref = (Rntc) / (Rntc + R1)
+        // Rearranging gives us:
+        // Vtsref / Vgpio = (Rntc + R1) / Rntc
+        // (Vtsref / Vgpio) * Rntc = Rntc + R1
+        // Rntc * ((Vtsref / Vgpio) - 1) = R1
+        // Rntc = R1 / ((Vtsref / Vgpio) - 1)
 
-        float rntc = - (10000.0f / (1 - ratio)) - 10000.0f;
+
+
+        float rntc = 10000.0f / ((tsRefVoltage / gpioVoltage) - 1); // Calculate the NTC resistance, assuming R1 = 10k and R2 = 10000R
 
         // Convert the Rntc to temperature using the beta formula
         hbq->CellTemperatures[i] = K_TO_C(1 / ((1 / C_TO_K(25.0)) + (1 / beta) * logf(rntc / 10000.0f))); // Convert the temperature to Kelvin, assuming a beta value of 25C and a reference resistance of 10k

@@ -60,6 +60,8 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
 
     hbms->CanTimestamp = HAL_GetTick();     // Initialize the CAN timestamp to the current time
     hbms->ChargerTimestamp = HAL_GetTick(); // Initialize the charger timestamp to the current time
+    hbms->TempTimestamp = HAL_GetTick();    // Initialize the temperature timestamp to the current time
+    hbms->VoltageTimestamp = HAL_GetTick(); // Initialize the voltage timestamp to the current time
     hbms->ChargerPresent = false;           // Initialize the charger present flag to false
 
     hbms->BqConnected = false; // Initialize the BQ connected flag to false
@@ -105,7 +107,8 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         {
             BQ_EnableCommTimeout(hbms->BQ); // Enable the BQ communication timeout
             BQ_EnableTsRef(hbms->BQ);       // Enable the TS reference for the BQ
-            BQ_ActivateSlaveADC(hbms->BQ);  // Activate the slave ADCs
+            BQ_ConfigureMainADC(hbms->BQ); // Configure the main ADC for the BQ
+            BQ_ActivateMainADC(hbms->BQ);  // Activate the main ADCs
 
             hbms->State = BMS_STATE_IDLE; // Move to the idle state if the BQ is connected
         }
@@ -116,9 +119,20 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         }
         break;
     }
-    case BMS_STATE_IDLE:                          // Much of this functionality will be shared so we let it fall through
-        BQ_GetCellVoltages(hbms->BQ);             // Get the cell voltages from the BQ
-        BQ_GetCellTemperatures(hbms->BQ, 4250.0); // Get the cell temperatures from the BQ
+    case BMS_STATE_IDLE: // Much of this functionality will be shared so we let it fall through
+
+        if (hbms->VoltageTimestamp + 5 < HAL_GetTick())
+        {
+            // If the voltage timestamp is older than 5ms, we need to update the cell voltages
+            BQ_GetCellVoltages(hbms->BQ);           // Get the cell voltages from the BQ
+            hbms->VoltageTimestamp = HAL_GetTick(); // Update the voltage timestamp
+        }
+
+        if (hbms->TempTimestamp + 100 < HAL_GetTick())
+        {
+            BQ_GetCellTemperatures(hbms->BQ, 4250.0); // Get the cell temperatures from the BQ
+            hbms->TempTimestamp = HAL_GetTick();      // Update the temperature timestamp
+        }
     case BMS_STATE_DRIVING:
     case BMS_STATE_CHARGING:
         // In the charging state, we need to monitor the charger and the BQ

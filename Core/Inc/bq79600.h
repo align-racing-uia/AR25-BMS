@@ -50,6 +50,7 @@
 #define BQ16_DIETEMP2_HI 0x05B0 // Low is a increment of this
 
 #define BQ16_GPIO_CONF1 0x000E // GPIO_CONF2-4 are increments of this
+#define BQ16_ADC_CONF1 0x0007 // ADC_CONF2-4 are increments of this
 
 // Register Flags for BQ79616
 #define BQ16_ADC_CTRL1_MAINGO 0x04
@@ -60,6 +61,10 @@
 #define BQ16_GPIO_CONF1_GPIO2_ADC (1 << 4)
 #define BQ16_GPIO_CONF1_GPIO1_OUTPUT 0x5  // These can be used in the relevant positions for the rest as well
 #define BQ16_GPIO_CONF1_GPIO2_OUTPUT 0x28 // Defaults to setting the output to low
+
+#define BQ16_ADC_CONF1_LPF_13HZ 0x1
+#define BQ16_ADC_CONF1_LPF_26HZ 0x2
+#define BQ16_ADC_CONF1_LPF_53HZ 0x3
 
 #define BQ16_COMM_TIMEOUT_CONF 0x0019
 #define BQ16_CONTROL2 0x030A
@@ -135,7 +140,8 @@ void BQ_ClearComm(BQ_HandleTypeDef *hbq);
 bool BQ_SpiRdy(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_SetGPIOAll(BQ_HandleTypeDef *hbq, uint8_t pin, bool logicState);
 BQ_StatusTypeDef BQ_WakeMsg(BQ_HandleTypeDef *hbq);
-BQ_StatusTypeDef BQ_ActivateSlaveADC(BQ_HandleTypeDef *hbq);
+BQ_StatusTypeDef BQ_ConfigureMainADC(BQ_HandleTypeDef *hbq);
+BQ_StatusTypeDef BQ_ActivateMainADC(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_ActivateAuxADC(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_ConfigureGPIO(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq);
