@@ -130,7 +130,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
 
         if (hbms->TempTimestamp + 100 < HAL_GetTick())
         {
-            BQ_GetCellTemperatures(hbms->BQ, 4250.0); // Get the cell temperatures from the BQ
+            BQ_GetCellTemperatures(hbms->BQ, 4300.0); // Get the cell temperatures from the BQ
             hbms->TempTimestamp = HAL_GetTick();      // Update the temperature timestamp
         }
     case BMS_STATE_DRIVING:
@@ -282,11 +282,11 @@ bool LoadConfiguration(BMS_HandleTypeDef *hbms)
         .NumOfSlaves = hbms->Config.NumOfSlaves,
         .NumOfCellsEach = hbms->Config.CellsEach,
         .NumOfTempsEach = hbms->Config.TempsEach,
-        // TODO: Add the GpioAuxADCMap and CellTempPinMap to the BMS configuration, as well as a multiplexing toggle
+        // TODO: Add the GpioAuxADCMap and FirstTempGPIO to the BMS configuration, as well as a multiplexing toggle
         .TempMultiplexEnabled = true,
         .TempMultiplexPinIndex = 7, // Pin 8 (zero indexed) is used to multiplex the temperature sensors, which is GPIO7 in the BQ
         .GpioAuxADCMap = 0x7F,
-        .CellTempPinMap = 0x7E, // Pin 1 is used to detect PCB temperature, and the rest are used for the temperature sensors
+        .FirstTempGPIO = 1, // Pin 1 is used to detect PCB temperature, and the rest are used for the temperature sensors
     };
 
     BQ_Configure(hbms->BQ, &bq_config); // Configure the BQ with the BMS configuration

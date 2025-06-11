@@ -83,7 +83,7 @@ typedef struct {
     bool TempMultiplexEnabled;     // If the temperature sensors are multiplexed
     uint8_t TempMultiplexPinIndex; // The pin used to multiplex the temperature sensors
     uint8_t GpioAuxADCMap;
-    uint8_t CellTempPinMap;        // The pin map for the cell temperature sensors
+    uint8_t FirstTempGPIO;        // The pin map for the cell temperature sensors
 
 } BQ_ConfigTypeDef;
 
@@ -116,7 +116,9 @@ typedef struct
 
     bool TempMultiplexEnabled;     // This is true if the temperature sensors are multiplexed
     uint8_t TempMultiplexPinIndex; // This is the pin used to multiplex the temperature sensors
-    uint8_t CellTempPinMap;
+    uint8_t FirstTempGPIO;
+
+    bool MultiplexToggle;
 
 
     TIM_HandleTypeDef *htim; // The timer used for the delays

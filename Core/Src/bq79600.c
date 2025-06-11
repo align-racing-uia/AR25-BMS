@@ -49,7 +49,7 @@ void BQ_Configure(BQ_HandleTypeDef *hbq, BQ_ConfigTypeDef *bq_config)
     hbq->TempMultiplexEnabled = bq_config->TempMultiplexEnabled;
     hbq->TempMultiplexPinIndex = bq_config->TempMultiplexPinIndex;
     hbq->GpioAuxADCMap = bq_config->GpioAuxADCMap;
-    hbq->CellTempPinMap = bq_config->CellTempPinMap;
+    hbq->FirstTempGPIO = bq_config->FirstTempGPIO;
 }
 
 void BQ_BindHardware(BQ_HandleTypeDef *hbq, SPI_HandleTypeDef *hspi, BQ_PinTypeDef cs_pin, BQ_PinTypeDef spi_rdy_pin, BQ_PinTypeDef mosi_pin, BQ_PinTypeDef fault_pin, TIM_HandleTypeDef *htim)
@@ -327,38 +327,27 @@ BQ_StatusTypeDef BQ_ActivateAuxADC(BQ_HandleTypeDef *hbq)
 }
 
 // Function to read the Auxilery ADCs of the slaves
-BQ_StatusTypeDef BQ_GetGpioMeasurements(BQ_HandleTypeDef *hbq, uint8_t pin_map, uint8_t *data_out)
+BQ_StatusTypeDef BQ_GetGpioMeasurements(BQ_HandleTypeDef *hbq, uint8_t first_gpio, uint8_t *data_out)
 {
-    // The pin map is a bitwise select of what GPIOs should be read as ADCs
-    //    GPIO8 GPIO7 GPIO6 ...
-    //  0b  0     0     0   ...
 
     // Ensure proper measurement of the GPIOs
     Align_DelayUs(hbq->htim, 1000); // Wait for the ADCs to stabilize
 
     size_t memory_offset = 0;
-    size_t total_len = 8; // For each message
-    for (int i = 0; i < 8; i++)
-    {
-        if ((pin_map >> i) & 0x01)
-        {
+    size_t out_memory_offset = 0;
+    size_t total_len = 6 + 2 * hbq->NumOfTempsEach; // For each message
 
-            BQ_StatusTypeDef status = BQ_Read(hbq, hbq->BQOutputBuffer + memory_offset, 0, BQ16_GPIO1_HI + i * 2, 2, BQ_STACK_READ); // Read the GPIO configuration register
-            memory_offset += total_len * hbq->NumOfSlaves;                                                                           // 2 bytes for the GPIO data, 6 bytes for the header
-            if (status != BQ_STATUS_OK)
-            {
-                return status;
-            }
-        }
-    }
-    size_t number_of_pins = NUM_OF_ONES(pin_map); // Number of pins to read
-    for (size_t i = 0; i < number_of_pins; i++)
+    BQ_StatusTypeDef status = BQ_Read(hbq, hbq->BQOutputBuffer, 0, BQ16_GPIO1_HI + first_gpio * 2, 2 * hbq->NumOfTempsEach, BQ_STACK_READ); // Read the GPIO configuration register
+    
+    if (status != BQ_STATUS_OK)
     {
-        for (size_t j = 0; j < hbq->NumOfSlaves; j++)
-        {
-            data_out[2 * (i * hbq->NumOfSlaves + j)] = hbq->BQOutputBuffer[total_len * (i * hbq->NumOfSlaves + j) + 4];
-            data_out[2 * (i * hbq->NumOfSlaves + j) + 1] = hbq->BQOutputBuffer[total_len * (i * hbq->NumOfSlaves + j) + 5]; // Put data in the output buffer
-        }
+        return status;
+    }
+
+    for(int i=0; i<hbq->NumOfSlaves; i++){
+        memcpy(data_out + out_memory_offset, hbq->BQOutputBuffer + memory_offset + 4, 2 * hbq->NumOfTempsEach);
+        memory_offset += total_len; // Move the memory offset to make space for the next slave
+        out_memory_offset += 2 * hbq->NumOfTempsEach;
     }
 
     return BQ_STATUS_OK;
@@ -395,7 +384,6 @@ BQ_StatusTypeDef BQ_GetTsRefMeasurements(BQ_HandleTypeDef *hbq, uint8_t *data_ou
 BQ_StatusTypeDef BQ_SetGPIOAll(BQ_HandleTypeDef *hbq, uint8_t pin, bool logic_state)
 {
 
-    uint8_t data[1] = {0};
     uint8_t pin_offset = pin % 2;
     uint8_t register_offset = pin / 2;
 
@@ -513,35 +501,20 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
 
     if (hbq->TempMultiplexEnabled)
     {
-        status = BQ_SetGPIOAll(hbq, hbq->TempMultiplexPinIndex, true); // Set GPIO8 to hig
 
-        if (status != BQ_STATUS_OK)
-        {
-            return status;
-        }
-
-        status = BQ_GetGpioMeasurements(hbq, hbq->CellTempPinMap, hbq->RawCellTemperatures); // Read the first set of temperatures
+        status = BQ_GetGpioMeasurements(hbq, hbq->FirstTempGPIO, hbq->RawCellTemperatures); // Read the first set of temperatures
 
         if (status != BQ_STATUS_OK)
         {
 
             return status;
         }
-
-        status = BQ_SetGPIOAll(hbq, hbq->TempMultiplexPinIndex, false); // Set GPIO8 to low
-
-        if (status != BQ_STATUS_OK)
-        {
-
-            return status;
-        }
-
-        status = BQ_GetGpioMeasurements(hbq, hbq->CellTempPinMap, hbq->RawCellTemperatures + (hbq->NumOfTempsEach * hbq->NumOfSlaves * 2)); // 2 Bytes for each temperature
-        // Last one is returned either way
+        hbq->MultiplexToggle = !hbq->MultiplexToggle;                                  // Toggle the multiplex state
+        status = BQ_SetGPIOAll(hbq, hbq->TempMultiplexPinIndex, hbq->MultiplexToggle); // Set GPIO8 to low
     }
     else
     {
-        status = BQ_GetGpioMeasurements(hbq, hbq->CellTempPinMap, hbq->RawCellTemperatures);
+        status = BQ_GetGpioMeasurements(hbq, hbq->FirstTempGPIO, hbq->RawCellTemperatures);
         // Last one is returned either way
     }
 
@@ -553,19 +526,17 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
 
     uint8_t ts_refs[BQ_MAX_AMOUNT_OF_SLAVES * 2] = {0}; // TSREF temperatures, 2 bytes for each slave
     status = BQ_GetTsRefMeasurements(hbq, ts_refs);     // Read the TSREF temperatures
+
     if (status != BQ_STATUS_OK)
     {
         return status;
     }
 
-    for (int i = 0; i < total_num_of_temps; i++)
+    int offset = hbq->NumOfTempsEach * 2; // Offset for the raw cell temperatures, depending on the multiplex state
+
+    for (int i = 0; i < hbq->NumOfSlaves; i++)
     {
         // Convert the raw ADC values to temperatures in place
-        uint16_t adcValueGpio = ((uint16_t)hbq->RawCellTemperatures[2 * i]) << 8 | ((uint16_t)hbq->RawCellTemperatures[2 * i + 1]);          // Get the ADC value for the current GPIO
-        uint16_t adcValueTsRef = ((uint16_t)ts_refs[2 * (i % hbq->NumOfSlaves)]) << 8 | ((uint16_t)ts_refs[2 * (i % hbq->NumOfSlaves) + 1]); // Get the TSREF value for the current slave
-
-        float tsRefVoltage = ((float)adcValueTsRef * 169.54f / 1000.0f); // Convert the TSREF ADC value to voltage, assuming a reference voltage of 5V and a gain of 169.54
-        float gpioVoltage = ((float)adcValueGpio * 152.59f / 1000.0f); // Convert the GPIO ADC value to voltage, assuming a reference voltage of 5V and a gain of 152.59
 
         // Vgpio / Vtsref = (Rntc) / (Rntc + R1)
         // Rearranging gives us:
@@ -574,12 +545,19 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
         // Rntc * ((Vtsref / Vgpio) - 1) = R1
         // Rntc = R1 / ((Vtsref / Vgpio) - 1)
 
+        for (int y = 0; y < hbq->NumOfTempsEach; y++)
+        {
+            uint16_t adcValueGpio = ((uint16_t)hbq->RawCellTemperatures[2 * y + i*offset]) << 8 | ((uint16_t)hbq->RawCellTemperatures[2 * y + 1 + i*offset]); // Get the ADC value for the current GPIO
+            uint16_t adcValueTsRef = ((uint16_t)ts_refs[2 * i]) << 8 | ((uint16_t)ts_refs[2 * i + 1]);                                                    // Get the TSREF value for the current slave
 
+            float tsRefVoltage = ((float)adcValueTsRef * 169.54f / 1000.0f); // Convert the TSREF ADC value to voltage, assuming a reference voltage of 5V and a gain of 169.54
+            float gpioVoltage = ((float)adcValueGpio * 152.59f / 1000.0f);   // Convert the GPIO ADC value to voltage, assuming a reference voltage of 5V and a gain of 152.59
 
-        float rntc = 10000.0f / ((tsRefVoltage / gpioVoltage) - 1); // Calculate the NTC resistance, assuming R1 = 10k and R2 = 10000R
+            float rntc = 10000.0f / ((tsRefVoltage / gpioVoltage) - 1); // Calculate the NTC resistance, assuming R1 = 10k and R2 = 10000R
 
-        // Convert the Rntc to temperature using the beta formula
-        hbq->CellTemperatures[i] = K_TO_C(1 / ((1 / C_TO_K(25.0)) + (1 / beta) * logf(rntc / 10000.0f))); // Convert the temperature to Kelvin, assuming a beta value of 25C and a reference resistance of 10k
+            // Convert the Rntc to temperature using the beta formula
+            hbq->CellTemperatures[i * hbq->NumOfTempsEach * 2 + (2*y) + !hbq->MultiplexToggle] = K_TO_C(1 / ((1 / C_TO_K(25.0)) + (1 / beta) * logf(rntc / 10000.0f))); // Convert the temperature to Kelvin, assuming a beta value of 25C and a reference resistance of 10k
+        }
     }
 
     return status;

@@ -29,6 +29,6 @@
         "math.h": "c",
         "arm_mve.h": "c"
     },
-    "cortex-debug.variableUseNaturalFormat": true,
+    "cortex-debug.variableUseNaturalFormat": false,
     "C_Cpp.errorSquiggles": "enabled"
 }
