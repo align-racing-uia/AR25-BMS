@@ -3,6 +3,7 @@
 #include "stddef.h"
 #include "w25q_mem.h"
 #include "aligncan.h"
+#include "faults.h"
 #include <stm32g4xx.h>
 
 // #define BQ_DISABLE
@@ -10,9 +11,9 @@
 // Private Function defines
 bool Connect(BMS_HandleTypeDef *hbms);
 bool LoadConfiguration(BMS_HandleTypeDef *hbms);
-void UpdateFaultFlags(BMS_HandleTypeDef *hbms);
+void CheckForFaults(BMS_HandleTypeDef *hbms);
 void ListenForCanMessages(BMS_HandleTypeDef *hbms);
-void UpdateTSState(BMS_HandleTypeDef *hbms);
+void BroadcastBMSState(BMS_HandleTypeDef *hbms);
 
 // Public Function implementations
 
@@ -52,6 +53,8 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
     hbms->PlusAIR = hardware_config->PlusAIR;           // Bind the plus AIR pin
     hbms->MinusAIR = hardware_config->MinusAIR;         // Bind the minus AIR pin
     hbms->PrechargeAIR = hardware_config->PrechargeAIR; // Bind the precharge AIR pin
+    hbms->SdcPin = hardware_config->SdcPin; // Bind the SdcClosed pin
+    hbms->TsRequested = false; // Initialize the TS requested flag to false
 
     HAL_GPIO_WritePin(hbms->FaultPin.Port, hbms->FaultPin.Pin, GPIO_PIN_SET);           // Set the fault pin high, to indicate no fault in the BMS
     HAL_GPIO_WritePin(hbms->PlusAIR.Port, hbms->PlusAIR.Pin, GPIO_PIN_RESET);           // Set the plus AIR pin low, to indicate no fault in the BMS
@@ -66,11 +69,8 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
 
     hbms->BqConnected = false; // Initialize the BQ connected flag to false
 
-    hbms->PackCurrent = &hbms->MeasuredCurrent;                             // Bind the pack current pointer to the measured current, we do it like this to keep it consistent with the other pointers
-    hbms->PackVoltage = &hbms->BatteryModel->PackVoltage;                   // Bind the pack voltage pointer
-    hbms->AverageCellTemperature = &hbms->BatteryModel->AverageTemperature; // Bind the average cell temperature pointer
-    hbms->AverageCellVoltage = &hbms->BatteryModel->AverageCellVoltage;     // Bind the average cell voltage pointer
-
+    hbms->PackVoltage = &hbms->BQ->TotalVoltage;                   // Bind the pack voltage pointer
+    
     hbms->HighestCellTemperature = &hbms->BQ->HighestCellTemperature; // Bind the highest cell temperature pointer
     hbms->LowestCellTemperature = &hbms->BQ->LowestCellTemperature;   // Bind the lowest cell temperature pointer
     hbms->CellVoltages = hbms->BQ->CellVoltages;                      // Bind the cell voltages pointer
@@ -82,8 +82,28 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
 void BMS_Update(BMS_HandleTypeDef *hbms)
 {
 
-    UpdateFaultFlags(hbms);
+    // Things which are done before every cycle are done here
+    CheckForFaults(hbms);
     ListenForCanMessages(hbms); // Listen for CAN messages
+
+    hbms->SdcClosed = HAL_GPIO_ReadPin(hbms->SdcPin.Port, hbms->SdcPin.Pin) == GPIO_PIN_SET; // Read the SdcClosed pin to see if the SDC is closed
+
+    if (hbms->VoltageTimestamp + 5 < HAL_GetTick())
+    {
+        // If the voltage timestamp is older than 5ms, we need to update the cell voltages
+        BQ_GetCellVoltages(hbms->BQ);           // Get the cell voltages from the BQ
+        hbms->VoltageTimestamp = HAL_GetTick(); // Update the voltage timestamp
+    }
+
+    if (hbms->TempTimestamp + 100 < HAL_GetTick())
+    {
+        BQ_GetCellTemperatures(hbms->BQ, 4300.0); // Get the cell temperatures from the BQ
+        hbms->TempTimestamp = HAL_GetTick();      // Update the temperature timestamp
+    }
+
+    uint16_t cycle_time = HAL_GetTick() - hbms->LastMeasurementTimestamp; // Calculate the cycle time
+    hbms->LastMeasurementTimestamp = HAL_GetTick(); // Update the last measurement timestamp
+    BatteryModel_Update(hbms->BatteryModel, hbms->BQ->CellVoltages, hbms->BQ->CellTemperatures, hbms->MeasuredCurrent, cycle_time);
 
     switch (hbms->State)
     {
@@ -119,60 +139,94 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         }
         break;
     }
+
     case BMS_STATE_IDLE: // Much of this functionality will be shared so we let it fall through
 
-        if (hbms->VoltageTimestamp + 5 < HAL_GetTick())
+    if (hbms->TsRequested && hbms->SdcClosed){
+        hbms->State = BMS_STATE_TS_ACTIVE; // If the TS is requested (or we are connected to the charger) and the SDC is closed, we can activate the TS
+    }
+
+    if (hbms->ChargerPresent && hbms->SdcClosed){
+        hbms->State = BMS_STATE_CHARGING; // If the TS is requested (or we are connected to the charger) and the SDC is closed, we can activate the TS
+    }
+
+    break;
+    // We let this fall through, as the charging state includes the TS active state
+    case BMS_STATE_CHARGING:
+        if(hbms->ChargerTimestamp + 1000 < HAL_GetTick())
         {
-            // If the voltage timestamp is older than 5ms, we need to update the cell voltages
-            BQ_GetCellVoltages(hbms->BQ);           // Get the cell voltages from the BQ
-            hbms->VoltageTimestamp = HAL_GetTick(); // Update the voltage timestamp
+            // If the charger timestamp is older than 1 second, we consider the charger disconnected
+            hbms->ChargerPresent = false; // Clear the charger present flag
+        }
+    // We let this fall through, as the charging state includes the TS active state
+
+    case BMS_STATE_TS_ACTIVE:
+        switch(hbms->TSState){
+            case TS_STATE_IDLE:
+                // In the idle state, we can precharge the TS
+                HAL_GPIO_WritePin(hbms->PrechargeAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_SET); // Set the precharge AIR pin high, to indicate precharging
+                HAL_GPIO_WritePin(hbms->MinusAIR.Port, hbms->MinusAIR.Pin, GPIO_PIN_SET); // Set the precharge AIR pin high, to indicate precharging
+                hbms->TSState = TS_STATE_PRECHARGE; // Move to the precharge state
+                break;
+            case TS_STATE_PRECHARGE:
+                // In the precharge state, we can check if the precharge is complete
+                if(hbms->ChargerPresent && hbms->SdcClosed)
+                {
+                    // If the charger is present and the SDC is closed, we can activate the TS immediately
+                    HAL_GPIO_WritePin(hbms->PlusAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_SET); 
+                    HAL_GPIO_WritePin(hbms->MinusAIR.Port, hbms->MinusAIR.Pin, GPIO_PIN_SET); 
+                    HAL_GPIO_WritePin(hbms->PrechargeAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_RESET);
+                    hbms->TSState = TS_STATE_ACTIVE; // Move to the active state
+                }
+                
+                if((((float) hbms->InverterVoltage) >= (*hbms->PackVoltage) * 0.9f) && (*hbms->PackVoltage) > 300.0f)
+                {
+                    // If the inverter voltage is above 90% of the pack voltage, we can activate the TS
+                    HAL_GPIO_WritePin(hbms->PlusAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_SET); 
+                    HAL_GPIO_WritePin(hbms->MinusAIR.Port, hbms->MinusAIR.Pin, GPIO_PIN_SET); 
+                    HAL_GPIO_WritePin(hbms->PrechargeAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_RESET);
+                    hbms->TSState = TS_STATE_ACTIVE; // Move to the active state
+                }
+                
+                break;
+            case TS_STATE_ACTIVE:
+                if(!(hbms->TsRequested || hbms->ChargerPresent) || !hbms->SdcClosed)
+                {
+                    // If the TS is not requested or the SDC is not closed, we need to move to the idle state
+                    HAL_GPIO_WritePin(hbms->PlusAIR.Port, hbms->PlusAIR.Pin, GPIO_PIN_RESET); // Set the plus AIR pin low, to indicate no TS active
+                    HAL_GPIO_WritePin(hbms->MinusAIR.Port, hbms->MinusAIR.Pin, GPIO_PIN_RESET); // Set the minus AIR pin low, to indicate no TS active
+                    HAL_GPIO_WritePin(hbms->PrechargeAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_RESET); // Set the precharge AIR pin low, to indicate no TS active
+                    hbms->TsRequested = false; // Clear the TS requested flag
+                    hbms->TSState = TS_STATE_IDLE; // Move to the idle state
+                }
+                break;
+
         }
 
-        if (hbms->TempTimestamp + 100 < HAL_GetTick())
-        {
-            BQ_GetCellTemperatures(hbms->BQ, 4300.0); // Get the cell temperatures from the BQ
-            hbms->TempTimestamp = HAL_GetTick();      // Update the temperature timestamp
-        }
-    case BMS_STATE_DRIVING:
-    case BMS_STATE_CHARGING:
-        // In the charging state, we need to monitor the charger and the BQ
-        if (hbms->ChargerPresent)
-        {
-            // If the charger is present, we can charge the battery
-            hbms->State = BMS_STATE_CHARGING; // Stay in the charging state
-        }
-        else
-        {
-            // If the charger is not present, we need to move to the idle state
-            hbms->State = BMS_STATE_IDLE;
-        }
-        break;
+    break;
 
     case BMS_STATE_FAULT:
 
         // Send the BMS fault signal
         HAL_GPIO_WritePin(hbms->FaultPin.Port, hbms->FaultPin.Pin, GPIO_PIN_RESET); // Set the fault pin low, to indicate a fault in the BMS
-        break;
-    default:
+        HAL_GPIO_WritePin(hbms->PlusAIR.Port, hbms->PlusAIR.Pin, GPIO_PIN_RESET); // Set the plus AIR pin low, to indicate no TS active
+        HAL_GPIO_WritePin(hbms->MinusAIR.Port, hbms->MinusAIR.Pin, GPIO_PIN_RESET); // Set the minus AIR pin low, to indicate no TS active
+        HAL_GPIO_WritePin(hbms->PrechargeAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_RESET); // Set the precharge AIR pin low, to indicate no TS active
+        hbms->TSState = TS_STATE_IDLE; // Move to the idle state
 
-        // Set the state to fault if it is not recognized
-        // We need to know what state we are in at all times, for the system
-        // to be deterministic
-        hbms->State = BMS_STATE_FAULT;
+        // Currently to reset the BMS, you need to power cycle it
 
         break;
     }
+
+    // Things that need to happen regardless of the state
+    BroadcastBMSState(hbms); // Broadcast the BMS state to the CAN bus
 }
 
-void UpdateTSState(BMS_HandleTypeDef *hbms)
-{
-    // Unsure if this is the right way to go
-    // TODO: See if the separate TS state machine is needed
-}
 
 // Function to monitor and update fault flags
 // Certain ActiveFaults are set elsewere, such as BQ related faults
-void UpdateFaultFlags(BMS_HandleTypeDef *hbms)
+void CheckForFaults(BMS_HandleTypeDef *hbms)
 {
 
     if (hbms == NULL)
@@ -184,10 +238,26 @@ void UpdateFaultFlags(BMS_HandleTypeDef *hbms)
     if (hbms->CanTimestamp + 1000 < HAL_GetTick())
     {
         SET_BIT(hbms->ActiveFaults, BMS_WARNING_CAN); // Set the CAN timeout fault
+        // Charger cannot be present if the CAN is not working
+        hbms->ChargerPresent = false; // Clear the charger present flag
     }
     else
     {
         CLEAR_BIT(hbms->ActiveFaults, BMS_WARNING_CAN); // Clear the CAN timeout fault
+    }
+
+
+    if(*hbms->HighestCellTemperature > 59.0f || *hbms->LowestCellTemperature < -20.0f)
+    {
+        SET_BIT(hbms->ActiveFaults, BMS_FAULT_TEMP); // Set the temperature fault
+        hbms->State = BMS_STATE_FAULT; // If the highest cell temperature is above 59C or the lowest cell temperature is below -20C, set the state to fault
+    }
+
+    if(*hbms->LowestCellVoltage < 2800.0f || *hbms->HighestCellVoltage > 4150.00f)
+    {
+        // Currently no bit is set to indicate voltage faults, so we use the BMS_FAULT_BQ bit
+        SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ); // Set the voltage fault
+        hbms->State = BMS_STATE_FAULT; // If the lowest cell voltage is below 2.5V or the highest cell voltage is above 4.5V, set the state to fault
     }
 
     // Set the relevant flags based on the faults
@@ -333,44 +403,54 @@ void ListenForCanMessages(BMS_HandleTypeDef *hbms)
             break;                                  // This is the ID from the charger
         default:
             // If no exact match is found, we can check for the node ID
-            {
-                if (node_id == hbms->Config.CanNodeID)
-                {
-                    // This is the BMS node ID, and its not sent by the BMS itself
-                    // It is related to the BMS configuration
+            {   
+                // Inverter Node ID
+                // TODO: Make this a configurable field...
+                if(node_id == 30){
+                    // This is the Inverter Node ID, and its not sent by the BMS itself
+                    // It is related to the Inverter configuration
                     // We can process the packet based on the packet ID
                     switch (packet_id)
                     {
-                    case 0x63:
-                    {                                                                  // This is used to set configuration parameters directly
-                        uint8_t config_param_id1 = rx_data[0];                         // The first byte is the configuration parameter ID
-                        uint16_t config_param_value1 = (rx_data[1] << 8) | rx_data[2]; // The next two bytes are the configuration parameter value
-
-                        BMS_Config_SetParameter(&hbms->Config, config_param_id1, config_param_value1); // Set the configuration parameter in the BMS configuration
-
-                        Align_CAN_Send(hbms->FDCAN, Align_CombineCanId(0x62, hbms->Config.CanNodeID, rx_header.IdType == FDCAN_EXTENDED_ID), rx_data, 6, rx_header.IdType == FDCAN_EXTENDED_ID); // Send the message back to the CAN bus to acknowledge the change
-
+                    case 0x20:
+                        hbms->InverterVoltage = (rx_data[6] << 8) | rx_data[7]; // Set the inverter voltage from the received data
                         break;
                     }
-                    case 0x01:
-                        // This tells the BMS to write the configuration to flash memory, and reset
-                        if (BMS_Config_WriteToFlash(&hbms->Config) == BMS_CONFIG_OK)
-                        {
-                            // If the configuration write is successful, reset the BMS
-                            NVIC_SystemReset(); // Reset the system
-                        }
-                        else
-                        {
-                            // If the configuration write fails, set the EEPROM fault flag
-                            SET_BIT(hbms->ActiveFaults, BMS_NOTE_EEPROM); // Set the EEPROM fault flag
-                        }
-                    default:
-                        // Unknown packet ID, ignore it
-                        break;
-                    }
+                }
+                if (node_id == hbms->Config.CanConfigNodeID)
+                {
+                    // This is the BMS Config node ID, and its not sent by the BMS itself
+                    // It is related to the BMS configuration
+                    // We can process the packet based on the packet ID
+                    BMS_Config_HandleCanMessage(&hbms->Config, packet_id, rx_data); // Handle the BMS configuration CAN message
                 }
             }
             break;
         }
     }
+}
+
+void BroadcastBMSState(BMS_HandleTypeDef *hbms)
+{
+    // This function transmits the state of the BMS over the CAN network, as well as some limits
+
+
+    uint8_t data[8] = {0}; // Dummy data for the broadcast packet
+
+    data[0] = (uint8_t)hbms->DcLimit >> 8; // Set the first byte to the BMS state
+    data[1] = (uint8_t)hbms->DcLimit; // Set the second byte to the BMS state
+    data[2] = (uint8_t)hbms->CcLimit >> 8; // Set the third byte to the BMS state
+    data[3] = (uint8_t)hbms->CcLimit; // Set the fourth byte to the BMS state
+    data[4] = (uint8_t) *hbms->HighestCellTemperature;
+    data[5] = (uint8_t) *hbms->LowestCellTemperature;
+    data[6] = (uint8_t) *hbms->SOC;
+
+    Align_CAN_Send(hbms->FDCAN, Align_CombineCanId(0x1, hbms->Config.CanNodeID, hbms->Config.CanExtended), data, 7, hbms->Config.CanExtended); // Send the broadcast packet
+
+    data[0] = (uint8_t)hbms->ActiveFaults; // Set the first byte to the BMS state
+    data[1] = (uint8_t)hbms->SdcClosed; // Set the second byte to the BMS state
+
+    Align_CAN_Send(hbms->FDCAN, Align_CombineCanId(0x2, hbms->Config.CanNodeID, hbms->Config.CanExtended), data, 2, hbms->Config.CanExtended); // Send the broadcast packet
+
+
 }

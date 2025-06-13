@@ -34,8 +34,7 @@
 #define DEFAULT_CELLTEMPERATURE_LIMIT_LOW 0 // C
 #define DEFAULT_CELLTEMPERATURE_LIMIT_HIGH 60 // C
 #define DEFAULT_CAN_NODE_ID 0x06
-#define DEFAULT_CAN_CELLVOLTAGE_NODE_ID 0x07
-#define DEFAULT_CAN_CELLTEMPERATURE_NODE_ID 0x08
+#define DEFAULT_CAN_CONFIG_NODE_ID (DEFAULT_CAN_NODE_ID+1) // The CAN ID of the BMS, this is used to identify the BMS on the CAN bus
 #define DEFAULT_CAN_BROADCAST_PACKET 0x01
 #define DEFAULT_CAN_BAUDRATE (uint16_t) 500000 // 500kbit/s
 #define DEFAULT_CAN_EXTENDED false // Should the CAN ID be extended or not
@@ -78,8 +77,7 @@ typedef struct
     uint8_t TempMapVoltagePoints; // The number of voltage points in each temperature map
 
     uint8_t CanNodeID;       // This follows the CAN ID format specified by DTI
-    uint8_t CanVoltageNodeID; // The ID of the cell voltage packet
-    uint8_t CanTemperatureNodeID; // The ID of the cell temperature packet
+    uint8_t CanConfigNodeID;       // This follows the CAN ID format specified by DTI
     uint16_t CanBaudrate;    // The baudrate of the CAN bus
     bool CanExtended; // Should the CAN ID be extended or not
     bool UsbLoggingEnabled; // Should the USB logging be enabled or not
@@ -116,6 +114,6 @@ void BMS_Config_SetParameter(BMS_Config_HandleTypeDef *bms_config, uint8_t index
 
 BMS_Config_StatusTypeDef BMS_Config_WriteToFlash(BMS_Config_HandleTypeDef *bms_config);
 BMS_Config_StatusTypeDef BMS_Config_UpdateFromFlash(BMS_Config_HandleTypeDef *bms_config);
-BMS_Config_StatusTypeDef BMS_Config_HandleCanMessage(BMS_Config_HandleTypeDef *bms_config, uint16_t packet_id, uint8_t *data);
+BMS_Config_StatusTypeDef BMS_Config_HandleCanMessage(BMS_Config_HandleTypeDef *bms_config, uint16_t packet_id, uint8_t *can_data);
 
 #endif // __BMS_CONFIG_H

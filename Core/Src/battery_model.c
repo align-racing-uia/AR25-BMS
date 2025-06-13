@@ -115,7 +115,6 @@ void BatteryModel_Configure(BatteryModel_HandleTypeDef *battery_model, uint16_t 
     battery_model->CellCount = cell_count;
     battery_model->CellsInSeries = cells_in_series;
     battery_model->CellsInParallel = cells_in_parallel;
-    battery_model->AverageTemperature = 25; // Default temperature for no apparent reason
 
     for (int i = 0; i < cell_count; i++)
     {
@@ -135,12 +134,12 @@ void BatteryModel_BindMemory(BatteryModel_HandleTypeDef *battery_model, CellMode
 
 }
 
-void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_voltages, float *cell_temperatures, float *total_current, uint16_t current_timestamp)
+void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_voltages, float *cell_temperatures, float total_current, uint16_t cycle_time)
 {
-    float dt = ((float)(current_timestamp)) / 1000.0f;
+    float dt = ((float)(cycle_time)) / 1000.0f;
 
     // If SOC hasnt been estimated yet, use OCV maps to estimate initial SOC
-    if (!battery_model->soc_estimated)
+    if (!battery_model->FirstEstimate)
     {
 
         for (int i = 0; i < battery_model->CellCount; i++)
@@ -151,7 +150,7 @@ void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_
                 return;
             }
             battery_model->Cells[i].MeasuredVoltage = cell_voltages[i];
-            battery_model->Cells[i].MeasuredCurrent = total_current[i] / battery_model->CellsInParallel;
+            battery_model->Cells[i].MeasuredCurrent = total_current / battery_model->CellsInParallel; // Divide the total current by the number of cells in parallel to get the current per cell
             battery_model->Cells[i].MeasuredTemperature = cell_temperatures[i];
 
             TempMap_HandleTypeDef *temp_map = NULL;
@@ -180,19 +179,19 @@ void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_
             }
         }
         battery_model->LastCycle = HAL_GetTick();
-        battery_model->soc_estimated = true;
+        battery_model->FirstEstimate = true;
         return;
     }
 
     for (int i = 0; i < battery_model->CellCount; i++)
     {
         battery_model->Cells[i].MeasuredVoltage = cell_voltages[i];
-        battery_model->Cells[i].MeasuredCurrent = *total_current / battery_model->CellsInParallel;
+        battery_model->Cells[i].MeasuredCurrent = total_current / battery_model->CellsInParallel; // Divide the total current by the number of cells in parallel to get the current per cell
         battery_model->Cells[i].MeasuredTemperature = cell_temperatures[i];
 
         // Only update the measured resistance if the current is above a certain threshold
         // TODO: Should think about doing this only after a certain amount of time
-        if (*total_current <= 5.0f)
+        if (total_current <= 5.0f)
         {
             battery_model->Cells[i].MeasuredRestingVoltage = cell_voltages[i];
         }

@@ -477,7 +477,12 @@ BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq)
     // If something goes wrong, uncomment this line, as it was removed in the belief that it was wrong (without testing)
     // uint8_t totalLen = 6 + hbq->NumOfCellsEach * hbq->NumOfSlaves * 2; // Totalt expected message length
     uint8_t totalLen = 6 + hbq->NumOfCellsEach * 2; // Totalt expected message length
-    // Cleanup
+    
+    // Reset min, max and total voltages
+    hbq->TotalVoltage = 0.0f; // Reset the total voltage
+    hbq->HighestCellVoltage = 0.0f; // Reset the highest cell voltage
+    hbq->LowestCellVoltage = 0.0f; // Reset the lowest cell voltage
+
     for (uint8_t i = 0; i < hbq->NumOfSlaves; i++)
     { // Base board will not be part of the cell voltages
 
@@ -489,7 +494,18 @@ BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq)
         for (uint8_t y = 0; y < len; y += 2)
         {
             uint16_t rawAdc = (((uint16_t)hbq->BQOutputBuffer[i * totalLen + 4 + y]) << 8) | ((uint16_t)hbq->BQOutputBuffer[i * totalLen + 5 + y]);
-            hbq->CellVoltages[hbq->NumOfCellsEach * i + y / 2] = (float)((float)rawAdc * 0.00019073); // in mV
+            float measuredVoltage = (float)((float)rawAdc * 0.00019073); // Convert the raw ADC value to voltage, assuming a reference voltage of 5V and a gain of 190.73
+            hbq->TotalVoltage += measuredVoltage; // Add the voltage to the total voltage
+            if(hbq->HighestCellVoltage < measuredVoltage)
+            {
+                hbq->HighestCellVoltage = measuredVoltage; // Update the highest cell voltage
+            }
+            if(hbq->LowestCellVoltage > measuredVoltage || hbq->LowestCellVoltage == 0.0f)
+            {
+                hbq->LowestCellVoltage = measuredVoltage; // Update the lowest cell voltage
+            }
+
+            hbq->CellVoltages[hbq->NumOfCellsEach * i + y / 2] = measuredVoltage; // in mV
         }
     }
     return status;
@@ -506,10 +522,8 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
 
         if (status != BQ_STATUS_OK)
         {
-
             return status;
         }
-        hbq->MultiplexToggle = !hbq->MultiplexToggle;                                  // Toggle the multiplex state
         status = BQ_SetGPIOAll(hbq, hbq->TempMultiplexPinIndex, hbq->MultiplexToggle); // Set GPIO8 to low
     }
     else
@@ -534,6 +548,13 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
 
     int offset = hbq->NumOfTempsEach * 2; // Offset for the raw cell temperatures, depending on the multiplex state
 
+    // Reset the highest and lowest cell temperatures every second cycle, if we are multiplexing
+    if(hbq->MultiplexToggle || !hbq->TempMultiplexEnabled)
+    {
+        hbq->HighestCellTemperature = 0.0f; // Reset the highest cell temperature
+        hbq->LowestCellTemperature = 0.0f;  // Reset the lowest cell temperature
+    }
+
     for (int i = 0; i < hbq->NumOfSlaves; i++)
     {
         // Convert the raw ADC values to temperatures in place
@@ -556,10 +577,25 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
             float rntc = 10000.0f / ((tsRefVoltage / gpioVoltage) - 1); // Calculate the NTC resistance, assuming R1 = 10k and R2 = 10000R
 
             // Convert the Rntc to temperature using the beta formula
-            hbq->CellTemperatures[i * hbq->NumOfTempsEach * 2 + (2*y) + !hbq->MultiplexToggle] = K_TO_C(1 / ((1 / C_TO_K(25.0)) + (1 / beta) * logf(rntc / 10000.0f))); // Convert the temperature to Kelvin, assuming a beta value of 25C and a reference resistance of 10k
+            float measuredTemperature = K_TO_C(1 / ((1 / C_TO_K(25.0)) + (1 / beta) * logf(rntc / 10000.0f)));; // Convert the temperature to Kelvin, assuming a beta value of 25C and a reference resistance of 10k
+
+            if (hbq->HighestCellTemperature < measuredTemperature)
+            {
+                hbq->HighestCellTemperature = measuredTemperature; // Update the highest cell temperature
+            }
+            
+            if (hbq->LowestCellTemperature > measuredTemperature || hbq->LowestCellTemperature == 0.0f)
+            {
+                hbq->LowestCellTemperature = measuredTemperature; // Update the lowest cell temperature
+            }
+            
+            hbq->CellTemperatures[i * hbq->NumOfTempsEach * 2 + (2*y) + !hbq->MultiplexToggle] = measuredTemperature; // Convert the temperature to Kelvin, assuming a beta value of 25C and a reference resistance of 10k
         }
     }
 
+
+
+    hbq->MultiplexToggle = !hbq->MultiplexToggle;                                  // Toggle the multiplex state
     return status;
 }
 

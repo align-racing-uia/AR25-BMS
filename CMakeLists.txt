@@ -50,10 +50,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/w25q/Library/w25q_mem.c
     ${CMAKE_SOURCE_DIR}/Core/Src/battery_model.c
     ${CMAKE_SOURCE_DIR}/Core/Src/bms_config.c
-    ${CMAKE_SOURCE_DIR}/Core/Src/secondary_mcu.c
     ${CMAKE_SOURCE_DIR}/Core/Src/pid.c
     ${CMAKE_SOURCE_DIR}/Core/Src/bms.c
-    ${CMAKE_SOURCE_DIR}/Core/Src/broadcasts.c
 )
 
 # Add include paths

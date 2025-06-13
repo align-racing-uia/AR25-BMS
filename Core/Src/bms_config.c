@@ -32,8 +32,7 @@ void BMS_Config_Init(BMS_Config_HandleTypeDef *bms_config)
     bms_config->CellTemperatureLimitLow = DEFAULT_CELLTEMPERATURE_LIMIT_LOW;   // -40C
     bms_config->CellTemperatureLimitHigh = DEFAULT_CELLTEMPERATURE_LIMIT_HIGH; // 85C
     bms_config->CanNodeID = DEFAULT_CAN_NODE_ID;
-    bms_config->CanVoltageNodeID = DEFAULT_CAN_CELLVOLTAGE_NODE_ID;
-    bms_config->CanTemperatureNodeID = DEFAULT_CAN_CELLTEMPERATURE_NODE_ID;
+    bms_config->CanConfigNodeID = DEFAULT_CAN_CONFIG_NODE_ID;
     bms_config->CanBaudrate = DEFAULT_CAN_BAUDRATE;
     bms_config->CanExtended = DEFAULT_CAN_EXTENDED; // Should the CAN ID be extended or not
     bms_config->UsbLoggingEnabled = DEFAULT_USB_LOGGING_ENABLED;
@@ -150,6 +149,7 @@ BMS_Config_StatusTypeDef BMS_Config_UpdateFromFlash(BMS_Config_HandleTypeDef *bm
 
     return BMS_CONFIG_OK;
 }
-BMS_Config_StatusTypeDef BMS_Config_HandleCanMessage(BMS_Config_HandleTypeDef *bms_config, uint16_t packet_id, uint8_t *data)
+BMS_Config_StatusTypeDef BMS_Config_HandleCanMessage(BMS_Config_HandleTypeDef *bms_config, uint16_t packet_id, uint8_t *can_data)
 {
+    
 }

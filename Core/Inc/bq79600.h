@@ -103,6 +103,10 @@ typedef struct
 
     float HighestCellTemperature;
     float LowestCellTemperature;
+    float HighestCellVoltage;
+    float LowestCellVoltage;
+    float TotalVoltage;
+
     float *CellVoltages;
     float *CellTemperatures;
     uint8_t *RawCellTemperatures; // This is the raw cell temperatures read from the BQ79600

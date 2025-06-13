@@ -37,13 +37,8 @@ typedef struct {
 
 
 typedef struct {
-    bool  soc_estimated; // If the first SOC estimation is done
-    float AverageTemperature;
+    bool  FirstEstimate; // If the first SOC estimation is done
     float EstimatedSOC;
-    float PackVoltage;
-    float PackCurrent; 
-    float AverageCellVoltage; // Average cell voltage in the pack
-    float AverageCellTemperature; // Average cell temperature in the pack
     uint16_t CellCount;
     uint16_t CellsInSeries;
     uint16_t CellsInParallel;
@@ -65,6 +60,6 @@ typedef struct {
 void BatteryModel_Configure(BatteryModel_HandleTypeDef *battery_model, uint16_t cell_count, uint16_t cells_in_series, uint16_t cells_in_parallel, uint16_t nominal_cell_capacity);
 void BatteryModel_BindMemory(BatteryModel_HandleTypeDef *battery_model, CellModel_HandleTypeDef* cell_memory_pool);
 void BatteryModel_LoadOCVMap(BatteryModel_HandleTypeDef *battery_model, float* voltage_points, uint8_t temp, uint8_t map_index, uint16_t num_of_voltage_points);
-void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_voltages, float *cell_temperatures, float *total_current, uint16_t current_timestamp);
+void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_voltages, float *cell_temperatures, float total_current, uint16_t current_timestamp);
 
 #endif // BATTERY_MODEL_H

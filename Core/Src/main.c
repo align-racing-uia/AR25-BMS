@@ -38,13 +38,11 @@
 #include "w25q_mem.h"
 #include "string.h"
 #include "battery_model.h"
-#include "secondary_mcu.h"
 #include "alignevents.h"
 #include "pid.h"
 #include "iwdg.h"
 #include "faults.h"
 #include "bms.h"
-#include "broadcasts.h"
 
 /* USER CODE END Includes */
 
@@ -86,9 +84,6 @@ float high_current_sensor;
 
 uint32_t pwm_ch3_memory = 0;
 uint32_t pwm_ch4_memory = 0;
-
-SecondaryMCU_ResponseTypeDef secondary_response[2] = {0}; // The response from the secondary MCU
-SecondaryMCU_TransmitTypeDef secondary_transmit = {0};    // The data to send to the secondary MCU
 
 // Create memory pools for the battery models
 // This is done here to make it transparent to the user
@@ -209,7 +204,8 @@ int main(void)
       .HighCurrentSensorPin = {High_Current_Sensor_GPIO_Port, High_Current_Sensor_Pin}, // Set the high current sensor pin
       .MinusAIR = {Minus_GPIO_Port, Minus_Pin},                                         // Set the minus AIR pin
       .PlusAIR = {Plus_GPIO_Port, Plus_Pin},                                            // Set the plus AIR pin
-      .PrechargeAIR = {Precharge_GPIO_Port, Precharge_Pin}                              // Set the precharge AIR pin
+      .PrechargeAIR = {Precharge_GPIO_Port, Precharge_Pin},                              // Set the precharge AIR pin¨
+      .SdcPin = {SDC_GPIO_Port, SDC_Pin} // Set the SDC closed pin
   };
 
   BMS_BindMemory(&hbms, &hbm, &hbq);     // Initialize the TS state machine
@@ -265,12 +261,14 @@ int main(void)
     // Alive sig ping-pong with the secondary MCU
     if ((alive_sig_timestamp + 100) <= HAL_GetTick())
     {
-      // Every 100 ms, toggle the watchdog pin to indicate that the BMS is alive
+      // Feed the external watchdog
+      // Note: This cannot be disabled, as it is an external component
       HAL_GPIO_TogglePin(Ext_WD_Sig_GPIO_Port, Ext_WD_Sig_Pin); // Toggle the alive signal pin
       alive_sig_timestamp = HAL_GetTick();
     }
     // Cycle time filter, pretty agressive, as we want it to spike up when the system is under load
     avg_cycle_time = 0.6 * avg_cycle_time + 0.4 * (HAL_GetTick() - cycle_time_start); // Calculate the cycle time
+
 
 #if defined(WATCHDOG_ENABLE)
                                                                                       // Refresh the watchdog timer
