@@ -258,12 +258,12 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
 void CheckForFaults(BMS_HandleTypeDef *hbms)
 {
 
-    if (*hbms->HighestCellTemperature > 60.0f || ((*hbms->LowestCellTemperature < -20.0f) && (*hbms->LowestCellTemperature > -50.0f)))
+    if (*hbms->HighestCellTemperature > 60.0f || ((*hbms->LowestCellTemperature < -20.0f) && (*hbms->LowestCellTemperature > -30.0f)))
     {
         SET_BIT(hbms->ActiveFaults, BMS_FAULT_CRITICAL_TEMPERATURE); // Set the temperature fault
     }
 
-    if (*hbms->LowestCellTemperature <= -50.0f)
+    if (*hbms->LowestCellTemperature <= -30.0f)
     {
         SET_BIT(hbms->ActiveFaults, BMS_FAULT_LOST_TEMPERATURE_SENSOR); // Set the temperature warning
     }
