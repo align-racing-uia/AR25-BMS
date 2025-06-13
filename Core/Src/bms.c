@@ -417,6 +417,17 @@ void ListenForCanMessages(BMS_HandleTypeDef *hbms)
                         break;
                     }
                 }
+
+                // Dashboard Node ID
+                if(node_id == 18){
+                    switch(packet_id)
+                    {
+                        case 0x1:
+                            hbms->TsRequested = hbms->TsRequested || (((rx_data[0] & 0x02) > 0) && hbms->SdcClosed); // Set the TS requested flag based on the first byte of the received data
+                            break;
+                    }
+                }
+
                 if (node_id == hbms->Config.CanConfigNodeID)
                 {
                     // This is the BMS Config node ID, and its not sent by the BMS itself

@@ -91,7 +91,6 @@ typedef struct
 
     // Paramterers relevant for the BMS fetched over CAN
     uint16_t InverterVoltage; // Inverter voltage in V x 10
-    uint16_t InverterCurrent; // Inverter current in A x 10
 
 
     uint16_t DcLimit; // Discharge current limit in A x 10
