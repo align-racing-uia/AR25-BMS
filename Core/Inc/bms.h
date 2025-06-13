@@ -56,7 +56,8 @@ typedef struct
 
     BMS_StateTypeDef State;      // The state of the BMS
     BMS_TS_StateTypeDef TSState; // The state of the TS
-    BMS_FaultFlags ActiveFaults; // Active faults bitmask
+    uint8_t ActiveFaults; // Active faults bitmask
+    uint8_t ActiveWarnings; // Active warnings bitmask
 
     BMS_PinTypeDef FaultPin;             // Pin for the fault indicator
     BMS_PinTypeDef LowCurrentSensorPin;  // Pin for the low current sensor
@@ -93,6 +94,11 @@ typedef struct
     uint16_t InverterVoltage; // Inverter voltage in V x 10
 
 
+    // Toggles for broadcasts
+    bool BroadcastVoltages; // Flag to indicate if the voltages should be broadcasted
+    bool BroadcastTemperatures; // Flag to indicate if the temperatures should be broadcasted
+
+
     uint16_t DcLimit; // Discharge current limit in A x 10
     uint16_t CcLimit; // Charge current limit in A x 10
     
@@ -102,6 +108,7 @@ typedef struct
     bool BqConnected;    // BQ connected flag
 
     uint32_t LastMeasurementTimestamp;
+    uint32_t BroadcastTimestamp; // Timestamp for the last broadcast
 
     bool Initialized; // Initialized flag, true if the BMS is initialized
 

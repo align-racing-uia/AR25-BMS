@@ -14,11 +14,13 @@ bool LoadConfiguration(BMS_HandleTypeDef *hbms);
 void CheckForFaults(BMS_HandleTypeDef *hbms);
 void ListenForCanMessages(BMS_HandleTypeDef *hbms);
 void BroadcastBMSState(BMS_HandleTypeDef *hbms);
+void BroadcastBMSVoltages(BMS_HandleTypeDef *hbms);
+void BroadcastBMSTemperatures(BMS_HandleTypeDef *hbms);
+
 
 // Private variable defines
 uint8_t voltage_cycle = 0; // This is used to cycle the voltage broadcast, so that it does not flood the bus
 uint8_t temp_cycle = 0;    // This is used to cycle the temperature broadcast, so that it does not flood the bus
-
 
 // Public Function implementations
 
@@ -75,6 +77,8 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
     hbms->BqConnected = false; // Initialize the BQ connected flag to false
 
     hbms->PackVoltage = &hbms->BQ->TotalVoltage; // Bind the pack voltage pointer
+    hbms->DcLimit = 1200;
+    hbms->CcLimit = 100;
 
     hbms->HighestCellTemperature = &hbms->BQ->HighestCellTemperature; // Bind the highest cell temperature pointer
     hbms->LowestCellTemperature = &hbms->BQ->LowestCellTemperature;   // Bind the lowest cell temperature pointer
@@ -140,6 +144,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         else
         {
             // If the BQ is not connected, set the state to fault
+            SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ_NOT_CONNECTED); // Set the BQ not connected fault
             hbms->State = BMS_STATE_FAULT;
         }
         break;
@@ -198,7 +203,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
 
             break;
         case TS_STATE_ACTIVE:
-            if (!(hbms->TsRequested || hbms->ChargerPresent) || !hbms->SdcClosed)
+            if (!(hbms->TsRequested || hbms->ChargerPresent) || !hbms->SdcClosed || hbms->ActiveWarnings)
             {
                 // If the TS is not requested or the SDC is not closed, we need to move to the idle state
                 HAL_GPIO_WritePin(hbms->PlusAIR.Port, hbms->PlusAIR.Pin, GPIO_PIN_RESET);           // Set the plus AIR pin low, to indicate no TS active
@@ -215,7 +220,9 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     case BMS_STATE_FAULT:
 
         // Send the BMS fault signal
-        HAL_GPIO_WritePin(hbms->FaultPin.Port, hbms->FaultPin.Pin, GPIO_PIN_RESET);         // Set the fault pin low, to indicate a fault in the BMS
+        HAL_GPIO_WritePin(hbms->FaultPin.Port, hbms->FaultPin.Pin, GPIO_PIN_RESET); // Set the fault pin low, to indicate a fault in the BMS
+
+        // Make properly sure that no relays are set (although the SDC should do the same)
         HAL_GPIO_WritePin(hbms->PlusAIR.Port, hbms->PlusAIR.Pin, GPIO_PIN_RESET);           // Set the plus AIR pin low, to indicate no TS active
         HAL_GPIO_WritePin(hbms->MinusAIR.Port, hbms->MinusAIR.Pin, GPIO_PIN_RESET);         // Set the minus AIR pin low, to indicate no TS active
         HAL_GPIO_WritePin(hbms->PrechargeAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_RESET); // Set the precharge AIR pin low, to indicate no TS active
@@ -227,7 +234,23 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     }
 
     // Things that need to happen regardless of the state
-    BroadcastBMSState(hbms); // Broadcast the BMS state to the CAN bus
+    if (hbms->BroadcastTimestamp + 100 <= HAL_GetTick())
+    {
+        // If the broadcast timestamp is older than 100ms, we need to broadcast the BMS state
+        hbms->BroadcastTimestamp = HAL_GetTick(); // Update the broadcast timestamp
+
+        BroadcastBMSState(hbms);                  // Broadcast the BMS state to the CAN bus
+
+        if (hbms->BroadcastVoltages)
+        {
+            BroadcastBMSVoltages(hbms);
+        }
+
+        if (hbms->BroadcastTemperatures)
+        {
+            BroadcastBMSTemperatures(hbms);
+        }
+    }
 }
 
 // Function to monitor and update fault flags
@@ -235,51 +258,60 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
 void CheckForFaults(BMS_HandleTypeDef *hbms)
 {
 
-    if (hbms == NULL)
+    if (*hbms->HighestCellTemperature > 60.0f || ((*hbms->LowestCellTemperature < -20.0f) && (*hbms->LowestCellTemperature > -50.0f)))
     {
-        // If this occurs, you have done something very wrong
-        Error_Handler();
+        SET_BIT(hbms->ActiveFaults, BMS_FAULT_CRITICAL_TEMPERATURE); // Set the temperature fault
     }
 
-    if (hbms->CanTimestamp + 1000 < HAL_GetTick())
+    if (*hbms->LowestCellTemperature <= -50.0f)
     {
-        SET_BIT(hbms->ActiveFaults, BMS_WARNING_CAN); // Set the CAN timeout fault
-        // Charger cannot be present if the CAN is not working
-        hbms->ChargerPresent = false; // Clear the charger present flag
-    }
-    else
-    {
-        CLEAR_BIT(hbms->ActiveFaults, BMS_WARNING_CAN); // Clear the CAN timeout fault
+        SET_BIT(hbms->ActiveFaults, BMS_FAULT_LOST_TEMPERATURE_SENSOR); // Set the temperature warning
     }
 
-    if (*hbms->HighestCellTemperature > 59.0f || *hbms->LowestCellTemperature < -20.0f)
-    {
-        SET_BIT(hbms->ActiveFaults, BMS_FAULT_TEMP); // Set the temperature fault
-        hbms->State = BMS_STATE_FAULT;               // If the highest cell temperature is above 59C or the lowest cell temperature is below -20C, set the state to fault
-    }
-
-    if (*hbms->LowestCellVoltage < 2800.0f || *hbms->HighestCellVoltage > 4150.00f)
+    if (*hbms->LowestCellVoltage < 2500.0f || *hbms->HighestCellVoltage > 4200.00f)
     {
         // Currently no bit is set to indicate voltage faults, so we use the BMS_FAULT_BQ bit
-        SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ); // Set the voltage fault
-        hbms->State = BMS_STATE_FAULT;             // If the lowest cell voltage is below 2.5V or the highest cell voltage is above 4.5V, set the state to fault
+        SET_BIT(hbms->ActiveFaults, BMS_FAULT_CRITICAL_VOLTAGE); // Set the voltage fault
     }
 
     // Set the relevant flags based on the faults
-    if (hbms->ActiveFaults & BMS_FAULT_MASK)
+    if (hbms->ActiveFaults > 0)
     {
         // If there are any faults, set the state to fault
         hbms->State = BMS_STATE_FAULT;
     }
+}
 
-    if (hbms->ActiveFaults & BMS_WARNING_MASK)
+void CheckForWarnings(BMS_HandleTypeDef *hbms)
+{
+    // This function is currently not used, but can be used to check for warnings
+    // and set the ActiveWarnings bitmask accordingly.
+    // For now, we will just clear the ActiveWarnings bitmask.
+    hbms->ActiveWarnings = 0; // Clear the active warnings
+
+    if (hbms->CanTimestamp + 1000 < HAL_GetTick())
     {
-        hbms->WarningPresent = true; // Set the warning present flag
+        SET_BIT(hbms->ActiveWarnings, BMS_WARNING_CAN); // Set the CAN timeout fault
+        // Charger cannot be present if the CAN is not working
+        hbms->ChargerPresent = false; // Clear the charger present flag
     }
-    else
+
+    if (*hbms->LowestCellVoltage <= 2800.0f)
     {
-        hbms->WarningPresent = false; // Clear the warning present flag
+        SET_BIT(hbms->ActiveWarnings, BMS_WARNING_UNDERVOLTAGE); // Set the low cell voltage warning
     }
+
+    if (*hbms->HighestCellTemperature > 59.0f)
+    {
+        SET_BIT(hbms->ActiveWarnings, BMS_WARNING_OVERTEMPERATURE); // Set the high temperature warning
+    }
+
+    if (hbms->MeasuredCurrent > 120.0f)
+    {
+        SET_BIT(hbms->ActiveWarnings, BMS_WARNING_OVERCURRENT); // Set the high current warning
+    }
+
+    hbms->ActiveWarnings = hbms->WarningPresent = true; // Set the warning present flag
 }
 
 // Private Function implementations
@@ -304,7 +336,6 @@ bool Connect(BMS_HandleTypeDef *hbms)
     {
         // If the BQ is not connected, return false
         // This will set the state to fault in the main loop
-        SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ); // Set the BQ fault flag
         return false;
     }
 
@@ -314,7 +345,6 @@ bool Connect(BMS_HandleTypeDef *hbms)
     {
         // If the auto addressing fails, return false
         // This will set the state to fault in the main loop
-        SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ); // Set the BQ fault flag
         return false;
     }
 
@@ -323,7 +353,6 @@ bool Connect(BMS_HandleTypeDef *hbms)
     {
         // If the GPIO configuration fails, return false
         // This will set the state to fault in the main loop
-        SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ); // Set the BQ fault flag
         return false;
     }
 
@@ -375,11 +404,6 @@ bool LoadConfiguration(BMS_HandleTypeDef *hbms)
 
     // Apply values to the BQ
     BQ_Init(hbms->BQ); // Initialize the BQ
-
-    if (!hbms->EepromPresent)
-    {
-        SET_BIT(hbms->ActiveFaults, BMS_NOTE_EEPROM); // Set the EEPROM fault flag
-    }
 
     return true;
 }
@@ -435,6 +459,17 @@ void ListenForCanMessages(BMS_HandleTypeDef *hbms)
                     }
                 }
 
+                if (node_id == hbms->Config.CanNodeID)
+                {
+                    switch (packet_id)
+                    {
+                    case 0x20:
+                        hbms->BroadcastVoltages = (rx_data[0] & 0x01) > 0;     // Set the broadcast voltages flag based on the first byte of the received data
+                        hbms->BroadcastTemperatures = (rx_data[0] & 0x02) > 0; // Set the broadcast temperatures flag based on the first byte of the received data
+                        break;
+                    }
+                }
+
                 if (node_id == hbms->Config.CanConfigNodeID)
                 {
                     // This is the BMS Config node ID, and its not sent by the BMS itself
@@ -464,39 +499,73 @@ void BroadcastBMSState(BMS_HandleTypeDef *hbms)
 
     Align_CAN_Send(hbms->FDCAN, Align_CombineCanId(0x1, hbms->Config.CanNodeID, hbms->Config.CanExtended), data, 7, hbms->Config.CanExtended); // Send the broadcast packet
 
-    data[0] = (uint8_t)hbms->ActiveFaults; // Set the first byte to the BMS state
-    data[1] = (uint8_t)hbms->SdcClosed;    // Set the second byte to the BMS state
+    data[0] = (uint8_t)hbms->ActiveFaults;   // Set the first byte to the BMS state
+    data[1] = (uint8_t)hbms->ActiveWarnings; // Set the second byte to the BMS state
+    data[2] = (uint8_t)hbms->State;          // Set the third byte to the BMS state
+    data[3] = (uint8_t)hbms->SdcClosed;      // Set the fourth byte to the BMS state
 
-    Align_CAN_Send(hbms->FDCAN, Align_CombineCanId(0x2, hbms->Config.CanNodeID, hbms->Config.CanExtended), data, 2, hbms->Config.CanExtended); // Send the broadcast packet
+    Align_CAN_Send(hbms->FDCAN, Align_CombineCanId(0x2, hbms->Config.CanNodeID, hbms->Config.CanExtended), data, 4, hbms->Config.CanExtended); // Send the broadcast packet
 }
 
-void BroadcastVoltages(BMS_HandleTypeDef *hbms)
+void BroadcastBMSVoltages(BMS_HandleTypeDef *hbms)
 {
     // This function transmits the cell voltages over the CAN network
 
     uint8_t data[8] = {0}; // Dummy data for the broadcast packet
 
     uint8_t total_cycles = hbms->Config.CellCount / 3 + (hbms->Config.CellCount % 3 > 0); // Calculate the total number of cycles needed to send all cell voltages
-    data[0] = voltage_cycle; // Set the first byte to the current cycle index
-    data[1] = total_cycles; // Set the second byte to the total number of cycles
+    data[0] = voltage_cycle;                                                              // Set the first byte to the current cycle index
+    data[1] = total_cycles;                                                               // Set the second byte to the total number of cycles
 
-    for(size_t i = 0; i < 3; i++)
+    for (size_t i = 0; i < 3; i++)
     {
         if (voltage_cycle * 3 + i < hbms->Config.CellCount)
-        {   
+        {
             uint16_t low_res_voltage = (uint16_t)(hbms->BQ->CellVoltages[voltage_cycle * 3 + i]); // Convert the cell voltage to mV and store it in a low resolution format
             // If the current cycle index is within the range of cell voltages
-            data[i*2 + 2] = (uint8_t)(low_res_voltage >> 8); // Set the cell voltage in mV
-            data[i*2 + 3] = (uint8_t)(low_res_voltage); // Set the cell voltage in mV
+            data[i * 2 + 2] = (uint8_t)(low_res_voltage >> 8); // Set the cell voltage in mV
+            data[i * 2 + 3] = (uint8_t)(low_res_voltage);      // Set the cell voltage in mV
         }
         else
         {
-            data[i*2 + 2] = 0; // If the current cycle index is out of range, set the cell voltage to 0
-            data[i*2 + 3] = 0; // If the current cycle index is out of range, set the cell voltage to 0
+            data[i * 2 + 2] = 0; // If the current cycle index is out of range, set the cell voltage to 0
+            data[i * 2 + 3] = 0; // If the current cycle index is out of range, set the cell voltage to 0
         }
     }
-    
+
     Align_CAN_Send(hbms->FDCAN, Align_CombineCanId(0x63, hbms->Config.CanNodeID, hbms->Config.CanExtended), data, 8, hbms->Config.CanExtended); // Send the broadcast packet
     voltage_cycle++;
     voltage_cycle = voltage_cycle % total_cycles; // Calculate the current cycle index
+}
+
+void BroadcastBMSTemperatures(BMS_HandleTypeDef *hbms)
+{
+    // This function transmits the cell temperatures over the CAN network
+
+    uint8_t data[8] = {0}; // Dummy data for the broadcast packet
+
+    // TODO: Toggle this based on if Multiplexing is enabled or not
+    uint8_t total_cycles = (hbms->Config.NumOfSlaves * hbms->Config.TempsEach * (2)) / 3 + ((hbms->Config.NumOfSlaves * hbms->Config.TempsEach * (2)) % 3 > 0); // Calculate the total number of cycles needed to send all cell temperatures
+    data[0] = temp_cycle;                                                                                                                                       // Set the first byte to the current cycle index
+    data[1] = total_cycles;                                                                                                                                     // Set the second byte to the total number of cycles
+
+    for (size_t i = 0; i < 3; i++)
+    {
+        if (temp_cycle * 3 + i < hbms->Config.CellCount)
+        {
+            uint16_t low_res_temperature = (uint16_t)(hbms->BQ->CellTemperatures[temp_cycle * 3 + i] * 10); // Convert the cell temperature to C and store it in a low resolution format
+            // If the current cycle index is within the range of cell temperatures
+            data[i * 2 + 2] = (uint8_t)(low_res_temperature >> 8); // Set the cell temperature in C
+            data[i * 2 + 3] = (uint8_t)(low_res_temperature);      // Set the cell temperature in C
+        }
+        else
+        {
+            data[i * 2 + 2] = 0; // If the current cycle index is out of range, set the cell temperature to 0
+            data[i * 2 + 3] = 0; // If the current cycle index is out of range, set the cell temperature to 0
+        }
+    }
+
+    Align_CAN_Send(hbms->FDCAN, Align_CombineCanId(0x62, hbms->Config.CanNodeID, hbms->Config.CanExtended), data, 8, hbms->Config.CanExtended); // Send the broadcast packet
+    temp_cycle++;
+    temp_cycle = temp_cycle % total_cycles; // Calculate the current cycle index
 }

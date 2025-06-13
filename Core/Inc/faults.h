@@ -3,22 +3,26 @@
 
 #include "stdint.h"
 
+// Faults will stop the BMS from running normally, and will require a power cycle (and repairs) to reset
 typedef enum
 {
-  BMS_OK = 0,
-  BMS_FAULT_BQ = (1 << 0),                // These are considered fatal errors, and the system will not run
-  BMS_FAULT_TEMP = (1 << 1),               // These are considered fatal errors, and the system will not run
-  BMS_WARNING_OVERCURRENT = (1 << 2),     // This will make the BMS stop the car
-  BMS_WARNING_UNDERVOLTAGE = (1 << 3),    // This will make the BMS stop the car
-  BMS_WARNING_OVERTEMPERATURE = (1 << 4), // This will make the BMS stop the car
-  BMS_WARNING_INT_COMM = (1 << 5),        // This will make the BMS stop the car
-  BMS_WARNING_CAN = (1 << 6),             // CAN is not present or not working, This will make the BMS stop the car
-  BMS_NOTE_EEPROM = (1 << 7),             // EEPROM is not present or not working, but the system is using a config from RAM, and operating normally
+  BMS_FAULT_NONE = 0,
+  BMS_FAULT_BQ_NOT_CONNECTED = (1 << 0),                // These are considered fatal errors, and the system will not run
+  BMS_FAULT_CRITICAL_TEMPERATURE = (1 << 1),               // These are considered fatal errors, and the system will not run
+  BMS_FAULT_LOST_TEMPERATURE_SENSOR = (1 << 2),               // These are considered fatal errors, and the system will not run
+  BMS_FAULT_CRITICAL_VOLTAGE = (1 << 3),               // These are considered fatal errors, and the system will not run
 } BMS_FaultTypeDef;
 
-#define BMS_FAULT_MASK ((BMS_FaultFlags)(BMS_FAULT_BQ | BMS_FAULT_TEMP))
-#define BMS_WARNING_MASK ((BMS_FaultFlags) (BMS_WARNING_CAN | BMS_WARNING_OVERCURRENT | BMS_WARNING_UNDERVOLTAGE | BMS_WARNING_OVERTEMPERATURE | BMS_WARNING_INT_COMM))
+// Warnings will stop the Tractive System from running, but will not stop the BMS from running
+typedef enum
+{
+  BMS_WARNING_NONE = 0,
+  BMS_WARNING_OVERCURRENT = (1 << 0),    
+  BMS_WARNING_UNDERVOLTAGE = (1 << 1),   
+  BMS_WARNING_OVERTEMPERATURE = (1 << 2),
+  BMS_WARNING_CAN = (1 << 3),
+  BMS_WARNING_NO_EEPROM = (1 << 4), 
+} BMS_WarningTypeDef;
 
-typedef uint8_t BMS_FaultFlags; // This is a bitwise select of the faults and warnings
 
 #endif // FAULTS_H
