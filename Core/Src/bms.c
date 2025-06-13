@@ -97,22 +97,25 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
 
     hbms->SdcClosed = HAL_GPIO_ReadPin(hbms->SdcPin.Port, hbms->SdcPin.Pin) == GPIO_PIN_SET; // Read the SdcClosed pin to see if the SDC is closed
 
-    if (hbms->VoltageTimestamp + 5 < HAL_GetTick())
-    {
-        // If the voltage timestamp is older than 5ms, we need to update the cell voltages
-        BQ_GetCellVoltages(hbms->BQ);           // Get the cell voltages from the BQ
-        hbms->VoltageTimestamp = HAL_GetTick(); // Update the voltage timestamp
-    }
+    if (hbms->BqConnected){
 
-    if (hbms->TempTimestamp + 100 < HAL_GetTick())
-    {
-        BQ_GetCellTemperatures(hbms->BQ, 4300.0); // Get the cell temperatures from the BQ
-        hbms->TempTimestamp = HAL_GetTick();      // Update the temperature timestamp
+        if (hbms->VoltageTimestamp + 5 < HAL_GetTick())
+        {
+            // If the voltage timestamp is older than 5ms, we need to update the cell voltages
+            BQ_GetCellVoltages(hbms->BQ);           // Get the cell voltages from the BQ
+            hbms->VoltageTimestamp = HAL_GetTick(); // Update the voltage timestamp
+        }
+
+        if (hbms->TempTimestamp + 100 < HAL_GetTick())
+        {
+            BQ_GetCellTemperatures(hbms->BQ, 4300.0); // Get the cell temperatures from the BQ
+            hbms->TempTimestamp = HAL_GetTick();      // Update the temperature timestamp
+        }
     }
 
     uint16_t cycle_time = HAL_GetTick() - hbms->LastMeasurementTimestamp; // Calculate the cycle time
     hbms->LastMeasurementTimestamp = HAL_GetTick();                       // Update the last measurement timestamp
-    BatteryModel_Update(hbms->BatteryModel, hbms->BQ->CellVoltages, hbms->BQ->CellTemperatures, hbms->MeasuredCurrent, cycle_time);
+    // BatteryModel_Update(hbms->BatteryModel, hbms->BQ->CellVoltages, hbms->BQ->CellTemperatures, hbms->MeasuredCurrent, cycle_time);
 
     switch (hbms->State)
     {
@@ -135,9 +138,27 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         if (Connect(hbms))
         {
             BQ_EnableCommTimeout(hbms->BQ); // Enable the BQ communication timeout
-            BQ_EnableTsRef(hbms->BQ);       // Enable the TS reference for the BQ
-            BQ_ConfigureMainADC(hbms->BQ);  // Configure the main ADC for the BQ
-            BQ_ActivateMainADC(hbms->BQ);   // Activate the main ADCs
+            BQ_StatusTypeDef status = BQ_EnableTsRef(hbms->BQ); // Enable the TS reference for the BQ
+            if (status != BQ_STATUS_OK)
+            {
+                // If enabling the TS reference fails, set the state to fault
+                SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ_NOT_CONNECTED); // Set the BQ TS reference error fault
+                hbms->State = BMS_STATE_FAULT;
+            }
+            status = BQ_ConfigureMainADC(hbms->BQ);  // Configure the main ADC for the BQ
+            if (status != BQ_STATUS_OK)
+            {
+                // If enabling the TS reference fails, set the state to fault
+                SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ_NOT_CONNECTED); // Set the BQ TS reference error fault
+                hbms->State = BMS_STATE_FAULT;
+            }
+            status = BQ_ActivateMainADC(hbms->BQ);   // Activate the main ADCs
+            if (status != BQ_STATUS_OK)
+            {
+                // If enabling the TS reference fails, set the state to fault
+                SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ_NOT_CONNECTED); // Set the BQ TS reference error fault
+                hbms->State = BMS_STATE_FAULT;
+            }
 
             hbms->State = BMS_STATE_IDLE; // Move to the idle state if the BQ is connected
         }
@@ -263,16 +284,16 @@ void CheckForFaults(BMS_HandleTypeDef *hbms)
         SET_BIT(hbms->ActiveFaults, BMS_FAULT_CRITICAL_TEMPERATURE); // Set the temperature fault
     }
 
-    if (*hbms->LowestCellTemperature <= -30.0f)
-    {
-        SET_BIT(hbms->ActiveFaults, BMS_FAULT_LOST_TEMPERATURE_SENSOR); // Set the temperature warning
-    }
+    // if (*hbms->LowestCellTemperature <= -30.0f)
+    // {
+    //     SET_BIT(hbms->ActiveFaults, BMS_FAULT_LOST_TEMPERATURE_SENSOR); // Set the temperature warning
+    // }
 
-    if (*hbms->LowestCellVoltage < 2500.0f || *hbms->HighestCellVoltage > 4200.00f)
-    {
-        // Currently no bit is set to indicate voltage faults, so we use the BMS_FAULT_BQ bit
-        SET_BIT(hbms->ActiveFaults, BMS_FAULT_CRITICAL_VOLTAGE); // Set the voltage fault
-    }
+    // if (*hbms->LowestCellVoltage < 2500.0f || *hbms->HighestCellVoltage > 4200.00f)
+    // {
+    //     // Currently no bit is set to indicate voltage faults, so we use the BMS_FAULT_BQ bit
+    //     SET_BIT(hbms->ActiveFaults, BMS_FAULT_CRITICAL_VOLTAGE); // Set the voltage fault
+    // }
 
     // Set the relevant flags based on the faults
     if (hbms->ActiveFaults > 0)

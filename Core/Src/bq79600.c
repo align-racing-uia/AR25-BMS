@@ -465,7 +465,6 @@ BQ_StatusTypeDef BQ_ConfigureGPIO(BQ_HandleTypeDef *hbq)
 // TODO: Convert to a uint8_t return type, to define different error states, which can be handled properly
 BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq)
 {
-
     BQ_StatusTypeDef status;
     status = BQ_Read(hbq, hbq->BQOutputBuffer, 0, BQ16_VCELL16_HI + (2 * (16 - hbq->NumOfCellsEach)), hbq->NumOfCellsEach * 2, BQ_STACK_READ); // 2 registers for each cell
 
@@ -493,8 +492,9 @@ BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq)
 
         for (uint8_t y = 0; y < len; y += 2)
         {
-            uint16_t rawAdc = (((uint16_t)hbq->BQOutputBuffer[i * totalLen + 4 + y]) << 8) | ((uint16_t)hbq->BQOutputBuffer[i * totalLen + 5 + y]);
-            float measuredVoltage = (float)((float)rawAdc * 0.00019073); // Convert the raw ADC value to voltage, assuming a reference voltage of 5V and a gain of 190.73
+            uint16_t rawAdc = ((uint16_t) hbq->BQOutputBuffer[i * totalLen + 4 + y]) << 8;
+            rawAdc |= ((uint16_t) hbq->BQOutputBuffer[i * totalLen + 5 + y]);
+            float measuredVoltage = (float)((float)rawAdc * 190.73) / 1000; // Convert the raw ADC value to millivolts
             hbq->TotalVoltage += measuredVoltage; // Add the voltage to the total voltage
             if(hbq->HighestCellVoltage < measuredVoltage)
             {

@@ -5,7 +5,7 @@
 #include "stddef.h"
 #include "stdbool.h"
 
-#define BMS_CONFIG_VERSION 2 // This number will automatically increment when the config changes
+#define BMS_CONFIG_VERSION 3 // This number will automatically increment when the config changes
 
 // These are absolute maxes for the battery model, not the actual values
 // The actual values are set in the battery model init function
