@@ -17,7 +17,6 @@ void BroadcastBMSState(BMS_HandleTypeDef *hbms);
 void BroadcastBMSVoltages(BMS_HandleTypeDef *hbms);
 void BroadcastBMSTemperatures(BMS_HandleTypeDef *hbms);
 
-
 // Private variable defines
 uint8_t voltage_cycle = 0; // This is used to cycle the voltage broadcast, so that it does not flood the bus
 uint8_t temp_cycle = 0;    // This is used to cycle the temperature broadcast, so that it does not flood the bus
@@ -72,11 +71,13 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
     hbms->ChargerTimestamp = HAL_GetTick(); // Initialize the charger timestamp to the current time
     hbms->TempTimestamp = HAL_GetTick();    // Initialize the temperature timestamp to the current time
     hbms->VoltageTimestamp = HAL_GetTick(); // Initialize the voltage timestamp to the current time
+    hbms->BroadcastTimestamp = HAL_GetTick(); // Initialize the broadcast timestamp to the current time
     hbms->ChargerPresent = false;           // Initialize the charger present flag to false
 
     hbms->BqConnected = false; // Initialize the BQ connected flag to false
 
     hbms->PackVoltage = &hbms->BQ->TotalVoltage; // Bind the pack voltage pointer
+    hbms->SOC = &hbms->BatteryModel->EstimatedSOC; // Bind the SOC pointer
     hbms->DcLimit = 1200;
     hbms->CcLimit = 100;
 
@@ -86,6 +87,8 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
     hbms->CellTemperatures = hbms->BQ->CellTemperatures;              // Bind the cell temperatures pointer
 
     hbms->Initialized = true; // Clear the initialized flag
+    hbms->BroadcastVoltages = false; // Clear the broadcast voltages flag
+    hbms->BroadcastTemperatures = false; // Clear the broadcast temperatures flag
 }
 
 void BMS_Update(BMS_HandleTypeDef *hbms)
@@ -97,7 +100,8 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
 
     hbms->SdcClosed = HAL_GPIO_ReadPin(hbms->SdcPin.Port, hbms->SdcPin.Pin) == GPIO_PIN_SET; // Read the SdcClosed pin to see if the SDC is closed
 
-    if (hbms->BqConnected){
+    if (hbms->BqConnected)
+    {
 
         if (hbms->VoltageTimestamp + 5 < HAL_GetTick())
         {
@@ -137,7 +141,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     { // Check if the BQ is connected
         if (Connect(hbms))
         {
-            BQ_EnableCommTimeout(hbms->BQ); // Enable the BQ communication timeout
+            BQ_EnableCommTimeout(hbms->BQ);                     // Enable the BQ communication timeout
             BQ_StatusTypeDef status = BQ_EnableTsRef(hbms->BQ); // Enable the TS reference for the BQ
             if (status != BQ_STATUS_OK)
             {
@@ -145,14 +149,14 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
                 SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ_NOT_CONNECTED); // Set the BQ TS reference error fault
                 hbms->State = BMS_STATE_FAULT;
             }
-            status = BQ_ConfigureMainADC(hbms->BQ);  // Configure the main ADC for the BQ
+            status = BQ_ConfigureMainADC(hbms->BQ); // Configure the main ADC for the BQ
             if (status != BQ_STATUS_OK)
             {
                 // If enabling the TS reference fails, set the state to fault
                 SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ_NOT_CONNECTED); // Set the BQ TS reference error fault
                 hbms->State = BMS_STATE_FAULT;
             }
-            status = BQ_ActivateMainADC(hbms->BQ);   // Activate the main ADCs
+            status = BQ_ActivateMainADC(hbms->BQ); // Activate the main ADCs
             if (status != BQ_STATUS_OK)
             {
                 // If enabling the TS reference fails, set the state to fault
@@ -260,7 +264,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         // If the broadcast timestamp is older than 100ms, we need to broadcast the BMS state
         hbms->BroadcastTimestamp = HAL_GetTick(); // Update the broadcast timestamp
 
-        BroadcastBMSState(hbms);                  // Broadcast the BMS state to the CAN bus
+        BroadcastBMSState(hbms); // Broadcast the BMS state to the CAN bus
 
         if (hbms->BroadcastVoltages)
         {
@@ -279,10 +283,12 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
 void CheckForFaults(BMS_HandleTypeDef *hbms)
 {
 
-    if (*hbms->HighestCellTemperature > 60.0f || ((*hbms->LowestCellTemperature < -20.0f) && (*hbms->LowestCellTemperature > -30.0f)))
-    {
-        SET_BIT(hbms->ActiveFaults, BMS_FAULT_CRITICAL_TEMPERATURE); // Set the temperature fault
-    }
+    // All checks dependant on the BQ being connected
+    if (hbms->BqConnected){
+    // if (*hbms->HighestCellTemperature > 60.0f || ((*hbms->LowestCellTemperature < -20.0f) && (*hbms->LowestCellTemperature > -30.0f)))
+    // {
+    //     SET_BIT(hbms->ActiveFaults, BMS_FAULT_CRITICAL_TEMPERATURE); // Set the temperature fault
+    // }
 
     // if (*hbms->LowestCellTemperature <= -30.0f)
     // {
@@ -294,6 +300,7 @@ void CheckForFaults(BMS_HandleTypeDef *hbms)
     //     // Currently no bit is set to indicate voltage faults, so we use the BMS_FAULT_BQ bit
     //     SET_BIT(hbms->ActiveFaults, BMS_FAULT_CRITICAL_VOLTAGE); // Set the voltage fault
     // }
+    }
 
     // Set the relevant flags based on the faults
     if (hbms->ActiveFaults > 0)
@@ -316,15 +323,18 @@ void CheckForWarnings(BMS_HandleTypeDef *hbms)
         // Charger cannot be present if the CAN is not working
         hbms->ChargerPresent = false; // Clear the charger present flag
     }
-
-    if (*hbms->LowestCellVoltage <= 2800.0f)
+    // All checks dependant on the BQ being connected
+    if (hbms->BqConnected)
     {
-        SET_BIT(hbms->ActiveWarnings, BMS_WARNING_UNDERVOLTAGE); // Set the low cell voltage warning
-    }
+        if (*hbms->LowestCellVoltage <= 2800.0f)
+        {
+            SET_BIT(hbms->ActiveWarnings, BMS_WARNING_UNDERVOLTAGE); // Set the low cell voltage warning
+        }
 
-    if (*hbms->HighestCellTemperature > 59.0f)
-    {
-        SET_BIT(hbms->ActiveWarnings, BMS_WARNING_OVERTEMPERATURE); // Set the high temperature warning
+        if (*hbms->HighestCellTemperature > 59.0f)
+        {
+            SET_BIT(hbms->ActiveWarnings, BMS_WARNING_OVERTEMPERATURE); // Set the high temperature warning
+        }
     }
 
     if (hbms->MeasuredCurrent > 120.0f)
@@ -332,7 +342,7 @@ void CheckForWarnings(BMS_HandleTypeDef *hbms)
         SET_BIT(hbms->ActiveWarnings, BMS_WARNING_OVERCURRENT); // Set the high current warning
     }
 
-    hbms->ActiveWarnings = hbms->WarningPresent = true; // Set the warning present flag
+    hbms->WarningPresent = hbms->ActiveWarnings > 0; // Set the warning present flag
 }
 
 // Private Function implementations
@@ -540,7 +550,7 @@ void BroadcastBMSVoltages(BMS_HandleTypeDef *hbms)
 
     for (size_t i = 0; i < 3; i++)
     {
-        if (voltage_cycle * 3 + i < hbms->Config.CellCount)
+        if ((voltage_cycle * 3 + i) < hbms->Config.CellCount)
         {
             uint16_t low_res_voltage = (uint16_t)(hbms->BQ->CellVoltages[voltage_cycle * 3 + i]); // Convert the cell voltage to mV and store it in a low resolution format
             // If the current cycle index is within the range of cell voltages
@@ -554,7 +564,7 @@ void BroadcastBMSVoltages(BMS_HandleTypeDef *hbms)
         }
     }
 
-    Align_CAN_Send(hbms->FDCAN, Align_CombineCanId(0x63, hbms->Config.CanNodeID, hbms->Config.CanExtended), data, 8, hbms->Config.CanExtended); // Send the broadcast packet
+    Align_CAN_Send(hbms->FDCAN, Align_CombineCanId(62, hbms->Config.CanNodeID, hbms->Config.CanExtended), data, 8, hbms->Config.CanExtended); // Send the broadcast packet
     voltage_cycle++;
     voltage_cycle = voltage_cycle % total_cycles; // Calculate the current cycle index
 }
@@ -586,7 +596,7 @@ void BroadcastBMSTemperatures(BMS_HandleTypeDef *hbms)
         }
     }
 
-    Align_CAN_Send(hbms->FDCAN, Align_CombineCanId(0x62, hbms->Config.CanNodeID, hbms->Config.CanExtended), data, 8, hbms->Config.CanExtended); // Send the broadcast packet
+    Align_CAN_Send(hbms->FDCAN, Align_CombineCanId(63, hbms->Config.CanNodeID, hbms->Config.CanExtended), data, 8, hbms->Config.CanExtended); // Send the broadcast packet
     temp_cycle++;
     temp_cycle = temp_cycle % total_cycles; // Calculate the current cycle index
 }

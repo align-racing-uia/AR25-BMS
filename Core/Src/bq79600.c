@@ -50,6 +50,13 @@ void BQ_Configure(BQ_HandleTypeDef *hbq, BQ_ConfigTypeDef *bq_config)
     hbq->TempMultiplexPinIndex = bq_config->TempMultiplexPinIndex;
     hbq->GpioAuxADCMap = bq_config->GpioAuxADCMap;
     hbq->FirstTempGPIO = bq_config->FirstTempGPIO;
+
+    // Initialize some default values to avoid garbage values
+    hbq->HighestCellTemperature = 0.0f;
+    hbq->LowestCellTemperature = 0.0f;
+    hbq->HighestCellVoltage = 0.0f;
+    hbq->LowestCellVoltage = 0.0f;
+    hbq->TotalVoltage = 0.0f;
 }
 
 void BQ_BindHardware(BQ_HandleTypeDef *hbq, SPI_HandleTypeDef *hspi, BQ_PinTypeDef cs_pin, BQ_PinTypeDef spi_rdy_pin, BQ_PinTypeDef mosi_pin, BQ_PinTypeDef fault_pin, TIM_HandleTypeDef *htim)
@@ -330,8 +337,6 @@ BQ_StatusTypeDef BQ_ActivateAuxADC(BQ_HandleTypeDef *hbq)
 BQ_StatusTypeDef BQ_GetGpioMeasurements(BQ_HandleTypeDef *hbq, uint8_t first_gpio, uint8_t *data_out)
 {
 
-    // Ensure proper measurement of the GPIOs
-    Align_DelayUs(hbq->htim, 1000); // Wait for the ADCs to stabilize
 
     size_t memory_offset = 0;
     size_t out_memory_offset = 0;
