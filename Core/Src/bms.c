@@ -259,7 +259,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     }
 
     // Things that need to happen regardless of the state
-    if (hbms->BroadcastTimestamp + 100 <= HAL_GetTick())
+    if (hbms->BroadcastTimestamp + 10 <= HAL_GetTick())
     {
         // If the broadcast timestamp is older than 100ms, we need to broadcast the BMS state
         hbms->BroadcastTimestamp = HAL_GetTick(); // Update the broadcast timestamp

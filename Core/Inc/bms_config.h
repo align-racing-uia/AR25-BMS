@@ -5,7 +5,7 @@
 #include "stddef.h"
 #include "stdbool.h"
 
-#define BMS_CONFIG_VERSION 3 // This number will automatically increment when the config changes
+#define BMS_CONFIG_VERSION 2 // This number will automatically increment when the config changes
 
 // These are absolute maxes for the battery model, not the actual values
 // The actual values are set in the battery model init function
@@ -22,7 +22,7 @@
 
 // Default values for compiled programs can be set in this header
 // These values are only used if the EEPROM is empty, corrupt, or not present
-#define DEFAULT_TOTAL_CHIPS 3       // Including master
+#define DEFAULT_TOTAL_CHIPS 11       // Including master
 #define DEFAULT_TOTAL_SLAVES (DEFAULT_TOTAL_CHIPS-1)     // Number of slaves in the system
 #define DEFAULT_CELLS_EACH 14       // Number of cells in series on each slave
 #define DEFAULT_TEMPS_EACH 6       // Number of temperature sensors on each slave

@@ -707,6 +707,7 @@ BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef *hbq, uint8_t *pOut, uint8_t deviceId,
     uint16_t fullBuffers = (uint16_t)(maxBytes / 128);
     uint16_t remainingBytes = maxBytes - (fullBuffers * 128);
     BQ_SetMosiIdle(hbq); // We need to transmit 0xFFs.... so why not...?
+    size_t offset = 0;
     while (remainingBytes > 0 || fullBuffers > 0)
     {
         start = HAL_GetTick();
@@ -723,15 +724,15 @@ BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef *hbq, uint8_t *pOut, uint8_t deviceId,
         if (fullBuffers > 0)
         {
             HAL_GPIO_WritePin(hbq->CsPin.GPIOx, hbq->CsPin.Pin, GPIO_PIN_RESET);
-            HAL_SPI_Receive(hbq->hspi, pOut, 128, BQ_TIMEOUT);
+            HAL_SPI_Receive(hbq->hspi, pOut + offset, 128, BQ_TIMEOUT);
             HAL_GPIO_WritePin(hbq->CsPin.GPIOx, hbq->CsPin.Pin, GPIO_PIN_SET);
-            pOut += 128; // Move pointer 128 steps
+            offset += 128; // Move pointer 128 steps
             fullBuffers--;
         }
         else
         {
             HAL_GPIO_WritePin(hbq->CsPin.GPIOx, hbq->CsPin.Pin, GPIO_PIN_RESET);
-            HAL_SPI_Receive(hbq->hspi, pOut, remainingBytes, BQ_TIMEOUT);
+            HAL_SPI_Receive(hbq->hspi, pOut + offset, remainingBytes, BQ_TIMEOUT);
             HAL_GPIO_WritePin(hbq->CsPin.GPIOx, hbq->CsPin.Pin, GPIO_PIN_SET);
             remainingBytes = 0;
         }
@@ -739,7 +740,20 @@ BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef *hbq, uint8_t *pOut, uint8_t deviceId,
     // All data should now be in pOut location (most ofte bqOutputBuffer)
 
     // CRC Verification
-    uint8_t num_of_messages = maxBytes / (dataLength + 6); // Number of messages in the buffer
+    uint16_t num_of_messages = 0;
+
+    if (readType == BQ_DEVICE_READ)
+    {
+        num_of_messages = 1;
+    }
+    else if (readType == BQ_STACK_READ)
+    {
+        num_of_messages = (hbq->NumOfSlaves);
+    }
+    else if (readType == BQ_BROAD_READ)
+    {
+        num_of_messages = (hbq->NumOfChips);
+    }
 
     for (uint8_t i = 0; i < num_of_messages; i++)
     {
