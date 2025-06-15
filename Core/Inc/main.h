@@ -91,12 +91,12 @@ void USB_CDC_RxHandler(uint8_t*, uint32_t);
 #define SPI2_CS_GPIO_Port GPIOB
 #define nFault_Pin GPIO_PIN_8
 #define nFault_GPIO_Port GPIOA
-#define Precharge_Pin GPIO_PIN_3
-#define Precharge_GPIO_Port GPIOB
+#define Plus_Pin GPIO_PIN_3
+#define Plus_GPIO_Port GPIOB
 #define Minus_Pin GPIO_PIN_4
 #define Minus_GPIO_Port GPIOB
-#define Plus_Pin GPIO_PIN_5
-#define Plus_GPIO_Port GPIOB
+#define Precharge_Pin GPIO_PIN_5
+#define Precharge_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
