@@ -5,7 +5,7 @@
 #include "aligncan.h"
 #include "faults.h"
 #include <stm32g4xx.h>
-
+#include "main.h"
 // #define BQ_DISABLE
 
 // Private Function defines
@@ -22,6 +22,8 @@ void BroadcastBMSTemperatures(BMS_HandleTypeDef *hbms);
 uint8_t voltage_cycle = 0; // This is used to cycle the voltage broadcast, so that it does not flood the bus
 uint8_t temp_cycle = 0;    // This is used to cycle the temperature broadcast, so that it does not flood the bus
 
+extern uint32_t adc1_buffer[1];
+extern uint32_t adc2_buffer[1];
 // Public Function implementations
 
 void BMS_BindMemory(BMS_HandleTypeDef *hbms, BatteryModel_HandleTypeDef *battery_model, BQ_HandleTypeDef *bq)
@@ -129,10 +131,18 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         hbms->TempTimestamp = HAL_GetTick() + 1000;
     }
 
-    CheckForFaults(hbms);
-    CheckForWarnings(hbms);                                                                  // Check for faults and warnings
-    ListenForCanMessages(hbms);                                                              // Listen for CAN messages
     hbms->SdcClosed = HAL_GPIO_ReadPin(hbms->SdcPin.Port, hbms->SdcPin.Pin) == GPIO_PIN_SET; // Read the SdcClosed pin to see if the SDC is closed
+
+    float low_current_sensor = ((float)adc1_buffer[0]) / 4096.0f * 5000.0f;
+    float high_current_sensor = ((float)adc2_buffer[0]) / 4096.0f * 5000.0f;
+    low_current_sensor = (low_current_sensor - 2500.0f) / 26.7f;
+    high_current_sensor = (high_current_sensor - 2500.0f) / 4.0f;
+
+    hbms->MeasuredCurrent = fabs(low_current_sensor) <= 75.0 ? low_current_sensor : high_current_sensor; // Use the low current sensor if it is above 75A, otherwise use the high current sensor
+
+    CheckForFaults(hbms);
+    CheckForWarnings(hbms);     // Check for faults and warnings
+    ListenForCanMessages(hbms); // Listen for CAN messages
 
     // TODO: Implement SOC estimation
     // uint16_t cycle_time = HAL_GetTick() - hbms->LastMeasurementTimestamp; // Calculate the cycle time
@@ -590,12 +600,17 @@ void BroadcastBMSState(BMS_HandleTypeDef *hbms)
 
     Align_CAN_Send(hbms->FDCAN, Align_CombineCanId(0x1, hbms->Config.CanNodeID, hbms->Config.CanExtended), data, 7, hbms->Config.CanExtended); // Send the broadcast packet
 
-    data[0] = (uint8_t)hbms->ActiveFaults;   // Set the first byte to the BMS state
-    data[1] = (uint8_t)hbms->ActiveWarnings; // Set the second byte to the BMS state
-    data[2] = (uint8_t)hbms->State;          // Set the third byte to the BMS state
-    data[3] = (uint8_t)hbms->SdcClosed;      // Set the fourth byte to the BMS state
+    int16_t measured_current = (int16_t)(hbms->MeasuredCurrent * 10.0f); // Convert the measured current to mA
+    data[0] = (uint8_t)hbms->ActiveFaults;                               // Set the first byte to the BMS state
+    data[1] = (uint8_t)hbms->ActiveWarnings;                             // Set the second byte to the BMS state
+    data[2] = (uint8_t)hbms->State;                                      // Set the third byte to the BMS state
+    data[3] = (uint8_t)hbms->SdcClosed;                                  // Set the fourth byte to the BMS state
+    data[3] |= ((uint8_t)hbms->ChargerPresent) << 1;                     // Set the fourth byte to the BMS state
+    data[3] |= ((uint8_t)hbms->TsRequested) << 2;                        // Set the fourth byte to the BMS state
+    data[4] = (uint8_t)measured_current >> 8;                            // Measured current
+    data[5] = (uint8_t)measured_current;                                 // Measured current
 
-    Align_CAN_Send(hbms->FDCAN, Align_CombineCanId(0x2, hbms->Config.CanNodeID, hbms->Config.CanExtended), data, 4, hbms->Config.CanExtended); // Send the broadcast packet
+    Align_CAN_Send(hbms->FDCAN, Align_CombineCanId(0x2, hbms->Config.CanNodeID, hbms->Config.CanExtended), data, 6, hbms->Config.CanExtended); // Send the broadcast packet
 }
 
 void BroadcastBMSVoltages(BMS_HandleTypeDef *hbms)

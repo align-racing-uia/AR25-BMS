@@ -79,8 +79,6 @@ bool usb_rx_ready = false;       // Flag to indicate that USB data is ready to b
 
 uint32_t adc1_buffer[1];
 uint32_t adc2_buffer[1];
-float low_current_sensor;
-float high_current_sensor;
 
 uint32_t pwm_ch3_memory = 0;
 uint32_t pwm_ch4_memory = 0;
