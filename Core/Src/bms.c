@@ -609,8 +609,10 @@ void BroadcastBMSState(BMS_HandleTypeDef *hbms)
     data[3] |= ((uint8_t)hbms->TsRequested) << 2;                        // Set the fourth byte to the BMS state
     data[4] = (uint8_t)measured_current >> 8;                            // Measured current
     data[5] = (uint8_t)measured_current;                                 // Measured current
+    data[6] = (uint8_t)(*hbms->PackVoltage) >> 8;                        // Pack voltage
+    data[7] = (uint8_t)(*hbms->PackVoltage);                             // Pack voltage
 
-    Align_CAN_Send(hbms->FDCAN, Align_CombineCanId(0x2, hbms->Config.CanNodeID, hbms->Config.CanExtended), data, 6, hbms->Config.CanExtended); // Send the broadcast packet
+    Align_CAN_Send(hbms->FDCAN, Align_CombineCanId(0x2, hbms->Config.CanNodeID, hbms->Config.CanExtended), data, 8, hbms->Config.CanExtended); // Send the broadcast packet
 }
 
 void BroadcastBMSVoltages(BMS_HandleTypeDef *hbms)
