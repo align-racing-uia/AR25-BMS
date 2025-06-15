@@ -19,9 +19,10 @@ typedef enum
 
 typedef enum
 {
-  TS_STATE_IDLE = 0,
+  TS_STATE_START = 0,
   TS_STATE_PRECHARGE = 1,
-  TS_STATE_ACTIVE = 2,
+  TS_STATE_READY = 2,
+  TS_STATE_STOPPED = 3,
 } BMS_TS_StateTypeDef;
 
 typedef struct
@@ -75,7 +76,8 @@ typedef struct
     bool ChargerPresent; // Charger connected flag
 
     uint32_t CanTimestamp;     // Timestamp for the last CAN message
-    uint32_t ChargerTimestamp; // Timestamp for the last charger CAN message
+    uint32_t ChargerPresentTimestamp; // Timestamp for the last charger CAN message
+    uint32_t ChargerBroadcastTimestamp;
     uint32_t TempTimestamp;    // Timestamp for the last temperature measurement
     uint32_t VoltageTimestamp; // Timestamp for the last voltage measurement
 
@@ -109,6 +111,7 @@ typedef struct
 
     uint32_t LastMeasurementTimestamp;
     uint32_t BroadcastTimestamp; // Timestamp for the last broadcast
+    uint32_t PrechargeTimestamp; // Timestamp for the last precharge
 
     bool Initialized; // Initialized flag, true if the BMS is initialized
 

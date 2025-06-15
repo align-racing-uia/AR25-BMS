@@ -337,19 +337,19 @@ BQ_StatusTypeDef BQ_ActivateAuxADC(BQ_HandleTypeDef *hbq)
 BQ_StatusTypeDef BQ_GetGpioMeasurements(BQ_HandleTypeDef *hbq, uint8_t first_gpio, uint8_t *data_out)
 {
 
-
     size_t memory_offset = 0;
     size_t out_memory_offset = 0;
     size_t total_len = 6 + 2 * hbq->NumOfTempsEach; // For each message
 
     BQ_StatusTypeDef status = BQ_Read(hbq, hbq->BQOutputBuffer, 0, BQ16_GPIO1_HI + first_gpio * 2, 2 * hbq->NumOfTempsEach, BQ_STACK_READ); // Read the GPIO configuration register
-    
+
     if (status != BQ_STATUS_OK)
     {
         return status;
     }
 
-    for(int i=0; i<hbq->NumOfSlaves; i++){
+    for (int i = 0; i < hbq->NumOfSlaves; i++)
+    {
         memcpy(data_out + out_memory_offset, hbq->BQOutputBuffer + memory_offset + 4, 2 * hbq->NumOfTempsEach);
         memory_offset += total_len; // Move the memory offset to make space for the next slave
         out_memory_offset += 2 * hbq->NumOfTempsEach;
@@ -481,11 +481,11 @@ BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq)
     // If something goes wrong, uncomment this line, as it was removed in the belief that it was wrong (without testing)
     // uint8_t totalLen = 6 + hbq->NumOfCellsEach * hbq->NumOfSlaves * 2; // Totalt expected message length
     uint8_t totalLen = 6 + hbq->NumOfCellsEach * 2; // Totalt expected message length
-    
+
     // Reset min, max and total voltages
-    hbq->TotalVoltage = 0.0f; // Reset the total voltage
+    hbq->TotalVoltage = 0.0f;       // Reset the total voltage
     hbq->HighestCellVoltage = 0.0f; // Reset the highest cell voltage
-    hbq->LowestCellVoltage = 0.0f; // Reset the lowest cell voltage
+    hbq->LowestCellVoltage = 0.0f;  // Reset the lowest cell voltage
 
     for (uint8_t i = 0; i < hbq->NumOfSlaves; i++)
     { // Base board will not be part of the cell voltages
@@ -497,15 +497,15 @@ BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq)
 
         for (uint8_t y = 0; y < len; y += 2)
         {
-            uint16_t rawAdc = ((uint16_t) hbq->BQOutputBuffer[i * totalLen + 4 + y]) << 8;
-            rawAdc |= ((uint16_t) hbq->BQOutputBuffer[i * totalLen + 5 + y]);
+            uint16_t rawAdc = ((uint16_t)hbq->BQOutputBuffer[i * totalLen + 4 + y]) << 8;
+            rawAdc |= ((uint16_t)hbq->BQOutputBuffer[i * totalLen + 5 + y]);
             float measuredVoltage = (float)((float)rawAdc * 190.73) / 1000; // Convert the raw ADC value to millivolts
-            hbq->TotalVoltage += measuredVoltage; // Add the voltage to the total voltage
-            if(hbq->HighestCellVoltage < measuredVoltage)
+            hbq->TotalVoltage += measuredVoltage;                           // Add the voltage to the total voltage
+            if (hbq->HighestCellVoltage < measuredVoltage)
             {
                 hbq->HighestCellVoltage = measuredVoltage; // Update the highest cell voltage
             }
-            if(hbq->LowestCellVoltage > measuredVoltage || hbq->LowestCellVoltage == 0.0f)
+            if (hbq->LowestCellVoltage > measuredVoltage || hbq->LowestCellVoltage == 0.0f)
             {
                 hbq->LowestCellVoltage = measuredVoltage; // Update the lowest cell voltage
             }
@@ -554,7 +554,7 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
     int offset = hbq->NumOfTempsEach * 2; // Offset for the raw cell temperatures, depending on the multiplex state
 
     // Reset the highest and lowest cell temperatures every second cycle, if we are multiplexing
-    if(hbq->MultiplexToggle || !hbq->TempMultiplexEnabled)
+    if (hbq->MultiplexToggle || !hbq->TempMultiplexEnabled)
     {
         hbq->HighestCellTemperature = 0.0f; // Reset the highest cell temperature
         hbq->LowestCellTemperature = 0.0f;  // Reset the lowest cell temperature
@@ -573,8 +573,8 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
 
         for (int y = 0; y < hbq->NumOfTempsEach; y++)
         {
-            uint16_t adcValueGpio = ((uint16_t)hbq->RawCellTemperatures[2 * y + i*offset]) << 8 | ((uint16_t)hbq->RawCellTemperatures[2 * y + 1 + i*offset]); // Get the ADC value for the current GPIO
-            uint16_t adcValueTsRef = ((uint16_t)ts_refs[2 * i]) << 8 | ((uint16_t)ts_refs[2 * i + 1]);                                                    // Get the TSREF value for the current slave
+            uint16_t adcValueGpio = ((uint16_t)hbq->RawCellTemperatures[2 * y + i * offset]) << 8 | ((uint16_t)hbq->RawCellTemperatures[2 * y + 1 + i * offset]); // Get the ADC value for the current GPIO
+            uint16_t adcValueTsRef = ((uint16_t)ts_refs[2 * i]) << 8 | ((uint16_t)ts_refs[2 * i + 1]);                                                            // Get the TSREF value for the current slave
 
             float tsRefVoltage = ((float)adcValueTsRef * 169.54f / 1000.0f); // Convert the TSREF ADC value to voltage, assuming a reference voltage of 5V and a gain of 169.54
             float gpioVoltage = ((float)adcValueGpio * 152.59f / 1000.0f);   // Convert the GPIO ADC value to voltage, assuming a reference voltage of 5V and a gain of 152.59
@@ -582,25 +582,24 @@ BQ_StatusTypeDef BQ_GetCellTemperatures(BQ_HandleTypeDef *hbq, float beta)
             float rntc = 10000.0f / ((tsRefVoltage / gpioVoltage) - 1); // Calculate the NTC resistance, assuming R1 = 10k and R2 = 10000R
 
             // Convert the Rntc to temperature using the beta formula
-            float measuredTemperature = K_TO_C(1 / ((1 / C_TO_K(25.0)) + (1 / beta) * logf(rntc / 10000.0f)));; // Convert the temperature to Kelvin, assuming a beta value of 25C and a reference resistance of 10k
+            float measuredTemperature = K_TO_C(1 / ((1 / C_TO_K(25.0)) + (1 / beta) * logf(rntc / 10000.0f)));
+            ; // Convert the temperature to Kelvin, assuming a beta value of 25C and a reference resistance of 10k
 
             if (hbq->HighestCellTemperature < measuredTemperature)
             {
                 hbq->HighestCellTemperature = measuredTemperature; // Update the highest cell temperature
             }
-            
+
             if (hbq->LowestCellTemperature > measuredTemperature || hbq->LowestCellTemperature == 0.0f)
             {
                 hbq->LowestCellTemperature = measuredTemperature; // Update the lowest cell temperature
             }
-            
-            hbq->CellTemperatures[i * hbq->NumOfTempsEach * 2 + (2*y) + !hbq->MultiplexToggle] = measuredTemperature; // Convert the temperature to Kelvin, assuming a beta value of 25C and a reference resistance of 10k
+
+            hbq->CellTemperatures[i * hbq->NumOfTempsEach * 2 + (2 * y) + !hbq->MultiplexToggle] = measuredTemperature; // Convert the temperature to Kelvin, assuming a beta value of 25C and a reference resistance of 10k
         }
     }
 
-
-
-    hbq->MultiplexToggle = !hbq->MultiplexToggle;                                  // Toggle the multiplex state
+    hbq->MultiplexToggle = !hbq->MultiplexToggle; // Toggle the multiplex state
     return status;
 }
 
@@ -626,6 +625,51 @@ BQ_StatusTypeDef BQ_GetDieTemperature(BQ_HandleTypeDef *hbq)
     }
 
     return BQ_Read(hbq, hbq->BQOutputBuffer, 0, BQ16_DIETEMP2_HI, 2, BQ_STACK_READ);
+}
+
+BQ_StatusTypeDef BQ_ConfigureFaultMasks(BQ_HandleTypeDef *hbq, BQ16_FaultMaskingTypeDef stackMask, BQ_FaultMaskingTypeDef bridgeMask)
+{
+
+    // TODO: Implement this
+    return BQ_STATUS_OK; // This is a placeholder, as the fault masking is not implemented yet
+}
+
+BQ_StatusTypeDef BQ_PollFaultSummaries(BQ_HandleTypeDef *hbq)
+{
+    // Reset faults, as if they are active, they will be read again either way
+    hbq->StackFaultActive = false; // Reset the stack fault active flag
+    hbq->BridgeFaultActive = false; // Reset the bridge fault active flag
+
+    // Read the bridge faults from the slaves
+    BQ_StatusTypeDef status = BQ_Read(hbq, hbq->BQOutputBuffer, 0, BQ16_FAULT_SUMMARY, 1, BQ_STACK_READ);
+
+    if (status != BQ_STATUS_OK)
+    {
+        return status;
+    }
+
+    for (size_t i = 0; i < hbq->NumOfSlaves; i++)
+    {
+        hbq->StackFaultSummary[i] = hbq->BQOutputBuffer[i * (6 + 1) + 4]; // Store the fault summary in the faults array
+        hbq->StackFaultActive = hbq->StackFaultActive || (hbq->StackFaultSummary[i] != 0); // Set the stack fault active flag if there is a fault
+    }
+
+    // Read the fault summary from the master
+    status = BQ_Read(hbq, hbq->BQOutputBuffer, BQ_SELF_ID, BQ_FAULT_SUMMARY, 1, BQ_DEVICE_READ);
+    if (status != BQ_STATUS_OK)
+    {
+        return status;
+    }
+    hbq->BridgeFaultSummary = hbq->BQOutputBuffer[4]; // Store the fault summary in the bridge fault summary
+    hbq->BridgeFaultActive = hbq->BridgeFaultSummary != 0; // Set the bridge fault active flag if there is a fault
+
+    return status;
+}
+
+BQ_StatusTypeDef BQ_PollSpecificFaults(BQ_HandleTypeDef *hbq, uint8_t deviceId)
+{
+    // TODO: Implement the ability to poll specific fault registers from a specific device
+    return BQ_STATUS_OK; // This is a placeholder, as the specific fault polling is not implemented yet
 }
 
 // Should be used with bqOutputBuffer

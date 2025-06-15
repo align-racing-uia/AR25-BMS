@@ -167,9 +167,7 @@ int main(void)
   HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_3, &pwm_ch3_memory, 1); // Start the timer for PWM generation
   HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, &pwm_ch4_memory, 1); // Start the timer for PWM generation
 
-  // Start the ADCs in DMA mode
-  HAL_ADC_Start_DMA(&hadc1, adc1_buffer, 1);
-  HAL_ADC_Start_DMA(&hadc2, adc2_buffer, 1);
+
 
   // Set the nFault pin high to indicate no errors on the BMS yet
   HAL_GPIO_WritePin(nFault_GPIO_Port, nFault_Pin, GPIO_PIN_SET); // Set the fault pin high to indicate no fault
@@ -227,6 +225,10 @@ int main(void)
   while (1)
   {
     cycle_time_start = HAL_GetTick(); // Start the cycle time measurement
+
+    // Start polling the ADCs in DMA mode
+    HAL_ADC_Start_DMA(&hadc1, adc1_buffer, 1);
+    HAL_ADC_Start_DMA(&hadc2, adc2_buffer, 1);
 
     // Update all the BMS states
     BMS_Update(&hbms);

@@ -38,6 +38,8 @@
 #define BQ_CONTROL1_SEND_WAKE 1 << 5
 #define BQ_CONTROL1_AA 1 << 0
 
+#define BQ_FAULT_SUMMARY 0x2100 // Fault summary register for the stack
+
 // Registers for BQ79616
 #define BQ16_ACTIVE_CELLS 0x0003
 #define BQ16_ADC_CTRL1 0x030D
@@ -50,7 +52,9 @@
 #define BQ16_DIETEMP2_HI 0x05B0 // Low is a increment of this
 
 #define BQ16_GPIO_CONF1 0x000E // GPIO_CONF2-4 are increments of this
-#define BQ16_ADC_CONF1 0x0007 // ADC_CONF2-4 are increments of this
+#define BQ16_ADC_CONF1 0x0007  // ADC_CONF2-4 are increments of this
+
+#define BQ16_FAULT_SUMMARY 0x052D // Fault summary register for the stack
 
 // Register Flags for BQ79616
 #define BQ16_ADC_CTRL1_MAINGO 0x04
@@ -70,20 +74,55 @@
 #define BQ16_CONTROL2 0x030A
 #define BQ16_TSREF_HI 0x058C // TSREF pin control register high byte
 
-typedef struct {
+typedef struct
+{
     GPIO_TypeDef *GPIOx; // The GPIO port
     uint16_t Pin;        // The GPIO pin
 } BQ_PinTypeDef;
 
-typedef struct {
-    uint8_t NumOfSlaves; // Number of slave chips
+typedef enum
+{
+    BQ16_FAULT_NONE = (uint8_t)0,
+    BQ16_FAULT_PWR = (uint8_t)(1 << 0),
+    BQ16_FAULT_SYS = (uint8_t)(1 << 1),
+    BQ16_FAULT_OVUV = (uint8_t)(1 << 2),
+    BQ16_FAULT_OTUT = (uint8_t)(1 << 3),
+    BQ16_FAULT_COMM = (uint8_t)(1 << 4),
+    BQ16_FAULT_OTP = (uint8_t)(1 << 5),
+    BQ16_FAULT_COMP_ADC = (uint8_t)(1 << 6),
+    BQ16_FAULT_PROT = (uint8_t)(1 << 7)
+} BQ16_FaultSummaryTypeDef;
+
+typedef enum
+{
+    BQ_FAULT_NONE = (uint8_t)0,
+    BQ_FAULT_PWR = (uint8_t)(1 << 0),
+    BQ_FAULT_SYS = (uint8_t)(1 << 1),
+    BQ_FAULT_REG = (uint8_t)(1 << 2),
+    BQ_FAULT_COMM = (uint8_t)(1 << 3),
+
+} BQ_FaultSummaryTypeDef;
+
+typedef struct
+{
+    bool comm1;
+} BQ16_FaultMaskingTypeDef;
+
+typedef struct
+{
+    bool comm1;
+} BQ_FaultMaskingTypeDef;
+
+typedef struct
+{
+    uint8_t NumOfSlaves;    // Number of slave chips
     uint8_t NumOfCellsEach; // Number of cells each chip should measure
     uint8_t NumOfTempsEach; // Number of temperature sensors each chip should measure
 
     bool TempMultiplexEnabled;     // If the temperature sensors are multiplexed
     uint8_t TempMultiplexPinIndex; // The pin used to multiplex the temperature sensors
     uint8_t GpioAuxADCMap;
-    uint8_t FirstTempGPIO;        // The pin map for the cell temperature sensors
+    uint8_t FirstTempGPIO; // The pin map for the cell temperature sensors
 
 } BQ_ConfigTypeDef;
 
@@ -118,12 +157,22 @@ typedef struct
     uint8_t NumOfCellsEach;
     uint8_t NumOfTempsEach;
 
+    // Fault summary for each slave chip
+    // Each bit represents a fault, 0 = no fault, 1 = fault
+    // The bits are defined in the BQ79616 datasheet
+    BQ16_FaultSummaryTypeDef StackFaultSummary[BQ_MAX_AMOUNT_OF_SLAVES];
+    bool StackFaultActive;
+
+    // Fault summary for the bridge interface
+    // The bits are defined in the BQ79600 datasheet
+    BQ_FaultSummaryTypeDef BridgeFaultSummary;
+    bool BridgeFaultActive;
+
     bool TempMultiplexEnabled;     // This is true if the temperature sensors are multiplexed
     uint8_t TempMultiplexPinIndex; // This is the pin used to multiplex the temperature sensors
     uint8_t FirstTempGPIO;
 
     bool MultiplexToggle;
-
 
     TIM_HandleTypeDef *htim; // The timer used for the delays
 } BQ_HandleTypeDef;
@@ -157,6 +206,8 @@ BQ_StatusTypeDef BQ_EnableTsRef(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_EnableCommTimeout(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_AutoAddress(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_GetDieTemperatures(BQ_HandleTypeDef *hbq);
+BQ_StatusTypeDef BQ_ConfigureFaultMasks(BQ_HandleTypeDef *hbq, BQ16_FaultMaskingTypeDef stack_mask, BQ_FaultMaskingTypeDef bridge_mask);
+BQ_StatusTypeDef BQ_PollFaultSummaries(BQ_HandleTypeDef *hbq);
 
 BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef *hbq, uint8_t *pOut, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t readType);
 BQ_StatusTypeDef BQ_Write(BQ_HandleTypeDef *hbq, uint8_t *inData, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t writeType);

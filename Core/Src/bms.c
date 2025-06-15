@@ -49,7 +49,7 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
     hbms->WarningPresent = false;        // Clear the warning present flag
     hbms->SdcClosed = false;             // Clear the SdcClosed connected flag
     hbms->EepromPresent = false;         // Clear the EEPROM present flag
-    hbms->TSState = TS_STATE_IDLE;       // Set the TS state to idle
+    hbms->TSState = TS_STATE_START;      // Set the TS state to idle
 
     hbms->FDCAN = hardware_config->hfdcan;                              // Bind the FDCAN handle from the hardware configuration
     hbms->FaultPin = hardware_config->FaultPin;                         // Bind the fault pin from the hardware configuration
@@ -67,16 +67,17 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
     HAL_GPIO_WritePin(hbms->MinusAIR.Port, hbms->MinusAIR.Pin, GPIO_PIN_RESET);         // Set the minus AIR pin low, to indicate no fault in the BMS
     HAL_GPIO_WritePin(hbms->PrechargeAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_RESET); // Set the precharge AIR pin low, to indicate no fault in the BMS
 
-    hbms->CanTimestamp = HAL_GetTick();     // Initialize the CAN timestamp to the current time
-    hbms->ChargerTimestamp = HAL_GetTick(); // Initialize the charger timestamp to the current time
-    hbms->TempTimestamp = HAL_GetTick();    // Initialize the temperature timestamp to the current time
-    hbms->VoltageTimestamp = HAL_GetTick(); // Initialize the voltage timestamp to the current time
+    hbms->CanTimestamp = HAL_GetTick();       // Initialize the CAN timestamp to the current time
+    hbms->ChargerPresentTimestamp = HAL_GetTick();   // Initialize the charger present timestamp to the current time
+    hbms->ChargerBroadcastTimestamp = HAL_GetTick();   // Initialize the charger broadcast timestamp to the current time
+    hbms->TempTimestamp = HAL_GetTick();      // Initialize the temperature timestamp to the current time
+    hbms->VoltageTimestamp = HAL_GetTick();   // Initialize the voltage timestamp to the current time
     hbms->BroadcastTimestamp = HAL_GetTick(); // Initialize the broadcast timestamp to the current time
-    hbms->ChargerPresent = false;           // Initialize the charger present flag to false
+    hbms->ChargerPresent = false;             // Initialize the charger present flag to false
 
     hbms->BqConnected = false; // Initialize the BQ connected flag to false
 
-    hbms->PackVoltage = &hbms->BQ->TotalVoltage; // Bind the pack voltage pointer
+    hbms->PackVoltage = &hbms->BQ->TotalVoltage;   // Bind the pack voltage pointer
     hbms->SOC = &hbms->BatteryModel->EstimatedSOC; // Bind the SOC pointer
     hbms->DcLimit = 1200;
     hbms->CcLimit = 100;
@@ -86,8 +87,8 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
     hbms->CellVoltages = hbms->BQ->CellVoltages;                      // Bind the cell voltages pointer
     hbms->CellTemperatures = hbms->BQ->CellTemperatures;              // Bind the cell temperatures pointer
 
-    hbms->Initialized = true; // Clear the initialized flag
-    hbms->BroadcastVoltages = false; // Clear the broadcast voltages flag
+    hbms->Initialized = true;            // Clear the initialized flag
+    hbms->BroadcastVoltages = false;     // Clear the broadcast voltages flag
     hbms->BroadcastTemperatures = false; // Clear the broadcast temperatures flag
 }
 
@@ -95,13 +96,16 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
 {
 
     // Things which are done before every cycle are done here
-    CheckForFaults(hbms);
-    ListenForCanMessages(hbms); // Listen for CAN messages
-
-    hbms->SdcClosed = HAL_GPIO_ReadPin(hbms->SdcPin.Port, hbms->SdcPin.Pin) == GPIO_PIN_SET; // Read the SdcClosed pin to see if the SDC is closed
-
     if (hbms->BqConnected)
     {
+
+        if (BQ_PollFaultSummaries(hbms->BQ) != BQ_STATUS_OK)
+        {
+            // If we cannot poll for fault, that is obviously a critical error
+            // Depending on experience, we may want to let it retry a few times
+            SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ_NOT_CONNECTED); // Set the BQ not connected fault
+            hbms->State = BMS_STATE_FAULT;                           // Set the state to fault
+        }
 
         if (hbms->VoltageTimestamp + 5 < HAL_GetTick())
         {
@@ -117,8 +121,13 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         }
     }
 
-    uint16_t cycle_time = HAL_GetTick() - hbms->LastMeasurementTimestamp; // Calculate the cycle time
-    hbms->LastMeasurementTimestamp = HAL_GetTick();                       // Update the last measurement timestamp
+    CheckForFaults(hbms);
+    ListenForCanMessages(hbms);                                                              // Listen for CAN messages
+    hbms->SdcClosed = HAL_GPIO_ReadPin(hbms->SdcPin.Port, hbms->SdcPin.Pin) == GPIO_PIN_SET; // Read the SdcClosed pin to see if the SDC is closed
+
+    // TODO: Implement SOC estimation
+    // uint16_t cycle_time = HAL_GetTick() - hbms->LastMeasurementTimestamp; // Calculate the cycle time
+    // hbms->LastMeasurementTimestamp = HAL_GetTick();                       // Update the last measurement timestamp
     // BatteryModel_Update(hbms->BatteryModel, hbms->BQ->CellVoltages, hbms->BQ->CellTemperatures, hbms->MeasuredCurrent, cycle_time);
 
     switch (hbms->State)
@@ -141,8 +150,15 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     { // Check if the BQ is connected
         if (Connect(hbms))
         {
-            BQ_EnableCommTimeout(hbms->BQ);                     // Enable the BQ communication timeout
-            BQ_StatusTypeDef status = BQ_EnableTsRef(hbms->BQ); // Enable the TS reference for the BQ
+            BQ_StatusTypeDef status = BQ_EnableCommTimeout(hbms->BQ); // Enable the BQ communication timeout
+            if (status != BQ_STATUS_OK)
+            {
+                // If enabling the TS reference fails, set the state to fault
+                SET_BIT(hbms->ActiveFaults, BMS_FAULT_BQ_NOT_CONNECTED); // Set the BQ TS reference error fault
+                hbms->State = BMS_STATE_FAULT;
+            }
+
+            status = BQ_EnableTsRef(hbms->BQ); // Enable the TS reference for the BQ
             if (status != BQ_STATUS_OK)
             {
                 // If enabling the TS reference fails, set the state to fault
@@ -180,63 +196,93 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         if (hbms->TsRequested && hbms->SdcClosed)
         {
             hbms->State = BMS_STATE_TS_ACTIVE; // If the TS is requested (or we are connected to the charger) and the SDC is closed, we can activate the TS
+            hbms->TSState = TS_STATE_START;    // Set the TS state to start
         }
 
         if (hbms->ChargerPresent && hbms->SdcClosed)
         {
             hbms->State = BMS_STATE_CHARGING; // If the TS is requested (or we are connected to the charger) and the SDC is closed, we can activate the TS
+            hbms->TSState = TS_STATE_START;   // Set the TS state to start
         }
 
         break;
     // We let this fall through, as the charging state includes the TS active state
     case BMS_STATE_CHARGING:
-        if (hbms->ChargerTimestamp + 1000 < HAL_GetTick())
+        if (hbms->ChargerPresentTimestamp + 1000 <= HAL_GetTick())
         {
             // If the charger timestamp is older than 1 second, we consider the charger disconnected
             hbms->ChargerPresent = false; // Clear the charger present flag
+        }
+
+        if(hbms->ChargerBroadcastTimestamp + 1000 <= HAL_GetTick())
+        {
+            // If the charger broadcast timestamp is older than 1 second, we need to broadcast our requirements to the charger
+            uint8_t data[5] = {0};
+            uint32_t can_id = 0x1806E5F4;
+            uint16_t voltage_limit = 5880; // 588V is the maximum voltage limit for the charger
+            uint16_t current_limit = 20; // 2A is Maximum current limit for the charger
+
+            data[0] = (voltage_limit >> 8) & 0xFF; // Set the first byte to the high byte of the voltage limit
+            data[1] = voltage_limit & 0xFF;        // Set the second byte to the low byte of the voltage limit
+            data[2] = (current_limit >> 8) & 0xFF; // Set the third byte to the high byte of the current limit
+            data[3] = current_limit & 0xFF;        // Set the fourth byte to the low byte of the current limit
+            data[4] = hbms->TSState == !(TS_STATE_PRECHARGE || hbms->TSState == TS_STATE_READY); // 0 indicated that the charger can charge, 1 indicates battery protection is active
+            hbms->ChargerBroadcastTimestamp = HAL_GetTick(); // Update the charger broadcast timestamp
         }
         // We let this fall through, as the charging state includes the TS active state
 
     case BMS_STATE_TS_ACTIVE:
         switch (hbms->TSState)
         {
-        case TS_STATE_IDLE:
-            // In the idle state, we can precharge the TS
+        case TS_STATE_START:
+            // In the start state, we can precharge the TS
             HAL_GPIO_WritePin(hbms->PrechargeAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_SET); // Set the precharge AIR pin high, to indicate precharging
             HAL_GPIO_WritePin(hbms->MinusAIR.Port, hbms->MinusAIR.Pin, GPIO_PIN_SET);         // Set the precharge AIR pin high, to indicate precharging
+            hbms->PrechargeTimestamp = HAL_GetTick();                                         // Update the precharge timestamp
             hbms->TSState = TS_STATE_PRECHARGE;                                               // Move to the precharge state
             break;
         case TS_STATE_PRECHARGE:
-            // In the precharge state, we can check if the precharge is complete
-            if (hbms->ChargerPresent && hbms->SdcClosed)
-            {
-                // If the charger is present and the SDC is closed, we can activate the TS immediately
-                HAL_GPIO_WritePin(hbms->PlusAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_SET);
-                HAL_GPIO_WritePin(hbms->MinusAIR.Port, hbms->MinusAIR.Pin, GPIO_PIN_SET);
-                HAL_GPIO_WritePin(hbms->PrechargeAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_RESET);
-                hbms->TSState = TS_STATE_ACTIVE; // Move to the active state
-            }
 
-            if ((((float)hbms->InverterVoltage) >= (*hbms->PackVoltage) * 0.9f) && (*hbms->PackVoltage) > 300.0f)
+            if (hbms->ChargerPresent)
+            {
+                if (hbms->PrechargeTimestamp + 3000 < HAL_GetTick())
+                {
+                    // If the charger is present and the SDC is closed, we can activate the TS immediately
+                    HAL_GPIO_WritePin(hbms->PlusAIR.Port, hbms->PlusAIR.Pin, GPIO_PIN_SET);
+                    HAL_GPIO_WritePin(hbms->MinusAIR.Port, hbms->MinusAIR.Pin, GPIO_PIN_SET);
+                    HAL_GPIO_WritePin(hbms->PrechargeAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_RESET);
+                    hbms->TSState = TS_STATE_READY; // Move to the ready state
+                }
+            }
+            else if ((((float)hbms->InverterVoltage) >= (*hbms->PackVoltage) * 0.9f) && (*hbms->PackVoltage) > 300.0f)
             {
                 // If the inverter voltage is above 90% of the pack voltage, we can activate the TS
-                HAL_GPIO_WritePin(hbms->PlusAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_SET);
+                HAL_GPIO_WritePin(hbms->PlusAIR.Port, hbms->PlusAIR.Pin, GPIO_PIN_SET);
                 HAL_GPIO_WritePin(hbms->MinusAIR.Port, hbms->MinusAIR.Pin, GPIO_PIN_SET);
                 HAL_GPIO_WritePin(hbms->PrechargeAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_RESET);
-                hbms->TSState = TS_STATE_ACTIVE; // Move to the active state
+                hbms->TSState = TS_STATE_READY; // Move to the ready state
+            }
+            else if (hbms->PrechargeTimestamp + 10000 < HAL_GetTick())
+            {
+                // If the precharge timestamp is older than 10 seconds, we can move to the ready state
+                hbms->TsRequested = false;        // Clear the TS requested flag
+                hbms->TSState = TS_STATE_STOPPED; // Move to the stopped state
             }
 
             break;
-        case TS_STATE_ACTIVE:
+        case TS_STATE_READY:
             if (!(hbms->TsRequested || hbms->ChargerPresent) || !hbms->SdcClosed || hbms->ActiveWarnings)
             {
-                // If the TS is not requested or the SDC is not closed, we need to move to the idle state
-                HAL_GPIO_WritePin(hbms->PlusAIR.Port, hbms->PlusAIR.Pin, GPIO_PIN_RESET);           // Set the plus AIR pin low, to indicate no TS active
-                HAL_GPIO_WritePin(hbms->MinusAIR.Port, hbms->MinusAIR.Pin, GPIO_PIN_RESET);         // Set the minus AIR pin low, to indicate no TS active
-                HAL_GPIO_WritePin(hbms->PrechargeAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_RESET); // Set the precharge AIR pin low, to indicate no TS active
-                hbms->TsRequested = false;                                                          // Clear the TS requested flag
-                hbms->TSState = TS_STATE_IDLE;                                                      // Move to the idle state
+                hbms->TsRequested = false;        // Clear the TS requested flag
+                hbms->TSState = TS_STATE_STOPPED; // Move to the stopped state
             }
+            break;
+        case TS_STATE_STOPPED:
+            // Just to make fully sure that the AIRs are not active, we set them low here as well
+            HAL_GPIO_WritePin(hbms->PlusAIR.Port, hbms->PlusAIR.Pin, GPIO_PIN_RESET);           // Set the plus AIR pin low, to indicate no TS active
+            HAL_GPIO_WritePin(hbms->MinusAIR.Port, hbms->MinusAIR.Pin, GPIO_PIN_RESET);         // Set the minus AIR pin low, to indicate no TS active
+            HAL_GPIO_WritePin(hbms->PrechargeAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_RESET); // Set the precharge AIR pin low, to indicate no TS active
+            hbms->State = BMS_STATE_IDLE; // Move to the start state, so we can precharge again if needed
             break;
         }
 
@@ -251,8 +297,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         HAL_GPIO_WritePin(hbms->PlusAIR.Port, hbms->PlusAIR.Pin, GPIO_PIN_RESET);           // Set the plus AIR pin low, to indicate no TS active
         HAL_GPIO_WritePin(hbms->MinusAIR.Port, hbms->MinusAIR.Pin, GPIO_PIN_RESET);         // Set the minus AIR pin low, to indicate no TS active
         HAL_GPIO_WritePin(hbms->PrechargeAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_RESET); // Set the precharge AIR pin low, to indicate no TS active
-        hbms->TSState = TS_STATE_IDLE;                                                      // Move to the idle state
-
+        hbms->TSState = TS_STATE_START;                                                     // Move to the idle state
         // Currently to reset the BMS, you need to power cycle it
 
         break;
@@ -284,22 +329,23 @@ void CheckForFaults(BMS_HandleTypeDef *hbms)
 {
 
     // All checks dependant on the BQ being connected
-    if (hbms->BqConnected){
-    // if (*hbms->HighestCellTemperature > 60.0f || ((*hbms->LowestCellTemperature < -20.0f) && (*hbms->LowestCellTemperature > -30.0f)))
-    // {
-    //     SET_BIT(hbms->ActiveFaults, BMS_FAULT_CRITICAL_TEMPERATURE); // Set the temperature fault
-    // }
+    if (hbms->BqConnected)
+    {
+        if (*hbms->HighestCellTemperature > 60.0f || ((*hbms->LowestCellTemperature < -20.0f) && (*hbms->LowestCellTemperature > -30.0f)))
+        {
+            SET_BIT(hbms->ActiveFaults, BMS_FAULT_CRITICAL_TEMPERATURE); // Set the temperature fault
+        }
 
-    // if (*hbms->LowestCellTemperature <= -30.0f)
-    // {
-    //     SET_BIT(hbms->ActiveFaults, BMS_FAULT_LOST_TEMPERATURE_SENSOR); // Set the temperature warning
-    // }
+        if (*hbms->LowestCellTemperature <= -30.0f)
+        {
+            SET_BIT(hbms->ActiveFaults, BMS_FAULT_LOST_TEMPERATURE_SENSOR); // Set the temperature warning
+        }
 
-    // if (*hbms->LowestCellVoltage < 2500.0f || *hbms->HighestCellVoltage > 4200.00f)
-    // {
-    //     // Currently no bit is set to indicate voltage faults, so we use the BMS_FAULT_BQ bit
-    //     SET_BIT(hbms->ActiveFaults, BMS_FAULT_CRITICAL_VOLTAGE); // Set the voltage fault
-    // }
+        if (*hbms->LowestCellVoltage < 2500.0f || *hbms->HighestCellVoltage > 4200.00f)
+        {
+            // Currently no bit is set to indicate voltage faults, so we use the BMS_FAULT_BQ bit
+            SET_BIT(hbms->ActiveFaults, BMS_FAULT_CRITICAL_VOLTAGE); // Set the voltage fault
+        }
     }
 
     // Set the relevant flags based on the faults
@@ -459,7 +505,7 @@ void ListenForCanMessages(BMS_HandleTypeDef *hbms)
         {
         case 0x18FF50E5:
             hbms->ChargerPresent = true;            // Charger is present
-            hbms->ChargerTimestamp = HAL_GetTick(); // Update the charger timestamp
+            hbms->ChargerPresentTimestamp = HAL_GetTick(); // Update the charger timestamp
             break;                                  // This is the ID from the charger
         default:
             // If no exact match is found, we can check for the node ID
