@@ -22,8 +22,6 @@ void BroadcastBMSTemperatures(BMS_HandleTypeDef *hbms);
 uint8_t voltage_cycle = 0; // This is used to cycle the voltage broadcast, so that it does not flood the bus
 uint8_t temp_cycle = 0;    // This is used to cycle the temperature broadcast, so that it does not flood the bus
 
-extern uint32_t adc1_buffer[1];
-extern uint32_t adc2_buffer[1];
 // Public Function implementations
 
 void BMS_BindMemory(BMS_HandleTypeDef *hbms, BatteryModel_HandleTypeDef *battery_model, BQ_HandleTypeDef *bq)
@@ -133,10 +131,12 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
 
     hbms->SdcClosed = HAL_GPIO_ReadPin(hbms->SdcPin.Port, hbms->SdcPin.Pin) == GPIO_PIN_SET; // Read the SdcClosed pin to see if the SDC is closed
 
-    float low_current_sensor = ((float)adc1_buffer[0]) / 4096.0f * 5000.0f;
-    float high_current_sensor = ((float)adc2_buffer[0]) / 4096.0f * 5000.0f;
-    low_current_sensor = (low_current_sensor - 2500.0f) / 26.7f;
-    high_current_sensor = (high_current_sensor - 2500.0f) / 4.0f;
+    float low_current_sensor_voltage = ((float)adc1_buffer[0]) / 4096.0f * 2900.0f;
+    float high_current_sensor_voltage = ((float)adc2_buffer[0]) / 4096.0f * 2900.0f;
+    high_current_sensor_voltage = high_current_sensor_voltage * 5.0f/3.0f; 
+    low_current_sensor_voltage = low_current_sensor_voltage * 5.0f/3.0f; 
+    float low_current_sensor = (low_current_sensor_voltage - 2500.0f) / 26.7f;
+    float high_current_sensor = (high_current_sensor_voltage - 2500.0f) / 4.0f;
 
     hbms->MeasuredCurrent = fabs(low_current_sensor) <= 75.0 ? low_current_sensor : high_current_sensor; // Use the low current sensor if it is above 75A, otherwise use the high current sensor
 

@@ -93,7 +93,7 @@ typedef struct
     float *PackVoltage;            // Pack voltage
 
     // Paramterers relevant for the BMS fetched over CAN
-    uint16_t InverterVoltage; // Inverter voltage in V x 10
+    uint16_t InverterVoltage; //
 
 
     // Toggles for broadcasts

@@ -54,7 +54,8 @@ extern "C" {
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-
+extern uint16_t adc1_buffer[1];
+extern uint16_t adc2_buffer[2];
 
 /* USER CODE END EC */
 

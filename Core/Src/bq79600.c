@@ -504,7 +504,7 @@ BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq)
             uint16_t rawAdc = ((uint16_t)hbq->BQOutputBuffer[i * totalLen + 4 + y]) << 8;
             rawAdc |= ((uint16_t)hbq->BQOutputBuffer[i * totalLen + 5 + y]);
             float measuredVoltage = (float)((float)rawAdc * 190.73) / 1000; // Convert the raw ADC value to millivolts
-            hbq->TotalVoltage += measuredVoltage;                           // Add the voltage to the total voltage
+            hbq->TotalVoltage += measuredVoltage / 1000;                           // Add the voltage to the total voltage
             if (hbq->HighestCellVoltage < measuredVoltage)
             {
                 hbq->HighestCellVoltage = measuredVoltage; // Update the highest cell voltage

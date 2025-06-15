@@ -77,8 +77,8 @@ uint8_t usb_rx_buffer[64] = {0}; // Buffer to store the received USB data
 uint8_t usb_rx_len = 0;          // Length of the received data
 bool usb_rx_ready = false;       // Flag to indicate that USB data is ready to be processed
 
-uint32_t adc1_buffer[1];
-uint32_t adc2_buffer[1];
+uint16_t adc1_buffer[1] = {0};
+uint16_t adc2_buffer[2] = {0};
 
 uint32_t pwm_ch3_memory = 0;
 uint32_t pwm_ch4_memory = 0;
@@ -226,7 +226,7 @@ int main(void)
 
     // Start polling the ADCs in DMA mode
     HAL_ADC_Start_DMA(&hadc1, adc1_buffer, 1);
-    HAL_ADC_Start_DMA(&hadc2, adc2_buffer, 1);
+    HAL_ADC_Start_DMA(&hadc2, adc2_buffer, 2);
 
     // Update all the BMS states
     BMS_Update(&hbms);
