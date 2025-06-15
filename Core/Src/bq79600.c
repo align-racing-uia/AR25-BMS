@@ -30,7 +30,11 @@ void BQ_Init(BQ_HandleTypeDef *hbq)
     HAL_GPIO_WritePin(hbq->CsPin.GPIOx, hbq->CsPin.Pin, GPIO_PIN_SET);
     HAL_GPIO_WritePin(hbq->MosiPin.GPIOx, hbq->MosiPin.Pin, GPIO_PIN_RESET);
     hbq->HighestCellTemperature = 0.0f;
-    hbq->LowestCellTemperature = 0.0f; // Set the lowest cell temperature to a high value
+    hbq->LowestCellTemperature = 0.0f;
+    hbq->HighestCellVoltage = 0.0f;
+    hbq->LowestCellVoltage = 0.0f;
+
+    
 }
 
 void BQ_Configure(BQ_HandleTypeDef *hbq, BQ_ConfigTypeDef *bq_config)

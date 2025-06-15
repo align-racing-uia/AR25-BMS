@@ -170,7 +170,7 @@ int main(void)
 
 
   // Set the nFault pin high to indicate no errors on the BMS yet
-  HAL_GPIO_WritePin(nFault_GPIO_Port, nFault_Pin, GPIO_PIN_SET); // Set the fault pin high to indicate no fault
+  HAL_GPIO_WritePin(nFault_GPIO_Port, nFault_Pin, GPIO_PIN_RESET); // Set the fault pin low to indicate no fault
 
   // Initialize timer for align delay
   Align_InitDelay(&htim3); // Initialize the delay function
