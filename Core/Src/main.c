@@ -225,8 +225,8 @@ int main(void)
     cycle_time_start = HAL_GetTick(); // Start the cycle time measurement
 
     // Start polling the ADCs in DMA mode
-    HAL_ADC_Start_DMA(&hadc1, adc1_buffer, 1);
-    HAL_ADC_Start_DMA(&hadc2, adc2_buffer, 2);
+    HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc1_buffer, 1);
+    HAL_ADC_Start_DMA(&hadc2, (uint32_t*)adc2_buffer, 2);
 
     // Update all the BMS states
     BMS_Update(&hbms);

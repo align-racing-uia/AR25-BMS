@@ -1,4 +1,5 @@
 #include "pid.h"
+#include "main.h"
 
 PID_HandleTypeDef PID_Init(float k_p, float k_i, float k_d, float setpoint, uint16_t sample_time){
     PID_HandleTypeDef pid;
