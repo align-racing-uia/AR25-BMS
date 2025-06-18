@@ -236,22 +236,29 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
     // Functionality not directly related to the BMS, but still needed for the BMS to work as an ACU
+    float ntc_voltage = ((float) adc2_buffer[1]) / 4095 * 2900; // Read the voltage (in mV) from the external temperature sensor
+    float ntc_resistance = ((3300.0 * 10000.0)/(ntc_voltage)) - 10000.0;
+    float ntc_temp = (1 / ((1 / (25.0 + 275.15)) + (1 / 4300.0) * logf(ntc_resistance/ 10000.0f))) - 273.15; // Calculate the temperature in Celsius from the NTC voltage
 
     // Handle the PWM generation
-    if (hbq.HighestCellTemperature < 40.0)
+    // If the highest cell temperature is above the NTC temperature (ambient), set the PID setpoint to the NTC temperature
+    if (hbq.HighestCellTemperature >= ntc_temp)
     {
-      pid_controller.Setpoint = hbq.HighestCellTemperature; // Set the setpoint to the highest cell temperature
+      pid_controller.Setpoint = ntc_temp; // Set the setpoint to 40.0 degrees for now
     }
     else
     {
-      pid_controller.Setpoint = 40.0; // Set the setpoint to 40.0 degrees for now
+      // If the pack somehow is cooler than the ambient temperature, set the PID setpoint to the highest cell temperature
+      // This is to prevent the PID from trying to cool the pack when it is below ambient temperature
+      pid_controller.Setpoint = hbq.HighestCellTemperature; // Set the setpoint to the highest cell temperature
     }
+
     float pid_output = fabsf(PID_Compute(&pid_controller, hbq.HighestCellTemperature)); // Calculate the PID output
     if (pid_output > 100.0)
     {
       pid_output = 100.0; // Limit the output to 100%
     }
-    else if (pid_output < 0.0)
+    else if (pid_output < 0.0) // It makes no sensor to have a negative output, as the fan cannot run in reverse, neither can the PWM signal be negative
     {
       pid_output = 0.0; // Limit the output to 0%
     }
