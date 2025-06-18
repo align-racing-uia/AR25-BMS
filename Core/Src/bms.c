@@ -75,7 +75,9 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
     hbms->TempTimestamp = HAL_GetTick();             // Initialize the temperature timestamp to the current time
     hbms->VoltageTimestamp = HAL_GetTick();          // Initialize the voltage timestamp to the current time
     hbms->BroadcastTimestamp = HAL_GetTick();        // Initialize the broadcast timestamp to the current time
+    hbms->ModelTimestamp = HAL_GetTick();           // Initialize the model timestamp to the current time
     hbms->ChargerPresent = false;                    // Initialize the charger present flag to false
+
 
     hbms->BqConnected = false; // Initialize the BQ connected flag to false
 
@@ -100,6 +102,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
 {
 
     // Things which are done before every cycle are done here
+    // Some things can only be done when the BQ is connected
     if (hbms->BqConnected)
     {
 
@@ -123,6 +126,12 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
             BQ_GetCellTemperatures(hbms->BQ, 4300.0); // Get the cell temperatures from the BQ
             hbms->TempTimestamp = HAL_GetTick();      // Update the temperature timestamp
         }
+
+        if (hbms->ModelTimestamp + 100 < HAL_GetTick()){
+            uint16_t cycle_time = HAL_GetTick() - hbms->ModelTimestamp; // Calculate the cycle time since the last model update
+            BatteryModel_Update(hbms->BatteryModel, hbms->BQ->CellVoltages, hbms->BQ->CellTemperatures, hbms->MeasuredCurrent, cycle_time);
+            hbms->ModelTimestamp = HAL_GetTick(); // Update the model timestamp
+        }
     }
     else
     {
@@ -144,10 +153,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     CheckForWarnings(hbms);     // Check for faults and warnings
     ListenForCanMessages(hbms); // Listen for CAN messages
 
-    // TODO: Implement SOC estimation
-    // uint16_t cycle_time = HAL_GetTick() - hbms->LastMeasurementTimestamp; // Calculate the cycle time
-    // hbms->LastMeasurementTimestamp = HAL_GetTick();                       // Update the last measurement timestamp
-    // BatteryModel_Update(hbms->BatteryModel, hbms->BQ->CellVoltages, hbms->BQ->CellTemperatures, hbms->MeasuredCurrent, cycle_time);
+
 
     switch (hbms->State)
     {
@@ -497,7 +503,7 @@ bool LoadConfiguration(BMS_HandleTypeDef *hbms)
 
     // Configure the battery model with the BMS configuration
     // TODO: Make capacity a bms configuration parameter
-    BatteryModel_Configure(hbms->BatteryModel, hbms->Config.CellCount, hbms->Config.CellsEach * hbms->Config.NumOfSlaves, hbms->Config.CellCountInParallel, 2650); // Initialize the battery model with the configuration
+    BatteryModel_Configure(hbms->BatteryModel, hbms->Config.CellCount, hbms->Config.CellsEach * hbms->Config.NumOfSlaves, 2650 * 5); // Initialize the battery model with the configuration
 
     // Load the OCV maps from flash memory and set them in the battery model
     // TODO: Load the OCV maps
