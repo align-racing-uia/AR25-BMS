@@ -56,20 +56,26 @@ void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_
             battery_model->Cells[i].MeasuredVoltage = cell_voltages[i];
             battery_model->Cells[i].MeasuredTemperature = cell_temperatures[i];
             battery_model->Cells[i].MeasuredCurrent = total_current; // Treat each set of cells in parallel as one cell for now
-
+            float lowest_soc = 100.0f; // Start with the highest SOC possible 
             for (int j = 0; j < battery_model->OCV.Size; j++)
             {
                 if (cell_voltages[i] < (battery_model->OCV.VoltagePoints[j] / 1000.0f))
                 {
                     battery_model->Cells[i].EstimatedSOC = ((float)j / (float)battery_model->OCV.Size) * 100.0f;
                     battery_model->Cells[i].EstimatedCapacity = (battery_model->Cells[i].EstimatedSOC / 100.0f) * battery_model->Cells[i].NominalCapacity;
+
                     break;
+                }else{
+                    battery_model->Cells[i].EstimatedSOC = 100.0f;
+                    battery_model->Cells[i].EstimatedCapacity = battery_model->Cells[i].NominalCapacity; // If the voltage is above the highest voltage in the OCV map, set SOC to 100%
                 }
+                battery_model->EstimatedSOC = lowest_soc; // Set the estimated SOC to the lowest SOC of the cells, as we dont want anything to burn
             }
         }
         battery_model->FirstEstimate = true;
         return;
     }
+    float lowest_soc = 100.0f; // Start with the highest SOC possible 
 
     for (int i = 0; i < battery_model->CellCount; i++)
     {
@@ -89,8 +95,12 @@ void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_
             battery_model->Cells[i].EstimatedResistance = (battery_model->Cells[i].MeasuredRestingVoltage - battery_model->Cells[i].MeasuredVoltage) / battery_model->Cells[i].MeasuredCurrent;
         }
         // TODO: Map temperatures to cells
-
         battery_model->Cells[i].EstimatedCapacity += battery_model->Cells[i].MeasuredCurrent * dt / 3.6f; // mAh
         battery_model->Cells[i].EstimatedSOC = (battery_model->Cells[i].EstimatedCapacity / battery_model->Cells[i].NominalCapacity) * 100.0f;
+        if (battery_model->Cells[i].EstimatedSOC < lowest_soc)
+        {
+            lowest_soc = battery_model->Cells[i].EstimatedSOC; // Find the lowest SOC for the cell
+        }
     }
+    battery_model->EstimatedSOC = lowest_soc; // Set the estimated SOC to the lowest SOC of the cells, as we dont want anything to burn
 }
