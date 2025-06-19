@@ -11,6 +11,7 @@ typedef enum
   BMS_FAULT_CRITICAL_TEMPERATURE = (1 << 1),               // These are considered fatal errors, and the system will not run
   BMS_FAULT_LOST_TEMPERATURE_SENSOR = (1 << 2),               // These are considered fatal errors, and the system will not run
   BMS_FAULT_CRITICAL_VOLTAGE = (1 << 3),               // These are considered fatal errors, and the system will not run
+  BMS_FAULT_CELL_OVERCURRENT = (1 << 4)               // These are considered fatal errors, and will throw an AMS fault to protect the pack
 } BMS_FaultTypeDef;
 
 // Warnings will stop the Tractive System from running, but will not stop the BMS from running
