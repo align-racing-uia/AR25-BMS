@@ -331,7 +331,7 @@ int main(void)
     // Functionality not directly related to the BMS, but still needed for the BMS to work as an ACU
     float ntc_voltage = ((float)adc2_buffer[1]) / 4095 * 2900; // Read the voltage (in mV) from the external temperature sensor
     float ntc_resistance = ((3300.0 * 10000.0) / (ntc_voltage)) - 10000.0;
-    float ntc_temp = (1 / ((1 / (25.0 + 275.15)) + (1 / 4300.0) * logf(ntc_resistance / 10000.0f))) - 273.15; // Calculate the temperature in Celsius from the NTC voltage
+    float ntc_temp = K_TO_C(1.0 / ((1.0 / C_TO_K(25.0f)) + (1 / 4300.0) * logf(ntc_resistance / 10000.0f))); // Calculate the temperature in Celsius from the NTC voltage
 
     // Handle the PWM generation
     // If the highest cell temperature is above the NTC temperature (ambient), set the PID setpoint to the NTC temperature

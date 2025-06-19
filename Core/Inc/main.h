@@ -44,6 +44,11 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #define hqspi hqspi1
+
+// Global helper macros for temperature conversions
+#define C_TO_K(x) ((x) + 273.15f) // Convert Celsius to Kelvin
+#define K_TO_C(x) ((x) - 273.15f) // Convert Kelvin to Celsius
+
 #include "math.h" // Needed for the w25q_mem.h
 /* USER CODE END Includes */
 

@@ -58,6 +58,32 @@
 #define BQ16_FAULT_RST1 0x0331
 #define BQ16_FAULT_RST2 0x0332
 
+#define BQ16_FAULT_MSK1 0x0016 // Fault masking register for the stack
+#define BQ16_FAULT_MSK2 0x0016 // Fault masking register for the stack
+
+typedef enum
+{
+    BQ16_FAULT_MSK1_MSK_PWR = (uint8_t)(1 << 0),
+    BQ16_FAULT_MSK1_MSK_SYS = (uint8_t)(1 << 1),
+    BQ16_FAULT_MSK1_MSK_COMP = (uint8_t)(1 << 2),
+    BQ16_FAULT_MSK1_MSK_OV = (uint8_t)(1 << 3),
+    BQ16_FAULT_MSK1_MSK_UV = (uint8_t)(1 << 4),
+    BQ16_FAULT_MSK1_MSK_OT = (uint8_t)(1 << 5),
+    BQ16_FAULT_MSK1_MSK_UT = (uint8_t)(1 << 6),
+    BQ16_FAULT_MSK1_MSK_PROT = (uint8_t)(1 << 7),
+} BQ16_Fault_Mask1TypeDef;
+
+typedef enum
+{
+    BQ16_FAULT_MSK2_MSK_COMM1 = (uint8_t)(1 << 0),
+    BQ16_FAULT_MSK2_MSK_COMM2 = (uint8_t)(1 << 1),
+    BQ16_FAULT_MSK2_MSK_COMM3_HB = (uint8_t)(1 << 2),
+    BQ16_FAULT_MSK2_MSK_COMM3_FTONE = (uint8_t)(1 << 3),
+    BQ16_FAULT_MSK2_MSK_COMM3_FCOMM = (uint8_t)(1 << 4),
+    BQ16_FAULT_MSK2_MSK_OTP_DATA = (uint8_t)(1 << 5),
+    BQ16_FAULT_MSK2_MSK_OTP_CRC = (uint8_t)(1 << 6),
+} BQ16_Fault_Mask2TypeDef;
+
 // Register Flags for BQ79616
 #define BQ16_ADC_CTRL1_MAINGO 0x04
 #define BQ16_ADC_CTRL1_ADCCONT 0x02
@@ -211,6 +237,7 @@ BQ_StatusTypeDef BQ_GetDieTemperatures(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_ConfigureFaultMasks(BQ_HandleTypeDef *hbq, BQ16_FaultMaskingTypeDef stack_mask, BQ_FaultMaskingTypeDef bridge_mask);
 BQ_StatusTypeDef BQ_PollFaultSummaries(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_ResetStackFaults(BQ_HandleTypeDef *hbq);
+BQ_StatusTypeDef BQ_ConfigureStackFaultMask(BQ_HandleTypeDef *hbq, BQ16_Fault_Mask1TypeDef mask1, BQ16_Fault_Mask2TypeDef mask2);
 
 BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef *hbq, uint8_t *pOut, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t readType);
 BQ_StatusTypeDef BQ_Write(BQ_HandleTypeDef *hbq, uint8_t *inData, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t writeType);

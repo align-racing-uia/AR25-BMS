@@ -8,8 +8,7 @@
 #include "cordic.h"
 #include "bms_config.h"
 
-#define C_TO_K(x) ((x) + 273.15f) // Convert Celsius to Kelvin
-#define K_TO_C(x) ((x) - 273.15f) // Convert Kelvin to Celsius
+
 
 // Private helper function
 
