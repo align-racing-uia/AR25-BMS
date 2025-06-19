@@ -57,6 +57,7 @@ extern "C" {
 #define BQ_MAX_AMOUNT_OF_SLAVES (BQ_MAX_AMOUNT_OF_CHIPS - 1) // The maximum amount of BQ79616 chips in the system
 #define BQ_MAX_AMOUNT_OF_CELLS_EACH 16                       // The maximum amount of cells in series on each board
 #define BQ_MAX_AMOUNT_OF_TEMPS_EACH 14                       // The maximum amount of temperature sensors on each board
+#define CELL_MEMORY_POOL_SIZE (BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_CELLS_EACH) // Size of the cell memory pool, defaults to a maximum of 300 cells
 
 #include "math.h" // Needed for the w25q_mem.h
 /* USER CODE END Includes */

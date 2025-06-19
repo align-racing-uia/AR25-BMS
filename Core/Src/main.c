@@ -54,10 +54,6 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-
-
-#define CELL_MEMORY_POOL_SIZE (BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_CELLS_EACH) // Size of the cell memory pool, defaults to a maximum of 300 cells
-
 // Compiliation settings
 // #define CONNECTED_TO_BATTERY // For debugging
 // #define WATCHDOG_ENABLE      // Enable the watchdog

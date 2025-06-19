@@ -4,15 +4,11 @@
 #include <stdint.h>
 #include "bms_config.h"
 
-
-
-
 // A battery model implemented based on the model used in the following paper:
 // https://www.sciencedirect.com/science/article/pii/S0360544211002271#sec2
 
-
-
-typedef struct {
+typedef struct
+{
     float EstimatedSOC;
     float EstimatedCapacity;
     float SpentEnergy;
@@ -24,35 +20,33 @@ typedef struct {
     float NominalCapacity; // Nominal capacity of the cell
 } CellModel_HandleTypeDef;
 
-
-typedef struct {
-    uint8_t Size; // The number 0-100 SOC should be divided on, saves a bit of memory with the tradeof that you have to do a bit of math
+typedef struct
+{
+    uint8_t Size;         // The number 0-100 SOC should be divided on, saves a bit of memory with the tradeof that you have to do a bit of math
     float *VoltagePoints; // Voltage points for certain SOCs
 } OCV_HandleTypeDef;
 
-
-typedef struct {
-    bool  FirstEstimate; // If the first SOC estimation is done
+typedef struct
+{
+    bool FirstEstimate; // If the first SOC estimation is done
     float EstimatedSOC;
-    uint16_t CellCount;
     uint16_t CellsInSeries;
-    float K0; // Typically the resting voltage
-    float K1; // K1 / SOC
-    float K2; // K2 * SOC
-    float K3; // K3 * ln(SOC)
-    float K4; // K4 * ln(1-SOC)
+    float K0;                  // Typically the resting voltage
+    float K1;                  // K1 / SOC
+    float K2;                  // K2 * SOC
+    float K3;                  // K3 * ln(SOC)
+    float K4;                  // K4 * ln(1-SOC)
     float DischargeResistance; // Resistance during discharge
-    float ChargingResistance; //  Resistance during charging
-    float H; // Hysterisis
+    float ChargingResistance;  //  Resistance during charging
+    float H;                   // Hysterisis
     CellModel_HandleTypeDef *Cells;
     OCV_HandleTypeDef OCV; // Open circuit voltage map
 
 } BatteryModel_HandleTypeDef;
 
-
-void BatteryModel_Configure(BatteryModel_HandleTypeDef *battery_model, uint16_t cell_count, uint16_t cells_in_series, uint16_t nominal_cell_capacity);
-void BatteryModel_BindMemory(BatteryModel_HandleTypeDef *battery_model, CellModel_HandleTypeDef* cell_memory_pool, float* ocv_map_voltage_points, size_t ocv_map_size);
-void BatteryModel_LoadOCVMap(BatteryModel_HandleTypeDef *battery_model, float* voltage_points, uint8_t temp, uint8_t map_index, uint16_t num_of_voltage_points);
-void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_voltages, float *cell_temperatures, float total_current, uint16_t current_timestamp);
+void BatteryModel_Configure(BatteryModel_HandleTypeDef *battery_model, uint16_t cells_in_series, uint16_t nominal_cell_capacity);
+void BatteryModel_BindMemory(BatteryModel_HandleTypeDef *battery_model, CellModel_HandleTypeDef *cell_memory_pool, float *ocv_map_voltage_points, size_t ocv_map_size);
+void BatteryModel_LoadOCVMap(BatteryModel_HandleTypeDef *battery_model, float *voltage_points, uint8_t temp, uint8_t map_index, uint16_t num_of_voltage_points);
+void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_voltages, float *cell_temperatures, float total_current, uint16_t cycle_time);
 
 #endif // BATTERY_MODEL_H

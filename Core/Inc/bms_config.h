@@ -79,17 +79,16 @@ typedef enum
     BMS_CONFIG_PARAM_CELL_CHARGE_CURRENT_LIMIT = 16,          // uint16_t CellChargeCurrentLimit
     BMS_CONFIG_PARAM_SINGLE_CELL_CAPACITY = 17,               // uint16_t SingleCellCapacity
     BMS_CONFIG_PARAM_FUSE_CURRENT_LIMIT = 18,                 // uint16_t FuseCurrentLimit
-    BMS_CONFIG_PARAM_CC_WARNING_LIMIT = 19,                   // uint16_t CCWarningLimit
-    BMS_CONFIG_PARAM_DC_WARNING_LIMIT = 20,                   // uint16_t DCWarningLimit
-    BMS_CONFIG_PARAM_CAN_NODE_ID = 21,                        // uint8_t CanNodeID
-    BMS_CONFIG_PARAM_CAN_SPEED = 22,                          // BMS_Config_CanSpeedTypeDef CanSpeed
-    BMS_CONFIG_PARAM_BROADCAST_PACKET_ID = 23,                // uint8_t BroadcastPacketID
-    BMS_CONFIG_PARAM_CAN_BROADCAST_INTERVAL = 24,             // uint16_t CanBroadcastInterval
-    BMS_CONFIG_PARAM_CAN_TEMP_BROADCAST_INTERVAL = 25,        // uint16_t CanTempBroadcastInterval
-    BMS_CONFIG_PARAM_CAN_VOLTAGE_BROADCAST_INTERVAL = 26,     // uint16_t CanVoltageBroadcastInterval
-    BMS_CONFIG_PARAM_CAN_CHARGER_BROADCAST_INTERVAL = 27,     // uint16_t CanChargerBroadcastInterval
-    BMS_CONFIG_PARAM_CAN_CHARGER_BROADCAST_TIMEOUT = 28,      // uint16_t CanChargerBroadcastTimeout
-    BMS_CONFIG_PARAM_CAN_EXTENDED = 29,                       // bool CanExtended
+    BMS_CONFIG_PARAM_CAN_NODE_ID = 19,                        // uint8_t CanNodeID
+    BMS_CONFIG_PARAM_CAN_CONFIG_NODE_ID = 20,                 // uint8_t CanConfigNodeID
+    BMS_CONFIG_PARAM_CAN_SPEED = 21,                          // BMS_Config_CanSpeedTypeDef CanSpeed
+    BMS_CONFIG_PARAM_BROADCAST_PACKET_ID = 22,                // uint8_t BroadcastPacketID
+    BMS_CONFIG_PARAM_CAN_BROADCAST_INTERVAL = 23,             // uint16_t CanBroadcastInterval
+    BMS_CONFIG_PARAM_CAN_TEMP_BROADCAST_INTERVAL = 24,        // uint16_t CanTempBroadcastInterval
+    BMS_CONFIG_PARAM_CAN_VOLTAGE_BROADCAST_INTERVAL = 25,     // uint16_t CanVoltageBroadcastInterval
+    BMS_CONFIG_PARAM_CAN_CHARGER_BROADCAST_INTERVAL = 26,     // uint16_t CanChargerBroadcastInterval
+    BMS_CONFIG_PARAM_CAN_CHARGER_BROADCAST_TIMEOUT = 27,      // uint16_t CanChargerBroadcastTimeout
+    BMS_CONFIG_PARAM_CAN_EXTENDED = 28,                       // bool CanExtended
 } BMS_Config_ParameterIndexTypeDef;
 
 typedef enum

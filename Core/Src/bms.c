@@ -235,13 +235,13 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         break;
     // We let this fall through, as the charging state includes the TS active state
     case BMS_STATE_CHARGING:
-        if (hbms->ChargerPresentTimestamp + 2000 <= HAL_GetTick())
+        if (hbms->ChargerPresentTimestamp + hbms->Config.CanChargerBroadcastTimeout <= HAL_GetTick())
         {
             // If the charger timestamp is older than 1 second, we consider the charger disconnected
             hbms->ChargerPresent = false; // Clear the charger present flag
         }
 
-        if (hbms->ChargerBroadcastTimestamp + 1000 <= HAL_GetTick())
+        if (hbms->ChargerBroadcastTimestamp + hbms->Config.CanChargerBroadcastInterval <= HAL_GetTick())
         {
             // If the charger broadcast timestamp is older than 1 second, we need to broadcast our requirements to the charger
             uint8_t data[5] = {0};
@@ -340,23 +340,25 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     }
 
     // Things that need to happen regardless of the state
-    if (hbms->BroadcastTimestamp + 10 <= HAL_GetTick())
+    if (hbms->BroadcastTimestamp + hbms->Config.CanBroadcastInterval <= HAL_GetTick())
     {
         // If the broadcast timestamp is older than 100ms, we need to broadcast the BMS state
         hbms->BroadcastTimestamp = HAL_GetTick(); // Update the broadcast timestamp
 
         BroadcastBMSState(hbms); // Broadcast the BMS state to the CAN bus
-
-        if (hbms->BroadcastVoltages)
-        {
-            BroadcastBMSVoltages(hbms);
-        }
-
-        if (hbms->BroadcastTemperatures)
-        {
-            BroadcastBMSTemperatures(hbms);
-        }
     }
+    if (hbms->BroadcastVoltages && hbms->VoltageTimestamp + hbms->Config.CanVoltageBroadcastInterval <= HAL_GetTick())
+    {
+        BroadcastBMSVoltages(hbms);
+        hbms->VoltageTimestamp = HAL_GetTick(); // Update the voltage timestamp
+    }
+
+    if (hbms->BroadcastTemperatures && hbms->TempTimestamp + hbms->Config.CanTempBroadcastInterval <= HAL_GetTick())
+    {
+        BroadcastBMSTemperatures(hbms);
+        hbms->TempTimestamp = HAL_GetTick(); // Update the temperature timestamp
+    }
+    
 }
 
 // Function to monitor and update fault flags
@@ -405,21 +407,8 @@ void CheckForWarnings(BMS_HandleTypeDef *hbms)
         // Charger cannot be present if the CAN is not working
         hbms->ChargerPresent = false; // Clear the charger present flag
     }
-    // All checks dependant on the BQ being connected
-    if (hbms->BqConnected)
-    {
-        if (*hbms->LowestCellVoltage <= 2800.0f)
-        {
-            SET_BIT(hbms->ActiveWarnings, BMS_WARNING_UNDERVOLTAGE); // Set the low cell voltage warning
-        }
 
-        if (*hbms->HighestCellTemperature > 59.0f)
-        {
-            SET_BIT(hbms->ActiveWarnings, BMS_WARNING_OVERTEMPERATURE); // Set the high temperature warning
-        }
-    }
-
-    if (hbms->MeasuredCurrent > 120.0f)
+    if (hbms->MeasuredCurrent >= hbms->DcLimit)
     {
         SET_BIT(hbms->ActiveWarnings, BMS_WARNING_OVERCURRENT); // Set the high current warning
     }
@@ -498,22 +487,22 @@ bool LoadConfiguration(BMS_HandleTypeDef *hbms)
     }
 
     // Configure the BQ with the BMS configuration
+    uint8_t GpioAuxADCMap = hbms->Config.MultiplexEnabled ?( 0xFF ^ (1 << hbms->Config.MultiplexPinIndex)):(0xFF); // Default GPIO Aux ADC map, all enabled, except for the multiplex pin if multiplexing is enabled
     BQ_ConfigTypeDef bq_config = {
         .NumOfSlaves = hbms->Config.NumOfSlaves,
         .NumOfCellsEach = hbms->Config.CellsEach,
         .NumOfTempsEach = hbms->Config.TempsEach,
-        // TODO: Add the GpioAuxADCMap and FirstTempGPIO to the BMS configuration, as well as a multiplexing toggle
-        .TempMultiplexEnabled = true,
-        .TempMultiplexPinIndex = 7, // Pin 8 (zero indexed) is used to multiplex the temperature sensors, which is GPIO7 in the BQ
-        .GpioAuxADCMap = 0x7F,
-        .FirstTempGPIO = 1, // Pin 1 is used to detect PCB temperature, and the rest are used for the temperature sensors
+        .TempMultiplexEnabled = hbms->Config.MultiplexEnabled, // If multiplexing is enabled, we will use the multiplex pin to read the temperature sensors
+        .TempMultiplexPinIndex = hbms->Config.MultiplexPinIndex, // Pin 8 (zero indexed) is used to multiplex the temperature sensors, which is GPIO7 in the BQ
+        .GpioAuxADCMap = GpioAuxADCMap,
+        .FirstTempGPIO = hbms->Config.FirstTempPinIndex, // Pin 1 is used to detect PCB temperature, and the rest are used for the temperature sensors
     };
 
     BQ_Configure(hbms->BQ, &bq_config); // Configure the BQ with the BMS configuration
 
     // Configure the battery model with the BMS configuration
     // TODO: Make capacity a bms configuration parameter
-    BatteryModel_Configure(hbms->BatteryModel, hbms->Config.CellCount, hbms->Config.CellsEach * hbms->Config.NumOfSlaves, 2650 * 5); // Initialize the battery model with the configuration
+    BatteryModel_Configure(hbms->BatteryModel, hbms->Config.CellCount, hbms->Config.SingleCellCapacity * hbms->Config.CellsInParallel); // Initialize the battery model with the configuration
 
     // Load the OCV maps from flash memory and set them in the battery model
     // TODO: Load the OCV maps
