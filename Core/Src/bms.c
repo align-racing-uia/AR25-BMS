@@ -151,7 +151,27 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     hbms->MeasuredCurrent = fabs(low_current_sensor) <= 75.0 ? low_current_sensor : high_current_sensor; // Use the low current sensor if it is above 75A, otherwise use the high current sensor¨
 
     // Derate current limits based on temperature and voltage
+    // Derate everything linearly based on the limits in the configuration
+    // The Dc Limits are only applied once, meaning the current limit can be derated by both temperature and voltage
+    hbms->DcLimit = hbms->Config.DischargeCurrentLimit; // Start with the configured discharge current limit
+    hbms->CcLimit = hbms->Config.ChargeCurrentLimit;   // Start with the configured charge current limit
 
+    if(*hbms->HighestCellTemperature >= hbms->Config.CellTemperatureDerateLimitHigh) {
+        hbms->DcLimit = hbms->DcLimit * (1.0f - (float)(*hbms->HighestCellTemperature - hbms->Config.CellTemperatureDerateLimitHigh) / (float)(hbms->Config.CellTemperatureLimitHigh - hbms->Config.CellTemperatureDerateLimitHigh));
+        hbms->CcLimit = hbms->CcLimit * (1.0f - (float)(*hbms->HighestCellTemperature - hbms->Config.CellTemperatureDerateLimitHigh) / (float)(hbms->Config.CellTemperatureLimitHigh - hbms->Config.CellTemperatureDerateLimitHigh));
+    }
+    if(*hbms->LowestCellTemperature <= hbms->Config.CellTemperatureDerateLimitLow) {
+        hbms->DcLimit = hbms->DcLimit * (1.0f - (float)(hbms->Config.CellTemperatureDerateLimitLow - *hbms->LowestCellTemperature) / (float)(hbms->Config.CellTemperatureDerateLimitLow - hbms->Config.CellTemperatureLimitLow));
+        hbms->CcLimit = hbms->CcLimit * (1.0f - (float)(hbms->Config.CellTemperatureDerateLimitLow - *hbms->LowestCellTemperature) / (float)(hbms->Config.CellTemperatureDerateLimitLow - hbms->Config.CellTemperatureLimitLow));
+    }
+
+    if(*hbms->HighestCellVoltage >= hbms->Config.CellVoltageDerateLimitHigh) {
+        hbms->CcLimit = hbms->CcLimit * (1.0f - (float)(*hbms->HighestCellVoltage - hbms->Config.CellVoltageDerateLimitHigh) / (float)(hbms->Config.CellVoltageLimitHigh - hbms->Config.CellVoltageDerateLimitHigh));
+    }
+
+    if(*hbms->LowestCellVoltage <= hbms->Config.CellVoltageDerateLimitLow) {
+        hbms->DcLimit = hbms->DcLimit * (1.0f - (float)(hbms->Config.CellVoltageDerateLimitLow - *hbms->LowestCellVoltage) / (float)(hbms->Config.CellVoltageDerateLimitLow - hbms->Config.CellVoltageLimitLow));
+    }
 
     CheckForFaults(hbms);
     CheckForWarnings(hbms);     // Check for faults and warnings
@@ -249,8 +269,8 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
             // If the charger broadcast timestamp is older than 1 second, we need to broadcast our requirements to the charger
             uint8_t data[5] = {0};
             uint32_t can_id = 0x1806E5F4;
-            uint16_t voltage_limit = 5880; // 588V is the maximum voltage limit for the charger
-            uint16_t current_limit = 20;   // 2A is Maximum current limit for the charger
+            uint16_t voltage_limit = (hbms->Config.CellVoltageLimitHigh * hbms->Config.CellCount) / 100; // 588V is the maximum voltage limit for the charger
+            uint16_t current_limit = hbms->CcLimit / 100;   // mA / 100 = A * 10
 
             data[0] = (voltage_limit >> 8) & 0xFF;                                               // Set the first byte to the high byte of the voltage limit
             data[1] = voltage_limit & 0xFF;                                                      // Set the second byte to the low byte of the voltage limit
