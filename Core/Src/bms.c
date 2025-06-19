@@ -21,6 +21,7 @@ void BroadcastBMSTemperatures(BMS_HandleTypeDef *hbms);
 // Private variable defines
 uint8_t voltage_cycle = 0; // This is used to cycle the voltage broadcast, so that it does not flood the bus
 uint8_t temp_cycle = 0;    // This is used to cycle the temperature broadcast, so that it does not flood the bus
+uint8_t resistance_cycle = 0; // This is used to cycle the resistance broadcast, so that it does not flood the bus
 
 // Public Function implementations
 
@@ -682,4 +683,36 @@ void BroadcastBMSTemperatures(BMS_HandleTypeDef *hbms)
     Align_CAN_Send(hbms->FDCAN, Align_CombineCanId(63, hbms->Config.CanNodeID, hbms->Config.CanExtended), data, 8, hbms->Config.CanExtended); // Send the broadcast packet
     temp_cycle++;
     temp_cycle = temp_cycle % total_cycles; // Calculate the current cycle index
+}
+
+void BroadcastBMSResistances(BMS_HandleTypeDef *hbms)
+{
+    // This function transmits the cell temperatures over the CAN network
+
+    uint8_t data[8] = {0}; // Dummy data for the broadcast packet
+
+    // TODO: Toggle this based on if Multiplexing is enabled or not
+    uint8_t total_cycles = (hbms->Config.CellCount) / 3 + (hbms->Config.CellCount % 3 > 0); // Calculate the total number of cycles needed to send all cell temperatures
+    data[0] = resistance_cycle;                                                                                                                                       // Set the first byte to the current cycle index
+    data[1] = total_cycles;                                                                                                                                     // Set the second byte to the total number of cycles
+
+    for (size_t i = 0; i < 3; i++)
+    {
+        if (temp_cycle * 3 + i < hbms->Config.CellCount)
+        {
+            uint16_t low_res_resistance = (uint16_t) (hbms->BatteryModel->Cells[resistance_cycle * 3 + i].EstimatedResistance * 10); // Convert the cell resistance to mOhm and store it in a low resolution format
+            // If the current cycle index is within the range of cell temperatures
+            data[i * 2 + 2] = (uint8_t)(low_res_resistance >> 8); // Set the cell temperature in C
+            data[i * 2 + 3] = (uint8_t)(low_res_resistance);      // Set the cell temperature in C
+        }
+        else
+        {
+            data[i * 2 + 2] = 0; 
+            data[i * 2 + 3] = 0; 
+        }
+    }
+
+    Align_CAN_Send(hbms->FDCAN, Align_CombineCanId(61, hbms->Config.CanNodeID, hbms->Config.CanExtended), data, 8, hbms->Config.CanExtended); // Send the broadcast packet
+    resistance_cycle++;
+    resistance_cycle = resistance_cycle % total_cycles; // Calculate the current cycle index
 }
