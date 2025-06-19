@@ -148,6 +148,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     float high_current_sensor = (high_current_sensor_voltage - 2500.0f) / 4.0f;
 
     hbms->MeasuredCurrent = fabs(low_current_sensor) <= 75.0 ? low_current_sensor : high_current_sensor; // Use the low current sensor if it is above 75A, otherwise use the high current sensor¨
+    hbms->MeasuredCurrent *= 10.0f; // Convert the current to A * 10
 
     // Derate current limits based on temperature and voltage
     // Derate everything linearly based on the limits in the configuration
@@ -270,8 +271,8 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
             // If the charger broadcast timestamp is older than 1 second, we need to broadcast our requirements to the charger
             uint8_t data[5] = {0};
             uint32_t can_id = 0x1806E5F4;
-            uint16_t voltage_limit = (hbms->Config.CellVoltageLimitHigh * hbms->Config.CellCount) / 100; // 588V is the maximum voltage limit for the charger
-            uint16_t current_limit = hbms->CcLimit / 100;                                                // mA / 100 = A * 10
+            uint16_t voltage_limit = (uint16_t)(((uint32_t)hbms->Config.CellVoltageLimitHigh * (uint32_t)hbms->Config.CellCount) / 100); // 588V is the maximum voltage limit for the charger
+            uint16_t current_limit = hbms->CcLimit;                                                // A * 10
 
             data[0] = (voltage_limit >> 8) & 0xFF;                                               // Set the first byte to the high byte of the voltage limit
             data[1] = voltage_limit & 0xFF;                                                      // Set the second byte to the low byte of the voltage limit
@@ -403,13 +404,13 @@ void CheckForFaults(BMS_HandleTypeDef *hbms)
             SET_BIT(hbms->ActiveFaults, BMS_FAULT_LOST_TEMPERATURE_SENSOR); // Set the temperature warning
         }
 
-        if (*hbms->LowestCellVoltage <= hbms->Config.CellVoltageLimitLow || *hbms->HighestCellVoltage >= hbms->Config.CellVoltageLimitHigh)
+        if (*hbms->LowestCellVoltage <= (float)hbms->Config.CellVoltageLimitLow || *hbms->HighestCellVoltage >= (float)hbms->Config.CellVoltageLimitHigh)
         {
             SET_BIT(hbms->ActiveFaults, BMS_FAULT_CRITICAL_VOLTAGE); // Set the voltage fault
         }
     }
 
-    if(hbms->MeasuredCurrent >= (hbms->Config.CellDischargeCurrentLimit * hbms->Config.CellsInParallel) || hbms->MeasuredCurrent <= -(hbms->Config.CellChargeCurrentLimit * hbms->Config.CellsInParallel))
+    if (hbms->MeasuredCurrent >= ((float)hbms->Config.CellDischargeCurrentLimit * hbms->Config.CellsInParallel) || hbms->MeasuredCurrent <= -((float) hbms->Config.CellChargeCurrentLimit * hbms->Config.CellsInParallel))
     {
         SET_BIT(hbms->ActiveFaults, BMS_FAULT_CELL_OVERCURRENT); // Set the current fault
     }
@@ -627,10 +628,11 @@ void BroadcastBMSState(BMS_HandleTypeDef *hbms)
 
     uint8_t data[8] = {0}; // Dummy data for the broadcast packet
 
-    data[0] = (uint8_t)hbms->DcLimit >> 8; // Set the first byte to the BMS state
-    data[1] = (uint8_t)hbms->DcLimit;      // Set the second byte to the BMS state
-    data[2] = (uint8_t)hbms->CcLimit >> 8; // Set the third byte to the BMS state
-    data[3] = (uint8_t)hbms->CcLimit;      // Set the fourth byte to the BMS state
+    // mA / 100 = A * 10
+    data[0] = (uint8_t)((hbms->DcLimit / 100) >> 8); // Set the first byte to the BMS state
+    data[1] = (uint8_t)(hbms->DcLimit / 100);        // Set the second byte to the BMS state
+    data[2] = (uint8_t)((hbms->CcLimit / 100) >> 8); // Set the third byte to the BMS state
+    data[3] = (uint8_t)(hbms->CcLimit / 100);        // Set the fourth byte to the BMS state
     data[4] = (uint8_t)*hbms->HighestCellTemperature;
     data[5] = (uint8_t)*hbms->LowestCellTemperature;
     data[6] = (uint8_t)*hbms->SOC;

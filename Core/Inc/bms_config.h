@@ -39,9 +39,9 @@ typedef struct
     uint16_t CellChargeCurrentLimit;         // The maximum charge current of a cell in mA
     uint16_t SingleCellCapacity;             // The capacity of a single cell in mAh
 
-    uint16_t FuseCurrentLimit;      // The fuse current limit for the BMS, this is the maximum current that can flow through the fuse
-    uint16_t DischargeCurrentLimit; // The maximum discharge current of the BMS in mA
-    uint16_t ChargeCurrentLimit;    // The maximum charge current of the BMS in mA
+    uint16_t FuseCurrentLimit;      // The fuse current limit for the BMS, this is the maximum current that can flow through the fuse in A * 10
+    uint16_t DischargeCurrentLimit; // The maximum discharge current of the BMS in A * 10
+    uint16_t ChargeCurrentLimit;    // The maximum charge current of the BMS in A * 10
 
     uint8_t CanNodeID;                    // This follows the CAN ID format specified by DTI
     uint8_t CanConfigNodeID;              // Node ID for the configuration CAN messages, back and forth communication with the BMS
