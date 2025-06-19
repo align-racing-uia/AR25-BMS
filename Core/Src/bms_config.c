@@ -1,12 +1,6 @@
 #include "bms_config.h"
 #include "w25q_mem.h"
 
-typedef enum
-{
-    BMS_CONFIG_PARAM_VERSION = 0, // Config version, this should increment on large config changes
-    BMS_CONFIG_PARAM_CELL_COUNT = 1, // Total number of cells
-    BMS_CONFIG_PARAM_NUM_OF_SLAVES = 2, // The number of slaves in the system
-} BMS_ConfigParameters;
 
 void BMS_Config_Init(BMS_Config_HandleTypeDef *bms_config)
 {
@@ -17,34 +11,21 @@ void BMS_Config_Init(BMS_Config_HandleTypeDef *bms_config)
     bms_config->MemoryCheck[2] = 'i';
     bms_config->MemoryCheck[3] = 'g';
     bms_config->MemoryCheck[4] = 'n';
-    bms_config->BroadcastPacket = DEFAULT_CAN_BROADCAST_PACKET;
-    bms_config->CellCount = DEFAULT_TOTAL_CELLS;
-    bms_config->NumOfChips = DEFAULT_TOTAL_CHIPS;
+
     bms_config->NumOfSlaves = DEFAULT_TOTAL_CHIPS - 1; // The master is not counted as a slave
     bms_config->CellsEach = DEFAULT_CELLS_EACH;
     bms_config->TempsEach = DEFAULT_TEMPS_EACH;
-    bms_config->TempMapVoltagePoints = DEFAULT_TEMP_MAP_VOLTAGE_POINTS;
-    bms_config->TempMapAmount = DEFAULT_TEMP_MAP_AMOUNT;
-    bms_config->TotalCellCountInSeries = DEFAULT_TOTAL_CELLS_IN_SERIES;
-    bms_config->CellCountInParallel = DEFAULT_CELLS_IN_PARALLEL;
     bms_config->CellVoltageLimitLow = DEFAULT_CELLVOLTAGE_LIMIT_LOW;
     bms_config->CellVoltageLimitHigh = DEFAULT_CELLVOLTAGE_LIMIT_HIGH;
     bms_config->CellTemperatureLimitLow = DEFAULT_CELLTEMPERATURE_LIMIT_LOW;   // -40C
     bms_config->CellTemperatureLimitHigh = DEFAULT_CELLTEMPERATURE_LIMIT_HIGH; // 85C
     bms_config->CanNodeID = DEFAULT_CAN_NODE_ID;
-    bms_config->CanConfigNodeID = DEFAULT_CAN_CONFIG_NODE_ID;
-    bms_config->CanBaudrate = DEFAULT_CAN_BAUDRATE;
     bms_config->CanExtended = DEFAULT_CAN_EXTENDED; // Should the CAN ID be extended or not
-    bms_config->UsbLoggingEnabled = DEFAULT_USB_LOGGING_ENABLED;
     bms_config->CanBroadcastInterval = DEFAULT_CAN_BROADCAST_INTERVAL;                // 100ms
     bms_config->CanTempBroadcastInterval = DEFAULT_CAN_TEMP_BROADCAST_INTERVAL;       // 1s
     bms_config->CanVoltageBroadcastInterval = DEFAULT_CAN_TEMP_BROADCAST_INTERVAL;    // 1s
-    bms_config->CanTempBroadcastEnabled = true;                                       // Should the BMS broadcast the temperature or not
-    bms_config->CanVoltageBroadcastEnabled = true;                                    // Should the BMS broadcast the temperature or not
-    bms_config->UsbLoggingInterval = DEFAULT_USB_LOGGING_INTERVAL;                    // 1s
     bms_config->CanChargerBroadcastInterval = DEFAULT_CAN_CHARGER_BROADCAST_INTERVAL; // 1s
     bms_config->CanChargerBroadcastTimeout = DEFAULT_CAN_CHARGER_BROADCAST_TIMEOUT;   // 5s
-    bms_config->BalanceWhileCharging = DEFAULT_BALANCE_WHILE_CHARGING;                // Should the BMS balance while charging or not
     bms_config->Checksum = 0x00;                                                      // TODO: Implement CRC checksum
 }
 
@@ -53,22 +34,7 @@ void BMS_Config_Init(BMS_Config_HandleTypeDef *bms_config)
 // TODO: Implement more parameters
 void BMS_Config_SetParameter(BMS_Config_HandleTypeDef *bms_config, uint8_t index, uint16_t value)
 {
-    switch(index){
-        case BMS_CONFIG_PARAM_VERSION:
-            bms_config->ConfigVersion = value;
-            break;
-        case BMS_CONFIG_PARAM_CELL_COUNT:
-            bms_config->CellCount = value;
-            bms_config->TotalCellCountInSeries = value / bms_config->CellsEach;
-            bms_config->CellCountInParallel = 1; // TODO: Implement parallel cells
-            break;
-        case BMS_CONFIG_PARAM_NUM_OF_SLAVES:
-            bms_config->NumOfSlaves = value;
-            break;
-        default:
-            // Invalid parameter index, do nothing
-            break;
-    }
+
 }
 
 BMS_Config_StatusTypeDef BMS_Config_WriteToFlash(BMS_Config_HandleTypeDef *bms_config)
@@ -124,22 +90,11 @@ BMS_Config_StatusTypeDef BMS_Config_UpdateFromFlash(BMS_Config_HandleTypeDef *bm
     {
         return BMS_CONFIG_INVALID_CONFIG;
     }
-    if (bms_config->NumOfSlaves == 0 || bms_config->CellCount == 0 || bms_config->CellsEach == 0 || bms_config->TempsEach == 0)
+    if (bms_config->NumOfSlaves == 0 || bms_config->CellsEach == 0 || bms_config->TempsEach == 0)
     {
         return BMS_CONFIG_INVALID_VALUE;
     }
-    if (bms_config->CellCount > CELL_MEMORY_POOL_SIZE)
-    {
-        return BMS_CONFIG_INVALID_VALUE;
-    }
-    if (bms_config->TempMapAmount > TEMP_MAP_POOL_AMOUNT)
-    {
-        return BMS_CONFIG_INVALID_VALUE;
-    }
-    if (bms_config->TempMapVoltagePoints > TEMP_MAP_POOL_MAX_POINTS)
-    {
-        return BMS_CONFIG_INVALID_VALUE;
-    }
+
     if (bms_config->CellVoltageLimitLow > bms_config->CellVoltageLimitHigh)
     {
         return BMS_CONFIG_INVALID_VALUE;
