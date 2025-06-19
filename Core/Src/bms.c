@@ -463,9 +463,18 @@ bool Connect(BMS_HandleTypeDef *hbms)
 
     bq_status = BQ_ConfigureGPIO(hbms->BQ); // Configure the GPIOs of the BQ
 
+    if (bq_status != BQ_STATUS_OK)
+    {
+        // If the GPIO configuration fails, return false
+        // This will set the state to fault in the main loop
+        return false;
+    }
+
+    bq_status = BQ_ResetStackFaults(hbms->BQ); // Configure the auxiliary ADCs of the BQ
+
     // If all the above steps are successful, we can consider the BQ connected
-    hbms->BqConnected = true; // Set the BQ connected flag to true
-    return true;
+    hbms->BqConnected = bq_status == BQ_STATUS_OK; // Set the BQ connected flag to true
+    return bq_status == BQ_STATUS_OK; // Return true if the BQ is connected successfully
 }
 
 bool LoadConfiguration(BMS_HandleTypeDef *hbms)

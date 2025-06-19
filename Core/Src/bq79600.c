@@ -33,8 +33,6 @@ void BQ_Init(BQ_HandleTypeDef *hbq)
     hbq->LowestCellTemperature = 0.0f;
     hbq->HighestCellVoltage = 0.0f;
     hbq->LowestCellVoltage = 0.0f;
-
-    
 }
 
 void BQ_Configure(BQ_HandleTypeDef *hbq, BQ_ConfigTypeDef *bq_config)
@@ -504,7 +502,7 @@ BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq)
             uint16_t rawAdc = ((uint16_t)hbq->BQOutputBuffer[i * totalLen + 4 + y]) << 8;
             rawAdc |= ((uint16_t)hbq->BQOutputBuffer[i * totalLen + 5 + y]);
             float measuredVoltage = (float)((float)rawAdc * 190.73) / 1000; // Convert the raw ADC value to millivolts
-            hbq->TotalVoltage += measuredVoltage / 1000;                           // Add the voltage to the total voltage
+            hbq->TotalVoltage += measuredVoltage / 1000;                    // Add the voltage to the total voltage
             if (hbq->HighestCellVoltage < measuredVoltage)
             {
                 hbq->HighestCellVoltage = measuredVoltage; // Update the highest cell voltage
@@ -641,7 +639,7 @@ BQ_StatusTypeDef BQ_ConfigureFaultMasks(BQ_HandleTypeDef *hbq, BQ16_FaultMasking
 BQ_StatusTypeDef BQ_PollFaultSummaries(BQ_HandleTypeDef *hbq)
 {
     // Reset faults, as if they are active, they will be read again either way
-    hbq->StackFaultActive = false; // Reset the stack fault active flag
+    hbq->StackFaultActive = false;  // Reset the stack fault active flag
     hbq->BridgeFaultActive = false; // Reset the bridge fault active flag
 
     // Read the bridge faults from the slaves
@@ -654,7 +652,7 @@ BQ_StatusTypeDef BQ_PollFaultSummaries(BQ_HandleTypeDef *hbq)
 
     for (size_t i = 0; i < hbq->NumOfSlaves; i++)
     {
-        hbq->StackFaultSummary[i] = hbq->BQOutputBuffer[i * (6 + 1) + 4]; // Store the fault summary in the faults array
+        hbq->StackFaultSummary[i] = hbq->BQOutputBuffer[i * (6 + 1) + 4];                  // Store the fault summary in the faults array
         hbq->StackFaultActive = hbq->StackFaultActive || (hbq->StackFaultSummary[i] != 0); // Set the stack fault active flag if there is a fault
     }
 
@@ -664,7 +662,7 @@ BQ_StatusTypeDef BQ_PollFaultSummaries(BQ_HandleTypeDef *hbq)
     {
         return status;
     }
-    hbq->BridgeFaultSummary = hbq->BQOutputBuffer[4]; // Store the fault summary in the bridge fault summary
+    hbq->BridgeFaultSummary = hbq->BQOutputBuffer[4];      // Store the fault summary in the bridge fault summary
     hbq->BridgeFaultActive = hbq->BridgeFaultSummary != 0; // Set the bridge fault active flag if there is a fault
 
     return status;
@@ -674,6 +672,19 @@ BQ_StatusTypeDef BQ_PollSpecificFaults(BQ_HandleTypeDef *hbq, uint8_t deviceId)
 {
     // TODO: Implement the ability to poll specific fault registers from a specific device
     return BQ_STATUS_OK; // This is a placeholder, as the specific fault polling is not implemented yet
+}
+
+BQ_StatusTypeDef BQ_ResetStackFaults(BQ_HandleTypeDef *hbq)
+{
+    uint8_t data1 = 0xFF; // Reset all stack faults
+    uint8_t data2 = 0x7F; // Reset all bridge faults
+    BQ_StatusTypeDef status;
+    status = BQ_Write(hbq, &data1, BQ_SELF_ID, BQ16_FAULT_RST1, 1, BQ_STACK_WRITE); // Reset the stack faults
+    if (status != BQ_STATUS_OK)
+    {
+        return status;
+    }
+    return BQ_Write(hbq, &data2, BQ_SELF_ID, BQ16_FAULT_RST2, 1, BQ_STACK_WRITE); // Reset the stack faults
 }
 
 // Should be used with bqOutputBuffer

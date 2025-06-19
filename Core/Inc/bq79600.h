@@ -55,6 +55,8 @@
 #define BQ16_ADC_CONF1 0x0007  // ADC_CONF2-4 are increments of this
 
 #define BQ16_FAULT_SUMMARY 0x052D // Fault summary register for the stack
+#define BQ16_FAULT_RST1 0x0331
+#define BQ16_FAULT_RST2 0x0332
 
 // Register Flags for BQ79616
 #define BQ16_ADC_CTRL1_MAINGO 0x04
@@ -208,6 +210,7 @@ BQ_StatusTypeDef BQ_AutoAddress(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_GetDieTemperatures(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_ConfigureFaultMasks(BQ_HandleTypeDef *hbq, BQ16_FaultMaskingTypeDef stack_mask, BQ_FaultMaskingTypeDef bridge_mask);
 BQ_StatusTypeDef BQ_PollFaultSummaries(BQ_HandleTypeDef *hbq);
+BQ_StatusTypeDef BQ_ResetStackFaults(BQ_HandleTypeDef *hbq);
 
 BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef *hbq, uint8_t *pOut, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t readType);
 BQ_StatusTypeDef BQ_Write(BQ_HandleTypeDef *hbq, uint8_t *inData, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t writeType);
