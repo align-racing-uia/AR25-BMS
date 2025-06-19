@@ -19,11 +19,13 @@
 #define BMS_CONFIG_DEFAULT_CELL_TEMPERATURE_LIMIT_HIGH 60.0f
 #define BMS_CONFIG_DEFAULT_CELL_TEMPERATURE_DERATE_LIMIT_LOW 0.0f
 #define BMS_CONFIG_DEFAULT_CELL_TEMPERATURE_DERATE_LIMIT_HIGH 50.0f
-#define BMS_CONFIG_DEFAULT_CELL_DISCHARGE_CURRENT_LIMIT 40000 // 4000 mA = 4 A
+#define BMS_CONFIG_DEFAULT_CELL_DISCHARGE_CURRENT_LIMIT 40000 // 40000 mA = 40 A
 #define BMS_CONFIG_DEFAULT_CELL_CHARGE_CURRENT_LIMIT 2800     // 2800 mA = 2.8 A
 #define BMS_CONFIG_DEFAULT_SINGLE_CELL_CAPACITY 0
 
 #define BMS_CONFIG_DEFAULT_FUSE_CURRENT_LIMIT 200000 // 200000 mA = 200 A, this is the fuse current limit for the BMS, this is the maximum current that can flow through the fuse continuously
+#define BMS_CONFIG_DEFAULT_DISCHARGE_CURRENT_LIMIT 100000 // 100000 mA = 100 A, this is a sensible default, as it becomes clear that something is wrong in the configuration
+#define BMS_CONFIG_DEFAULT_CHARGE_CURRENT_LIMIT 5000 // 5000 mA = 5 A, this is a sensible default, as it becomes clear that something is wrong in the configuration
 
 #define BMS_CONFIG_DEFAULT_CAN_NODE_ID 6
 #define BMS_CONFIG_DEFAULT_CAN_CONFIG_NODE_ID 7
@@ -66,6 +68,8 @@ void BMS_Config_Init(BMS_Config_HandleTypeDef *bms_config)
     bms_config->SingleCellCapacity = BMS_CONFIG_DEFAULT_SINGLE_CELL_CAPACITY;
 
     bms_config->FuseCurrentLimit = BMS_CONFIG_DEFAULT_FUSE_CURRENT_LIMIT;
+    bms_config->DischargeCurrentLimit = BMS_CONFIG_DEFAULT_DISCHARGE_CURRENT_LIMIT;
+    bms_config->ChargeCurrentLimit = BMS_CONFIG_DEFAULT_CHARGE_CURRENT_LIMIT;
 
     bms_config->CanNodeID = BMS_CONFIG_DEFAULT_CAN_NODE_ID;
     bms_config->CanConfigNodeID = BMS_CONFIG_DEFAULT_CAN_CONFIG_NODE_ID;
@@ -227,6 +231,12 @@ BMS_Config_StatusTypeDef BMS_Config_HandleCanMessage(BMS_Config_HandleTypeDef *b
             break;
         case BMS_CONFIG_PARAM_FUSE_CURRENT_LIMIT:
             bms_config->FuseCurrentLimit = value;
+            break;
+        case BMS_CONFIG_PARAM_DISCHARGE_CURRENT_LIMIT:
+            bms_config->DischargeCurrentLimit = value;
+            break;
+        case BMS_CONFIG_PARAM_CHARGE_CURRENT_LIMIT:
+            bms_config->ChargeCurrentLimit = value;
             break;
         case BMS_CONFIG_PARAM_CAN_NODE_ID:
             bms_config->CanNodeID = value;

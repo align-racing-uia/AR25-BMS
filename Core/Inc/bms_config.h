@@ -5,7 +5,6 @@
 #include "stddef.h"
 #include "stdbool.h"
 
-
 typedef enum
 {
     BMS_Config_CAN_SPEED_100K = 0,  // 100 kbit/s
@@ -40,7 +39,9 @@ typedef struct
     uint16_t CellChargeCurrentLimit;         // The maximum charge current of a cell in mA
     uint16_t SingleCellCapacity;             // The capacity of a single cell in mAh
 
-    uint16_t FuseCurrentLimit; // The fuse current limit for the BMS, this is the maximum current that can flow through the fuse
+    uint16_t FuseCurrentLimit;      // The fuse current limit for the BMS, this is the maximum current that can flow through the fuse
+    uint16_t DischargeCurrentLimit; // The maximum discharge current of the BMS in mA
+    uint16_t ChargeCurrentLimit;    // The maximum charge current of the BMS in mA
 
     uint8_t CanNodeID;                    // This follows the CAN ID format specified by DTI
     uint8_t CanConfigNodeID;              // Node ID for the configuration CAN messages, back and forth communication with the BMS
@@ -79,16 +80,19 @@ typedef enum
     BMS_CONFIG_PARAM_CELL_CHARGE_CURRENT_LIMIT = 16,          // uint16_t CellChargeCurrentLimit
     BMS_CONFIG_PARAM_SINGLE_CELL_CAPACITY = 17,               // uint16_t SingleCellCapacity
     BMS_CONFIG_PARAM_FUSE_CURRENT_LIMIT = 18,                 // uint16_t FuseCurrentLimit
-    BMS_CONFIG_PARAM_CAN_NODE_ID = 19,                        // uint8_t CanNodeID
-    BMS_CONFIG_PARAM_CAN_CONFIG_NODE_ID = 20,                 // uint8_t CanConfigNodeID
-    BMS_CONFIG_PARAM_CAN_SPEED = 21,                          // BMS_Config_CanSpeedTypeDef CanSpeed
-    BMS_CONFIG_PARAM_BROADCAST_PACKET_ID = 22,                // uint8_t BroadcastPacketID
-    BMS_CONFIG_PARAM_CAN_BROADCAST_INTERVAL = 23,             // uint16_t CanBroadcastInterval
-    BMS_CONFIG_PARAM_CAN_TEMP_BROADCAST_INTERVAL = 24,        // uint16_t CanTempBroadcastInterval
-    BMS_CONFIG_PARAM_CAN_VOLTAGE_BROADCAST_INTERVAL = 25,     // uint16_t CanVoltageBroadcastInterval
-    BMS_CONFIG_PARAM_CAN_CHARGER_BROADCAST_INTERVAL = 26,     // uint16_t CanChargerBroadcastInterval
-    BMS_CONFIG_PARAM_CAN_CHARGER_BROADCAST_TIMEOUT = 27,      // uint16_t CanChargerBroadcastTimeout
-    BMS_CONFIG_PARAM_CAN_EXTENDED = 28,                       // bool CanExtended
+    BMS_CONFIG_PARAM_DISCHARGE_CURRENT_LIMIT = 19,            // uint16_t DischargeCurrentLimit
+    BMS_CONFIG_PARAM_CHARGE_CURRENT_LIMIT = 20,               // uint16_t ChargeCurrentLimit
+    BMS_CONFIG_PARAM_CAN_NODE_ID = 21,                        // uint8_t CanNodeID
+    BMS_CONFIG_PARAM_CAN_CONFIG_NODE_ID = 22,                 // uint8_t CanConfigNodeID
+    BMS_CONFIG_PARAM_CAN_SPEED = 23,                          // BMS_Config_CanSpeedTypeDef CanSpeed
+    BMS_CONFIG_PARAM_BROADCAST_PACKET_ID = 24,                // uint8_t BroadcastPacketID
+    BMS_CONFIG_PARAM_CAN_BROADCAST_INTERVAL = 25,             // uint16_t CanBroadcastInterval
+    BMS_CONFIG_PARAM_CAN_TEMP_BROADCAST_INTERVAL = 26,        // uint16_t CanTempBroadcastInterval
+    BMS_CONFIG_PARAM_CAN_VOLTAGE_BROADCAST_INTERVAL = 27,     // uint16_t CanVoltageBroadcastInterval
+    BMS_CONFIG_PARAM_CAN_CHARGER_BROADCAST_INTERVAL = 28,     // uint16_t CanChargerBroadcastInterval
+    BMS_CONFIG_PARAM_CAN_CHARGER_BROADCAST_TIMEOUT = 29,      // uint16_t CanChargerBroadcastTimeout
+    BMS_CONFIG_PARAM_CAN_EXTENDED = 30                        // bool CanExtended
+
 } BMS_Config_ParameterIndexTypeDef;
 
 typedef enum
@@ -108,7 +112,5 @@ void BMS_Config_SetParameter(BMS_Config_HandleTypeDef *bms_config, BMS_Config_Pa
 BMS_Config_StatusTypeDef BMS_Config_WriteToFlash(BMS_Config_HandleTypeDef *bms_config);
 BMS_Config_StatusTypeDef BMS_Config_UpdateFromFlash(BMS_Config_HandleTypeDef *bms_config);
 BMS_Config_StatusTypeDef BMS_Config_HandleCanMessage(BMS_Config_HandleTypeDef *bms_config, uint16_t packet_id, uint8_t *can_data);
-
-
 
 #endif // __BMS_CONFIG_H

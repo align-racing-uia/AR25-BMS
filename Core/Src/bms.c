@@ -148,7 +148,10 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     float low_current_sensor = (low_current_sensor_voltage - 2500.0f) / 26.7f;
     float high_current_sensor = (high_current_sensor_voltage - 2500.0f) / 4.0f;
 
-    hbms->MeasuredCurrent = fabs(low_current_sensor) <= 75.0 ? low_current_sensor : high_current_sensor; // Use the low current sensor if it is above 75A, otherwise use the high current sensor
+    hbms->MeasuredCurrent = fabs(low_current_sensor) <= 75.0 ? low_current_sensor : high_current_sensor; // Use the low current sensor if it is above 75A, otherwise use the high current sensor¨
+
+    // Derate current limits based on temperature and voltage
+
 
     CheckForFaults(hbms);
     CheckForWarnings(hbms);     // Check for faults and warnings
@@ -369,19 +372,19 @@ void CheckForFaults(BMS_HandleTypeDef *hbms)
     // All checks dependant on the BQ being connected
     if (hbms->BqConnected)
     {
-        if (*hbms->HighestCellTemperature > 60.0f || ((*hbms->LowestCellTemperature < -20.0f) && (*hbms->LowestCellTemperature > -30.0f)))
+        if (*hbms->HighestCellTemperature > hbms->Config.CellTemperatureLimitHigh || ((*hbms->LowestCellTemperature < hbms->Config.CellTemperatureLimitLow) && (*hbms->LowestCellTemperature > -30.0f)))
         {
             SET_BIT(hbms->ActiveFaults, BMS_FAULT_CRITICAL_TEMPERATURE); // Set the temperature fault
         }
 
+        // Loss of temperature sensors typically results in temperatures being reported as -50.0C
         if (*hbms->LowestCellTemperature <= -30.0f)
         {
             SET_BIT(hbms->ActiveFaults, BMS_FAULT_LOST_TEMPERATURE_SENSOR); // Set the temperature warning
         }
 
-        if (*hbms->LowestCellVoltage < 2500.0f || *hbms->HighestCellVoltage > 4200.00f)
+        if (*hbms->LowestCellVoltage <= hbms->Config.CellVoltageLimitLow || *hbms->HighestCellVoltage >= hbms->Config.CellVoltageLimitHigh)
         {
-            // Currently no bit is set to indicate voltage faults, so we use the BMS_FAULT_BQ bit
             SET_BIT(hbms->ActiveFaults, BMS_FAULT_CRITICAL_VOLTAGE); // Set the voltage fault
         }
     }
