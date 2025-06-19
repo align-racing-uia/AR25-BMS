@@ -1,6 +1,6 @@
 #include "battery_model.h"
 #include "stdlib.h"
-
+#include "main.h"
 
 
 
