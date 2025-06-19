@@ -20,7 +20,7 @@
 #define BMS_CONFIG_DEFAULT_CELL_TEMPERATURE_DERATE_LIMIT_LOW 0.0f
 #define BMS_CONFIG_DEFAULT_CELL_TEMPERATURE_DERATE_LIMIT_HIGH 50.0f
 #define BMS_CONFIG_DEFAULT_CELL_DISCHARGE_CURRENT_LIMIT 40000 // 4000 mA = 4 A
-#define BMS_CONFIG_DEFAULT_CELL_CHARGE_CURRENT_LIMIT 2800 // 2800 mA = 2.8 A
+#define BMS_CONFIG_DEFAULT_CELL_CHARGE_CURRENT_LIMIT 2800     // 2800 mA = 2.8 A
 #define BMS_CONFIG_DEFAULT_SINGLE_CELL_CAPACITY 0
 
 #define BMS_CONFIG_DEFAULT_FUSE_CURRENT_LIMIT 200000 // 200000 mA = 200 A, this is the fuse current limit for the BMS, this is the maximum current that can flow through the fuse continuously
@@ -160,4 +160,114 @@ BMS_Config_StatusTypeDef BMS_Config_UpdateFromFlash(BMS_Config_HandleTypeDef *bm
 
 BMS_Config_StatusTypeDef BMS_Config_HandleCanMessage(BMS_Config_HandleTypeDef *bms_config, uint16_t packet_id, uint8_t *can_data)
 {
+    if (bms_config == NULL || can_data == NULL)
+    {
+        return BMS_CONFIG_ERROR;
+    }
+
+    BMS_Config_ParameterIndexTypeDef param = (BMS_Config_ParameterIndexTypeDef)can_data[0];
+    uint16_t value = (uint16_t)can_data[1] | ((uint16_t)can_data[2] << 8);
+    if (packet_id == 0x1)
+    {
+        switch (param)
+        {
+        case BMS_CONFIG_PARAM_NUM_OF_SLAVES:
+            bms_config->NumOfSlaves = value;
+            break;
+        case BMS_CONFIG_PARAM_CELLS_EACH:
+            bms_config->CellsEach = value;
+            break;
+        case BMS_CONFIG_PARAM_TEMPS_EACH:
+            bms_config->TempsEach = value;
+            break;
+        case BMS_CONFIG_PARAM_FIRST_TEMP_PIN_INDEX:
+            bms_config->FirstTempPinIndex = value;
+            break;
+        case BMS_CONFIG_PARAM_MULTIPLEX_PIN_INDEX:
+            bms_config->MultiplexPinIndex = value;
+            break;
+        case BMS_CONFIG_PARAM_MULTIPLEX_ENABLED:
+            bms_config->MultiplexEnabled = (value != 0);
+            break;
+        case BMS_CONFIG_PARAM_CELLS_IN_PARALLEL:
+            bms_config->CellsInParallel = value;
+            break;
+        case BMS_CONFIG_PARAM_CELL_VOLTAGE_LIMIT_LOW:
+            bms_config->CellVoltageLimitLow = value;
+            break;
+        case BMS_CONFIG_PARAM_CELL_VOLTAGE_LIMIT_HIGH:
+            bms_config->CellVoltageLimitHigh = value;
+            break;
+        case BMS_CONFIG_PARAM_CELL_VOLTAGE_DERATE_LIMIT_LOW:
+            bms_config->CellVoltageDerateLimitLow = value;
+            break;
+        case BMS_CONFIG_PARAM_CELL_VOLTAGE_DERATE_LIMIT_HIGH:
+            bms_config->CellVoltageDerateLimitHigh = value;
+            break;
+        case BMS_CONFIG_PARAM_CELL_TEMPERATURE_LIMIT_LOW:
+            bms_config->CellTemperatureLimitLow = *(float *)&value;
+            break;
+        case BMS_CONFIG_PARAM_CELL_TEMPERATURE_LIMIT_HIGH:
+            bms_config->CellTemperatureLimitHigh = *(float *)&value;
+            break;
+        case BMS_CONFIG_PARAM_CELL_TEMPERATURE_DERATE_LIMIT_LOW:
+            bms_config->CellTemperatureDerateLimitLow = *(float *)&value;
+            break;
+        case BMS_CONFIG_PARAM_CELL_TEMPERATURE_DERATE_LIMIT_HIGH:
+            bms_config->CellTemperatureDerateLimitHigh = *(float *)&value;
+            break;
+        case BMS_CONFIG_PARAM_CELL_DISCHARGE_CURRENT_LIMIT:
+            bms_config->CellDischargeCurrentLimit = value;
+            break;
+        case BMS_CONFIG_PARAM_CELL_CHARGE_CURRENT_LIMIT:
+            bms_config->CellChargeCurrentLimit = value;
+            break;
+        case BMS_CONFIG_PARAM_SINGLE_CELL_CAPACITY:
+            bms_config->SingleCellCapacity = value;
+            break;
+        case BMS_CONFIG_PARAM_FUSE_CURRENT_LIMIT:
+            bms_config->FuseCurrentLimit = value;
+            break;
+        case BMS_CONFIG_PARAM_CAN_NODE_ID:
+            bms_config->CanNodeID = value;
+            break;
+        case BMS_CONFIG_PARAM_CAN_CONFIG_NODE_ID:
+            bms_config->CanConfigNodeID = value;
+            break;
+        case BMS_CONFIG_PARAM_CAN_SPEED:
+            bms_config->CanSpeed = value;
+            break;
+        case BMS_CONFIG_PARAM_BROADCAST_PACKET_ID:
+            bms_config->BroadcastPacketID = value;
+            break;
+        case BMS_CONFIG_PARAM_CAN_BROADCAST_INTERVAL:
+            bms_config->CanBroadcastInterval = value;
+            break;
+        case BMS_CONFIG_PARAM_CAN_TEMP_BROADCAST_INTERVAL:
+            bms_config->CanTempBroadcastInterval = value;
+            break;
+        case BMS_CONFIG_PARAM_CAN_VOLTAGE_BROADCAST_INTERVAL:
+            bms_config->CanVoltageBroadcastInterval = value;
+            break;
+        case BMS_CONFIG_PARAM_CAN_CHARGER_BROADCAST_INTERVAL:
+            bms_config->CanChargerBroadcastInterval = value;
+            break;
+        case BMS_CONFIG_PARAM_CAN_CHARGER_BROADCAST_TIMEOUT:
+            bms_config->CanChargerBroadcastTimeout = value;
+            break;
+        case BMS_CONFIG_PARAM_CAN_EXTENDED:
+            bms_config->CanExtended = (value != 0);
+            break;
+        default:
+            return BMS_CONFIG_INVALID_VALUE;
+        }
+    }else if(packet_id == 0x2){
+        // Save settings to flash
+        BMS_Config_WriteToFlash(bms_config); // Write the configuration to flash
+    }else if(packet_id == 0x3){
+        // Restart the BMS
+        NVIC_SystemReset(); // Reset the system to apply the new configuration
+    }
+
+    return BMS_CONFIG_OK;
 }
