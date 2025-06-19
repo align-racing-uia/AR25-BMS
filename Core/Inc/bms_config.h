@@ -22,6 +22,7 @@ typedef struct
     uint8_t NumOfSlaves;       // The number of slaves in the system
     uint8_t CellsEach;         // The number of cells in series measured on each slave chip, this is used to calculate the total number of cells in series
     uint8_t TempsEach;         // The number of temperature sensors on each slave chip (before multiplexing), this is used to calculate the total number of temperature sensors in the system
+    uint8_t CellCount;         // The total number of cells in series, this is calculated as NumOfSlaves * CellsEach
     uint8_t FirstTempPinIndex; // The first GPIO pin on the BQ79616 that is used for temperature sensors
     uint8_t MultiplexPinIndex; // The pin used to multiplex the temperature sensors
     bool MultiplexEnabled;     // If the temperature sensors are multiplexed
@@ -42,6 +43,7 @@ typedef struct
     uint16_t FuseCurrentLimit; // The fuse current limit for the BMS, this is the maximum current that can flow through the fuse
 
     uint8_t CanNodeID;                    // This follows the CAN ID format specified by DTI
+    uint8_t CanConfigNodeID;              // Node ID for the configuration CAN messages, back and forth communication with the BMS
     BMS_Config_CanSpeedTypeDef CanSpeed;  // The baudrate of the CAN bus
     uint8_t BroadcastPacketID;            // The Packet ID of the first broadcast can_id. Consecutive packets will have this ID + 1, + 2, etc.
     uint16_t CanBroadcastInterval;        // How often should the BMS broadcast general information

@@ -178,8 +178,8 @@ typedef struct
     float *CellTemperatures;
     uint8_t *RawCellTemperatures; // This is the raw cell temperatures read from the BQ79600
     // Each board except the master has 2 internal temperature sensors, one on each chip
-    float *BQDieTemperatures;
-    uint8_t *BQOutputBuffer;
+    float *DieTemperatures;
+    uint8_t *OutputBuffer;
     uint8_t NumOfChips;
     uint8_t NumOfSlaves;
     uint8_t NumOfCellsEach;
@@ -200,7 +200,7 @@ typedef struct
     uint8_t TempMultiplexPinIndex; // This is the pin used to multiplex the temperature sensors
     uint8_t FirstTempGPIO;
 
-    bool MultiplexToggle;
+    bool MultiplexToggle_; // Used Internally to toggle the multiplex pin
 
     TIM_HandleTypeDef *htim; // The timer used for the delays
 } BQ_HandleTypeDef;

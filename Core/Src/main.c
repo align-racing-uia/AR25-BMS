@@ -54,16 +54,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-// These are absolute maxes for the battery model, not the actual values
-// The actual values are set in the battery model init function
 
-#define TEMP_MAP_POOL_MAX_POINTS 100 // Size of the OCV map pool, defaults to a maximum of 5 temperature maps with 15 points each
-#define TEMP_MAP_POOL_AMOUNT 5       // Size of the temperature map pool, defaults to a maximum of 5 temperature maps with 15 points each
-
-#define BQ_MAX_AMOUNT_OF_CHIPS 15                            // The maximum amount of chips in the system
-#define BQ_MAX_AMOUNT_OF_SLAVES (BQ_MAX_AMOUNT_OF_CHIPS - 1) // The maximum amount of BQ79616 chips in the system
-#define BQ_MAX_AMOUNT_OF_CELLS_EACH 16                       // The maximum amount of cells in series on each board
-#define BQ_MAX_AMOUNT_OF_TEMPS_EACH 14                       // The maximum amount of temperature sensors on each board
 
 #define CELL_MEMORY_POOL_SIZE (BQ_MAX_AMOUNT_OF_SLAVES * BQ_MAX_AMOUNT_OF_CELLS_EACH) // Size of the cell memory pool, defaults to a maximum of 300 cells
 

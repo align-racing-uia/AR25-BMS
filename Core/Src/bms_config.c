@@ -26,6 +26,7 @@
 #define BMS_CONFIG_DEFAULT_FUSE_CURRENT_LIMIT 200000 // 200000 mA = 200 A, this is the fuse current limit for the BMS, this is the maximum current that can flow through the fuse continuously
 
 #define BMS_CONFIG_DEFAULT_CAN_NODE_ID 6
+#define BMS_CONFIG_DEFAULT_CAN_CONFIG_NODE_ID 7
 #define BMS_CONFIG_DEFAULT_CAN_SPEED BMS_Config_CAN_SPEED_500K // Default CAN speed is 500k, this is the baudrate of the CAN bus
 #define BMS_CONFIG_DEFAULT_BROADCAST_PACKET_ID 1
 #define BMS_CONFIG_DEFAULT_CAN_BROADCAST_INTERVAL 10
@@ -46,6 +47,7 @@ void BMS_Config_Init(BMS_Config_HandleTypeDef *bms_config)
     bms_config->NumOfSlaves = BMS_CONFIG_DEFAULT_NUM_OF_SLAVES;
     bms_config->CellsEach = BMS_CONFIG_DEFAULT_CELLS_EACH;
     bms_config->TempsEach = BMS_CONFIG_DEFAULT_TEMPS_EACH;
+    bms_config->CellCount = bms_config->NumOfSlaves * bms_config->CellsEach;
     bms_config->FirstTempPinIndex = BMS_CONFIG_DEFAULT_FIRST_TEMP_PIN_INDEX;
     bms_config->MultiplexPinIndex = BMS_CONFIG_DEFAULT_MULTIPLEX_PIN_INDEX;
     bms_config->MultiplexEnabled = BMS_CONFIG_DEFAULT_MULTIPLEX_ENABLED;
@@ -66,6 +68,7 @@ void BMS_Config_Init(BMS_Config_HandleTypeDef *bms_config)
     bms_config->FuseCurrentLimit = BMS_CONFIG_DEFAULT_FUSE_CURRENT_LIMIT;
 
     bms_config->CanNodeID = BMS_CONFIG_DEFAULT_CAN_NODE_ID;
+    bms_config->CanConfigNodeID = BMS_CONFIG_DEFAULT_CAN_CONFIG_NODE_ID;
     bms_config->CanSpeed = BMS_CONFIG_DEFAULT_CAN_SPEED;
     bms_config->BroadcastPacketID = BMS_CONFIG_DEFAULT_BROADCAST_PACKET_ID;
     bms_config->CanBroadcastInterval = BMS_CONFIG_DEFAULT_CAN_BROADCAST_INTERVAL;
@@ -85,7 +88,7 @@ void BMS_Config_Init(BMS_Config_HandleTypeDef *bms_config)
 
 // Set a parameter in the configuration, index is the parameter index, value is the value to set
 // TODO: Implement more parameters
-void BMS_Config_SetParameter(BMS_Config_HandleTypeDef *bms_config, uint8_t index, uint16_t value)
+void BMS_Config_SetParameter(BMS_Config_HandleTypeDef *bms_config, BMS_Config_ParameterIndexTypeDef index, uint16_t value)
 {
 }
 
@@ -142,7 +145,7 @@ BMS_Config_StatusTypeDef BMS_Config_UpdateFromFlash(BMS_Config_HandleTypeDef *bm
     {
         return BMS_CONFIG_INVALID_CONFIG;
     }
-    if (bms_config->NumOfSlaves == 0 || bms_config->CellsEach == 0 || bms_config->TempsEach == 0)
+    if (bms_config->NumOfSlaves == 0 || bms_config->CellsEach == 0 || bms_config->TempsEach == 0 || ((uint16_t)bms_config->CellsEach * (uint16_t)bms_config->NumOfSlaves) > 255)
     {
         return BMS_CONFIG_INVALID_VALUE;
     }
