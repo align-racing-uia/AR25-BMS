@@ -94,7 +94,7 @@ void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_
             battery_model->Cells[i].EstimatedResistance = (battery_model->Cells[i].MeasuredRestingVoltage - battery_model->Cells[i].MeasuredVoltage) / battery_model->Cells[i].MeasuredCurrent;
         }
         // TODO: Map temperatures to cells
-        battery_model->Cells[i].EstimatedCapacity += battery_model->Cells[i].MeasuredCurrent * dt / 3.6f; // mAh
+        battery_model->Cells[i].EstimatedCapacity += battery_model->Cells[i].MeasuredCurrent * dt / 36.0f; // A*10 -> mAh
         battery_model->Cells[i].EstimatedSOC = (battery_model->Cells[i].EstimatedCapacity / battery_model->Cells[i].NominalCapacity) * 100.0f;
         if (battery_model->Cells[i].EstimatedSOC < lowest_soc)
         {
