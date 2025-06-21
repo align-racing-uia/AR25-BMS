@@ -177,6 +177,16 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         hbms->DcLimit = hbms->DcLimit * (1.0f - (float)(hbms->Config.CellVoltageDerateLimitLow - *hbms->LowestCellVoltage) / (float)(hbms->Config.CellVoltageDerateLimitLow - hbms->Config.CellVoltageLimitLow));
     }
 
+    if (hbms->WarningPresent){
+        hbms->DcLimit = 100; // If there is a warning present, we set the discharge current limit to 10A
+        hbms->CcLimit = 100; // If there is a warning present, we set the charge current limit to 10A
+    }
+
+    if (hbms->DcLimit < 0)
+    {
+        hbms->DcLimit = 0; // If the discharge current limit is negative, set it to 0
+    }
+
     CheckForFaults(hbms);
     CheckForWarnings(hbms);     // Check for faults and warnings
     ListenForCanMessages(hbms); // Listen for CAN messages
@@ -331,7 +341,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
             {
                 HAL_GPIO_WritePin(hbms->PrechargeAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_RESET);
             }
-            if (!(hbms->SdcClosed && !hbms->WarningPresent && (hbms->TsRequested || hbms->ChargerPresent)))
+            if (!(hbms->SdcClosed && (hbms->TsRequested || hbms->ChargerPresent)))
             {
                 hbms->TsRequested = false;        // Clear the TS requested flag
                 hbms->TSState = TS_STATE_STOPPED; // Move to the stopped state
