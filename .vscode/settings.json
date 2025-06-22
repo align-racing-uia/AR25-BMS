@@ -30,6 +30,6 @@
         "arm_mve.h": "c",
         "spi.h": "c"
     },
-    "cortex-debug.variableUseNaturalFormat": false,
+    "cortex-debug.variableUseNaturalFormat": true,
     "C_Cpp.errorSquiggles": "enabled"
 }

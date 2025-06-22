@@ -79,7 +79,9 @@ typedef struct
     uint32_t ChargerPresentTimestamp; // Timestamp for the last charger CAN message
     uint32_t ChargerBroadcastTimestamp;
     uint32_t TempTimestamp;    // Timestamp for the last temperature measurement
+    uint32_t TempBroadcastTimestamp;    // Timestamp for the last temperature measurement
     uint32_t VoltageTimestamp; // Timestamp for the last voltage measurement
+    uint32_t VoltageBroadcastTimestamp; // Timestamp for the last voltage measurement
     uint32_t ModelTimestamp;   // Timestamp for the SOC estimation
 
     float MeasuredCurrent; // Measured current from the sensors
@@ -111,6 +113,7 @@ typedef struct
     uint32_t LastMeasurementTimestamp;
     uint32_t BroadcastTimestamp; // Timestamp for the last broadcast
     uint32_t PrechargeTimestamp; // Timestamp for the last precharge
+    uint32_t StartupTimestamp; // Timestamp for the startup to give everything time to initialize
 
     bool Initialized; // Initialized flag, true if the BMS is initialized
 
