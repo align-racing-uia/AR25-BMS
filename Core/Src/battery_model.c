@@ -5,18 +5,17 @@
 
 
 
-void BatteryModel_Configure(BatteryModel_HandleTypeDef *battery_model, uint16_t cell_count, uint16_t cells_in_series, uint16_t nominal_cell_capacity)
+void BatteryModel_Configure(BatteryModel_HandleTypeDef *battery_model, uint16_t cells_in_series, uint16_t nominal_cell_capacity)
 {
-    if (cell_count > CELL_MEMORY_POOL_SIZE)
+    if (cells_in_series > CELL_MEMORY_POOL_SIZE)
     {
         // If this occurs, you have to change the CELL_MEMORY_POOL_SIZE in battery_model.h
         Error_Handler();
     }
 
-    battery_model->CellCount = cell_count;
     battery_model->CellsInSeries = cells_in_series;
 
-    for (int i = 0; i < cell_count; i++)
+    for (int i = 0; i < cells_in_series; i++)
     {
         battery_model->Cells[i].MeasuredVoltage = 0;
         battery_model->Cells[i].MeasuredTemperature = 0;
@@ -45,7 +44,7 @@ void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_
     if (!battery_model->FirstEstimate)
     {
 
-        for (int i = 0; i < battery_model->CellCount; i++)
+        for (int i = 0; i < battery_model->CellsInSeries; i++)
         {
             if (cell_voltages[i] == 0)
             {
@@ -55,7 +54,7 @@ void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_
             // TODO: Ensure that the cell voltage measurements align with the temperature measurements
             battery_model->Cells[i].MeasuredVoltage = cell_voltages[i];
             battery_model->Cells[i].MeasuredTemperature = cell_temperatures[i];
-            battery_model->Cells[i].MeasuredCurrent = total_current; // Treat each set of cells in parallel as one cell for now
+            battery_model->Cells[i].MeasuredCurrent = total_current / 10; // Treat each set of cells in parallel as one cell for now
             float lowest_soc = 100.0f; // Start with the highest SOC possible 
             for (int j = 0; j < battery_model->OCV.Size; j++)
             {
@@ -77,10 +76,10 @@ void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_
     }
     float lowest_soc = 100.0f; // Start with the highest SOC possible 
 
-    for (int i = 0; i < battery_model->CellCount; i++)
+    for (int i = 0; i < battery_model->CellsInSeries; i++)
     {
         battery_model->Cells[i].MeasuredVoltage = cell_voltages[i];
-        battery_model->Cells[i].MeasuredCurrent = total_current; // Divide the total current by the number of cells in parallel to get the current per cell
+        battery_model->Cells[i].MeasuredCurrent = total_current / 10; // Divide the total current by the number of cells in parallel to get the current per cell
         battery_model->Cells[i].MeasuredTemperature = cell_temperatures[i];
 
         // Only update the measured resistance if the current is above a certain threshold
@@ -95,7 +94,7 @@ void BatteryModel_Update(BatteryModel_HandleTypeDef *battery_model, float *cell_
             battery_model->Cells[i].EstimatedResistance = (battery_model->Cells[i].MeasuredRestingVoltage - battery_model->Cells[i].MeasuredVoltage) / battery_model->Cells[i].MeasuredCurrent;
         }
         // TODO: Map temperatures to cells
-        battery_model->Cells[i].EstimatedCapacity += battery_model->Cells[i].MeasuredCurrent * dt / 3.6f; // mAh
+        battery_model->Cells[i].EstimatedCapacity += battery_model->Cells[i].MeasuredCurrent * dt / 3.6f; // A*10 -> mAh
         battery_model->Cells[i].EstimatedSOC = (battery_model->Cells[i].EstimatedCapacity / battery_model->Cells[i].NominalCapacity) * 100.0f;
         if (battery_model->Cells[i].EstimatedSOC < lowest_soc)
         {

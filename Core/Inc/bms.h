@@ -94,14 +94,14 @@ typedef struct
     float *PackVoltage;            // Pack voltage
 
     // Paramterers relevant for the BMS fetched over CAN
-    uint16_t InverterVoltage; //
+    uint16_t InverterVoltage;
 
     // Toggles for broadcasts
     bool BroadcastVoltages;     // Flag to indicate if the voltages should be broadcasted
     bool BroadcastTemperatures; // Flag to indicate if the temperatures should be broadcasted
 
-    uint16_t DcLimit; // Discharge current limit in A x 10
-    uint16_t CcLimit; // Charge current limit in A x 10
+    uint16_t DcLimit; // Discharge current limit in mA
+    uint16_t CcLimit; // Charge current limit in mA
 
     float *SOC;          // State of charge in percentage
     bool WarningPresent; // Warning present flag

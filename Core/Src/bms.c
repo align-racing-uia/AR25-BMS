@@ -19,8 +19,8 @@ void BroadcastBMSVoltages(BMS_HandleTypeDef *hbms);
 void BroadcastBMSTemperatures(BMS_HandleTypeDef *hbms);
 
 // Private variable defines
-uint8_t voltage_cycle = 0; // This is used to cycle the voltage broadcast, so that it does not flood the bus
-uint8_t temp_cycle = 0;    // This is used to cycle the temperature broadcast, so that it does not flood the bus
+uint8_t voltage_cycle = 0;    // This is used to cycle the voltage broadcast, so that it does not flood the bus
+uint8_t temp_cycle = 0;       // This is used to cycle the temperature broadcast, so that it does not flood the bus
 uint8_t resistance_cycle = 0; // This is used to cycle the resistance broadcast, so that it does not flood the bus
 
 // Public Function implementations
@@ -76,17 +76,15 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
     hbms->TempTimestamp = HAL_GetTick();             // Initialize the temperature timestamp to the current time
     hbms->VoltageTimestamp = HAL_GetTick();          // Initialize the voltage timestamp to the current time
     hbms->BroadcastTimestamp = HAL_GetTick();        // Initialize the broadcast timestamp to the current time
-    hbms->ModelTimestamp = HAL_GetTick();           // Initialize the model timestamp to the current time
+    hbms->ModelTimestamp = HAL_GetTick();            // Initialize the model timestamp to the current time
     hbms->ChargerPresent = false;                    // Initialize the charger present flag to false
-
 
     hbms->BqConnected = false; // Initialize the BQ connected flag to false
 
-    hbms->PackVoltage = &hbms->BQ->TotalVoltage;   // Bind the pack voltage pointer
-    hbms->SOC = &hbms->BatteryModel->EstimatedSOC; // Bind the SOC pointer
-    hbms->DcLimit = 1200;
-    hbms->CcLimit = 100;
-
+    hbms->PackVoltage = &hbms->BQ->TotalVoltage;                      // Bind the pack voltage pointer
+    hbms->SOC = &hbms->BatteryModel->EstimatedSOC;                    // Bind the SOC pointer
+    hbms->DcLimit = 0;                                                // Will be set later based on the configuration
+    hbms->CcLimit = 0;                                                // Will be set later based on the configuration
     hbms->HighestCellTemperature = &hbms->BQ->HighestCellTemperature; // Bind the highest cell temperature pointer
     hbms->LowestCellTemperature = &hbms->BQ->LowestCellTemperature;   // Bind the lowest cell temperature pointer
     hbms->CellVoltages = hbms->BQ->CellVoltages;                      // Bind the cell voltages pointer
@@ -128,7 +126,8 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
             hbms->TempTimestamp = HAL_GetTick();      // Update the temperature timestamp
         }
 
-        if (hbms->ModelTimestamp + 100 < HAL_GetTick()){
+        if (hbms->ModelTimestamp + 100 < HAL_GetTick())
+        {
             uint16_t cycle_time = HAL_GetTick() - hbms->ModelTimestamp; // Calculate the cycle time since the last model update
             BatteryModel_Update(hbms->BatteryModel, hbms->BQ->CellVoltages, hbms->BQ->CellTemperatures, hbms->MeasuredCurrent, cycle_time);
             hbms->ModelTimestamp = HAL_GetTick(); // Update the model timestamp
@@ -143,18 +142,54 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
 
     float low_current_sensor_voltage = ((float)adc1_buffer[0]) / 4096.0f * 2900.0f;
     float high_current_sensor_voltage = ((float)adc2_buffer[0]) / 4096.0f * 2900.0f;
-    high_current_sensor_voltage = high_current_sensor_voltage * 5.0f/3.0f; 
-    low_current_sensor_voltage = low_current_sensor_voltage * 5.0f/3.0f; 
+    high_current_sensor_voltage = high_current_sensor_voltage * 5.0f / 3.0f;
+    low_current_sensor_voltage = low_current_sensor_voltage * 5.0f / 3.0f;
     float low_current_sensor = (low_current_sensor_voltage - 2500.0f) / 26.7f;
     float high_current_sensor = (high_current_sensor_voltage - 2500.0f) / 4.0f;
 
-    hbms->MeasuredCurrent = fabs(low_current_sensor) <= 75.0 ? low_current_sensor : high_current_sensor; // Use the low current sensor if it is above 75A, otherwise use the high current sensor
+    hbms->MeasuredCurrent = fabs(low_current_sensor) <= 75.0 ? low_current_sensor : high_current_sensor; // Use the low current sensor if it is above 75A, otherwise use the high current sensor¨
+    hbms->MeasuredCurrent *= 10.0f; // Convert the current to A * 10
+
+    // Derate current limits based on temperature and voltage
+    // Derate everything linearly based on the limits in the configuration
+    // The Dc Limits are only applied once, meaning the current limit can be derated by both temperature and voltage
+    hbms->DcLimit = hbms->Config.DischargeCurrentLimit; // Start with the configured discharge current limit
+    hbms->CcLimit = hbms->Config.ChargeCurrentLimit;    // Start with the configured charge current limit
+
+    if (*hbms->HighestCellTemperature >= hbms->Config.CellTemperatureDerateLimitHigh)
+    {
+        hbms->DcLimit = hbms->DcLimit * (1.0f - (float)(*hbms->HighestCellTemperature - hbms->Config.CellTemperatureDerateLimitHigh) / (float)(hbms->Config.CellTemperatureLimitHigh - hbms->Config.CellTemperatureDerateLimitHigh));
+        hbms->CcLimit = hbms->CcLimit * (1.0f - (float)(*hbms->HighestCellTemperature - hbms->Config.CellTemperatureDerateLimitHigh) / (float)(hbms->Config.CellTemperatureLimitHigh - hbms->Config.CellTemperatureDerateLimitHigh));
+    }
+    if (*hbms->LowestCellTemperature <= hbms->Config.CellTemperatureDerateLimitLow)
+    {
+        hbms->DcLimit = hbms->DcLimit * (1.0f - (float)(hbms->Config.CellTemperatureDerateLimitLow - *hbms->LowestCellTemperature) / (float)(hbms->Config.CellTemperatureDerateLimitLow - hbms->Config.CellTemperatureLimitLow));
+        hbms->CcLimit = hbms->CcLimit * (1.0f - (float)(hbms->Config.CellTemperatureDerateLimitLow - *hbms->LowestCellTemperature) / (float)(hbms->Config.CellTemperatureDerateLimitLow - hbms->Config.CellTemperatureLimitLow));
+    }
+
+    if (*hbms->HighestCellVoltage >= hbms->Config.CellVoltageDerateLimitHigh)
+    {
+        hbms->CcLimit = hbms->CcLimit * (1.0f - (float)(*hbms->HighestCellVoltage - hbms->Config.CellVoltageDerateLimitHigh) / (float)(hbms->Config.CellVoltageLimitHigh - hbms->Config.CellVoltageDerateLimitHigh));
+    }
+
+    if (*hbms->LowestCellVoltage <= hbms->Config.CellVoltageDerateLimitLow)
+    {
+        hbms->DcLimit = hbms->DcLimit * (1.0f - (float)(hbms->Config.CellVoltageDerateLimitLow - *hbms->LowestCellVoltage) / (float)(hbms->Config.CellVoltageDerateLimitLow - hbms->Config.CellVoltageLimitLow));
+    }
+
+    if (hbms->WarningPresent){
+        hbms->DcLimit = 100; // If there is a warning present, we set the discharge current limit to 10A
+        hbms->CcLimit = 100; // If there is a warning present, we set the charge current limit to 10A
+    }
+
+    if (hbms->DcLimit < 0)
+    {
+        hbms->DcLimit = 0; // If the discharge current limit is negative, set it to 0
+    }
 
     CheckForFaults(hbms);
     CheckForWarnings(hbms);     // Check for faults and warnings
     ListenForCanMessages(hbms); // Listen for CAN messages
-
-
 
     switch (hbms->State)
     {
@@ -235,19 +270,19 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
         break;
     // We let this fall through, as the charging state includes the TS active state
     case BMS_STATE_CHARGING:
-        if (hbms->ChargerPresentTimestamp + 2000 <= HAL_GetTick())
+        if (hbms->ChargerPresentTimestamp + hbms->Config.CanChargerBroadcastTimeout <= HAL_GetTick())
         {
             // If the charger timestamp is older than 1 second, we consider the charger disconnected
             hbms->ChargerPresent = false; // Clear the charger present flag
         }
 
-        if (hbms->ChargerBroadcastTimestamp + 1000 <= HAL_GetTick())
+        if (hbms->ChargerBroadcastTimestamp + hbms->Config.CanChargerBroadcastInterval <= HAL_GetTick())
         {
             // If the charger broadcast timestamp is older than 1 second, we need to broadcast our requirements to the charger
             uint8_t data[5] = {0};
             uint32_t can_id = 0x1806E5F4;
-            uint16_t voltage_limit = 5880; // 588V is the maximum voltage limit for the charger
-            uint16_t current_limit = 20;   // 2A is Maximum current limit for the charger
+            uint16_t voltage_limit = (uint16_t)(((uint32_t)hbms->Config.CellVoltageLimitHigh * (uint32_t)hbms->Config.CellCount) / 100); // 588V is the maximum voltage limit for the charger
+            uint16_t current_limit = hbms->CcLimit;                                                // A * 10
 
             data[0] = (voltage_limit >> 8) & 0xFF;                                               // Set the first byte to the high byte of the voltage limit
             data[1] = voltage_limit & 0xFF;                                                      // Set the second byte to the low byte of the voltage limit
@@ -306,7 +341,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
             {
                 HAL_GPIO_WritePin(hbms->PrechargeAIR.Port, hbms->PrechargeAIR.Pin, GPIO_PIN_RESET);
             }
-            if (!(hbms->SdcClosed && !hbms->WarningPresent && (hbms->TsRequested || hbms->ChargerPresent)))
+            if (!(hbms->SdcClosed && (hbms->TsRequested || hbms->ChargerPresent)))
             {
                 hbms->TsRequested = false;        // Clear the TS requested flag
                 hbms->TSState = TS_STATE_STOPPED; // Move to the stopped state
@@ -340,22 +375,23 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     }
 
     // Things that need to happen regardless of the state
-    if (hbms->BroadcastTimestamp + 10 <= HAL_GetTick())
+    if (hbms->BroadcastTimestamp + hbms->Config.CanBroadcastInterval <= HAL_GetTick())
     {
         // If the broadcast timestamp is older than 100ms, we need to broadcast the BMS state
         hbms->BroadcastTimestamp = HAL_GetTick(); // Update the broadcast timestamp
 
         BroadcastBMSState(hbms); // Broadcast the BMS state to the CAN bus
+    }
+    if (hbms->BroadcastVoltages && hbms->VoltageTimestamp + hbms->Config.CanVoltageBroadcastInterval <= HAL_GetTick())
+    {
+        BroadcastBMSVoltages(hbms);
+        hbms->VoltageTimestamp = HAL_GetTick(); // Update the voltage timestamp
+    }
 
-        if (hbms->BroadcastVoltages)
-        {
-            BroadcastBMSVoltages(hbms);
-        }
-
-        if (hbms->BroadcastTemperatures)
-        {
-            BroadcastBMSTemperatures(hbms);
-        }
+    if (hbms->BroadcastTemperatures && hbms->TempTimestamp + hbms->Config.CanTempBroadcastInterval <= HAL_GetTick())
+    {
+        BroadcastBMSTemperatures(hbms);
+        hbms->TempTimestamp = HAL_GetTick(); // Update the temperature timestamp
     }
 }
 
@@ -367,21 +403,26 @@ void CheckForFaults(BMS_HandleTypeDef *hbms)
     // All checks dependant on the BQ being connected
     if (hbms->BqConnected)
     {
-        if (*hbms->HighestCellTemperature > 60.0f || ((*hbms->LowestCellTemperature < -20.0f) && (*hbms->LowestCellTemperature > -30.0f)))
+        if (*hbms->HighestCellTemperature > hbms->Config.CellTemperatureLimitHigh || ((*hbms->LowestCellTemperature < hbms->Config.CellTemperatureLimitLow) && (*hbms->LowestCellTemperature > -30.0f)))
         {
             SET_BIT(hbms->ActiveFaults, BMS_FAULT_CRITICAL_TEMPERATURE); // Set the temperature fault
         }
 
+        // Loss of temperature sensors typically results in temperatures being reported as -50.0C
         if (*hbms->LowestCellTemperature <= -30.0f)
         {
             SET_BIT(hbms->ActiveFaults, BMS_FAULT_LOST_TEMPERATURE_SENSOR); // Set the temperature warning
         }
 
-        if (*hbms->LowestCellVoltage < 2500.0f || *hbms->HighestCellVoltage > 4200.00f)
+        if (*hbms->LowestCellVoltage <= (float)hbms->Config.CellVoltageLimitLow || *hbms->HighestCellVoltage >= (float)hbms->Config.CellVoltageLimitHigh)
         {
-            // Currently no bit is set to indicate voltage faults, so we use the BMS_FAULT_BQ bit
             SET_BIT(hbms->ActiveFaults, BMS_FAULT_CRITICAL_VOLTAGE); // Set the voltage fault
         }
+    }
+
+    if (hbms->MeasuredCurrent >= ((float)hbms->Config.CellDischargeCurrentLimit * hbms->Config.CellsInParallel) || hbms->MeasuredCurrent <= -((float) hbms->Config.CellChargeCurrentLimit * hbms->Config.CellsInParallel))
+    {
+        SET_BIT(hbms->ActiveFaults, BMS_FAULT_CELL_OVERCURRENT); // Set the current fault
     }
 
     // Set the relevant flags based on the faults
@@ -405,23 +446,14 @@ void CheckForWarnings(BMS_HandleTypeDef *hbms)
         // Charger cannot be present if the CAN is not working
         hbms->ChargerPresent = false; // Clear the charger present flag
     }
-    // All checks dependant on the BQ being connected
-    if (hbms->BqConnected)
-    {
-        if (*hbms->LowestCellVoltage <= 2800.0f)
-        {
-            SET_BIT(hbms->ActiveWarnings, BMS_WARNING_UNDERVOLTAGE); // Set the low cell voltage warning
-        }
 
-        if (*hbms->HighestCellTemperature > 59.0f)
-        {
-            SET_BIT(hbms->ActiveWarnings, BMS_WARNING_OVERTEMPERATURE); // Set the high temperature warning
-        }
-    }
-
-    if (hbms->MeasuredCurrent > 120.0f)
+    if (hbms->MeasuredCurrent >= hbms->DcLimit)
     {
         SET_BIT(hbms->ActiveWarnings, BMS_WARNING_OVERCURRENT); // Set the high current warning
+    }
+    if (hbms->MeasuredCurrent <= -hbms->CcLimit)
+    {
+        SET_BIT(hbms->ActiveWarnings, BMS_WARNING_OVERCURRENT); // Set the low current warning
     }
 
     hbms->WarningPresent = hbms->ActiveWarnings > 0; // Set the warning present flag
@@ -474,7 +506,7 @@ bool Connect(BMS_HandleTypeDef *hbms)
 
     // If all the above steps are successful, we can consider the BQ connected
     hbms->BqConnected = bq_status == BQ_STATUS_OK; // Set the BQ connected flag to true
-    return bq_status == BQ_STATUS_OK; // Return true if the BQ is connected successfully
+    return bq_status == BQ_STATUS_OK;              // Return true if the BQ is connected successfully
 }
 
 bool LoadConfiguration(BMS_HandleTypeDef *hbms)
@@ -498,22 +530,22 @@ bool LoadConfiguration(BMS_HandleTypeDef *hbms)
     }
 
     // Configure the BQ with the BMS configuration
+    uint8_t GpioAuxADCMap = hbms->Config.MultiplexEnabled ? (0xFF ^ (1 << hbms->Config.MultiplexPinIndex)) : (0xFF); // Default GPIO Aux ADC map, all enabled, except for the multiplex pin if multiplexing is enabled
     BQ_ConfigTypeDef bq_config = {
         .NumOfSlaves = hbms->Config.NumOfSlaves,
         .NumOfCellsEach = hbms->Config.CellsEach,
         .NumOfTempsEach = hbms->Config.TempsEach,
-        // TODO: Add the GpioAuxADCMap and FirstTempGPIO to the BMS configuration, as well as a multiplexing toggle
-        .TempMultiplexEnabled = true,
-        .TempMultiplexPinIndex = 7, // Pin 8 (zero indexed) is used to multiplex the temperature sensors, which is GPIO7 in the BQ
-        .GpioAuxADCMap = 0x7F,
-        .FirstTempGPIO = 1, // Pin 1 is used to detect PCB temperature, and the rest are used for the temperature sensors
+        .TempMultiplexEnabled = hbms->Config.MultiplexEnabled,   // If multiplexing is enabled, we will use the multiplex pin to read the temperature sensors
+        .TempMultiplexPinIndex = hbms->Config.MultiplexPinIndex, // Pin 8 (zero indexed) is used to multiplex the temperature sensors, which is GPIO7 in the BQ
+        .GpioAuxADCMap = GpioAuxADCMap,
+        .FirstTempGPIO = hbms->Config.FirstTempPinIndex, // Pin 1 is used to detect PCB temperature, and the rest are used for the temperature sensors
     };
 
     BQ_Configure(hbms->BQ, &bq_config); // Configure the BQ with the BMS configuration
 
     // Configure the battery model with the BMS configuration
     // TODO: Make capacity a bms configuration parameter
-    BatteryModel_Configure(hbms->BatteryModel, hbms->Config.CellCount, hbms->Config.CellsEach * hbms->Config.NumOfSlaves, 2650 * 5); // Initialize the battery model with the configuration
+    BatteryModel_Configure(hbms->BatteryModel, hbms->Config.CellCount, hbms->Config.SingleCellCapacity * hbms->Config.CellsInParallel); // Initialize the battery model with the configuration
 
     // Load the OCV maps from flash memory and set them in the battery model
     // TODO: Load the OCV maps
@@ -606,10 +638,11 @@ void BroadcastBMSState(BMS_HandleTypeDef *hbms)
 
     uint8_t data[8] = {0}; // Dummy data for the broadcast packet
 
-    data[0] = (uint8_t)hbms->DcLimit >> 8; // Set the first byte to the BMS state
-    data[1] = (uint8_t)hbms->DcLimit;      // Set the second byte to the BMS state
-    data[2] = (uint8_t)hbms->CcLimit >> 8; // Set the third byte to the BMS state
-    data[3] = (uint8_t)hbms->CcLimit;      // Set the fourth byte to the BMS state
+    // mA / 100 = A * 10
+    data[0] = (uint8_t)((hbms->DcLimit / 100) >> 8); // Set the first byte to the BMS state
+    data[1] = (uint8_t)(hbms->DcLimit / 100);        // Set the second byte to the BMS state
+    data[2] = (uint8_t)((hbms->CcLimit / 100) >> 8); // Set the third byte to the BMS state
+    data[3] = (uint8_t)(hbms->CcLimit / 100);        // Set the fourth byte to the BMS state
     data[4] = (uint8_t)*hbms->HighestCellTemperature;
     data[5] = (uint8_t)*hbms->LowestCellTemperature;
     data[6] = (uint8_t)*hbms->SOC;
@@ -702,22 +735,22 @@ void BroadcastBMSResistances(BMS_HandleTypeDef *hbms)
 
     // TODO: Toggle this based on if Multiplexing is enabled or not
     uint8_t total_cycles = (hbms->Config.CellCount) / 3 + (hbms->Config.CellCount % 3 > 0); // Calculate the total number of cycles needed to send all cell temperatures
-    data[0] = resistance_cycle;                                                                                                                                       // Set the first byte to the current cycle index
-    data[1] = total_cycles;                                                                                                                                     // Set the second byte to the total number of cycles
+    data[0] = resistance_cycle;                                                             // Set the first byte to the current cycle index
+    data[1] = total_cycles;                                                                 // Set the second byte to the total number of cycles
 
     for (size_t i = 0; i < 3; i++)
     {
         if (temp_cycle * 3 + i < hbms->Config.CellCount)
         {
-            uint16_t low_res_resistance = (uint16_t) (hbms->BatteryModel->Cells[resistance_cycle * 3 + i].EstimatedResistance * 10); // Convert the cell resistance to mOhm and store it in a low resolution format
+            uint16_t low_res_resistance = (uint16_t)(hbms->BatteryModel->Cells[resistance_cycle * 3 + i].EstimatedResistance * 10); // Convert the cell resistance to mOhm and store it in a low resolution format
             // If the current cycle index is within the range of cell temperatures
             data[i * 2 + 2] = (uint8_t)(low_res_resistance >> 8); // Set the cell temperature in C
             data[i * 2 + 3] = (uint8_t)(low_res_resistance);      // Set the cell temperature in C
         }
         else
         {
-            data[i * 2 + 2] = 0; 
-            data[i * 2 + 3] = 0; 
+            data[i * 2 + 2] = 0;
+            data[i * 2 + 3] = 0;
         }
     }
 
