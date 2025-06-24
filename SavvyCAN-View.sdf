@@ -1,0 +1,7 @@
+SV1,26,BMS_Broadcast_1,State_of_Charge
+SV1,26,BMS_Broadcast_1,Highest_Cell_Temperature
+SV1,26,BMS_Broadcast_1,Lowest_Cell_Temperature
+SV1,46,BMS_Broadcast_2,Active_Faults
+SV1,46,BMS_Broadcast_2,Active_Warnings
+SV1,46,BMS_Broadcast_2,Measured_Current
+SV1,46,BMS_Broadcast_2,Pack_Voltage

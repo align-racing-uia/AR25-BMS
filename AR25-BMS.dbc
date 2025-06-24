@@ -1,0 +1,61 @@
+VERSION ""
+
+
+NS_ :
+    NS_DESC_
+    CM_
+    BA_DEF_
+    BA_
+    VAL_
+    CAT_DEF_
+    CAT_
+    FILTER
+    BA_DEF_DEF_
+    EV_DATA_
+    ENVVAR_DATA_
+    SGTYPE_
+    SGTYPE_VAL_
+    BA_DEF_SGTYPE_
+    BA_SGTYPE_
+    SIG_TYPE_REF_
+    VAL_TABLE_
+    SIG_GROUP_
+    SIG_VALTYPE_
+    SIGTYPE_VALTYPE_
+    BO_TX_BU_
+    BA_DEF_REL_
+    BA_REL_
+    BA_DEF_DEF_REL_
+    BU_SG_REL_
+    BU_EV_REL_
+    BU_BO_REL_
+    SG_MUL_VAL_
+
+BS_: 
+BU_: BMS_Broadcasts 
+BO_ 2147483686 BMS_Broadcast_1: 7 BMS_Broadcasts
+   SG_ Discharge_Current_Limit : 7|16@0+ (0.1,0) [0|500] "" Vector__XXX
+   SG_ Charge_Current_Limit : 23|16@0+ (0.1,0) [0|500] "" Vector__XXX
+   SG_ Highest_Cell_Temperature : 39|8@0- (1,0) [-128|128] "" Vector__XXX
+   SG_ Lowest_Cell_Temperature : 47|8@0- (1,0) [-128|128] "" Vector__XXX
+   SG_ State_of_Charge : 55|8@0+ (1,0) [0|100] "" Vector__XXX
+
+BO_ 2147483718 BMS_Broadcast_2: 8 BMS_Broadcasts
+   SG_ Active_Faults : 7|8@0+ (1,0) [0|1] "" Vector__XXX
+   SG_ Active_Warnings : 15|8@0+ (1,0) [0|1] "" Vector__XXX
+   SG_ BMS_State : 23|8@0+ (1,0) [0|1] "" Vector__XXX
+   SG_ Shutdown_Circuit_Closed : 24|1@0+ (1,0) [0|1] "" Vector__XXX
+   SG_ Charger_Present : 25|1@0+ (1,0) [0|1] "" Vector__XXX
+   SG_ TS_Requested : 26|1@0+ (1,0) [0|1] "" Vector__XXX
+   SG_ Measured_Current : 39|16@0- (0.1,0) [-600|600] "" Vector__XXX
+   SG_ Pack_Voltage : 55|16@0+ (1,0) [0|600] "" Vector__XXX
+
+BA_DEF_ BO_ "GenMsgBackgroundColor" STRING ;
+BA_DEF_ BO_ "GenMsgForegroundColor" STRING ;
+BA_DEF_ BO_ "matchingcriteria" INT 0 0;
+BA_DEF_ BO_ "filterlabeling" INT 0 0;
+BA_DEF_DEF_ "GenMsgBackgroundColor" "#ffffff";
+BA_DEF_DEF_ "GenMsgForegroundColor" "#000000";
+BA_DEF_DEF_ "matchingcriteria" 0;
+BA_DEF_DEF_ "filterlabeling" 1;
+BA_ "GenMsgForegroundColor" BO_ 2147483686 "#000000";
