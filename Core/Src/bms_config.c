@@ -24,7 +24,7 @@
 #define BMS_CONFIG_DEFAULT_SINGLE_CELL_CAPACITY 2650
 
 #define BMS_CONFIG_DEFAULT_FUSE_CURRENT_LIMIT 2000 // 200 A * 10, this is the fuse current limit for the BMS, this is the maximum current that can flow through the fuse continuously
-#define BMS_CONFIG_DEFAULT_DISCHARGE_CURRENT_LIMIT 1000 // 100 A * 10, this is a sensible default, as it becomes clear that something is wrong in the configuration
+#define BMS_CONFIG_DEFAULT_DISCHARGE_CURRENT_LIMIT 1500 // 150 A * 10, this is a sensible default, as it becomes clear that something is wrong in the configuration
 #define BMS_CONFIG_DEFAULT_CHARGE_CURRENT_LIMIT 100 // 10 A * 10, this is a sensible default, as it becomes clear that something is wrong in the configuration
 
 #define BMS_CONFIG_DEFAULT_CAN_NODE_ID 6
