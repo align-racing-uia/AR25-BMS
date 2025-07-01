@@ -12,6 +12,7 @@ typedef enum
     BMS_STATE_CONFIGURING, // Initial state, loading configuration
     BMS_STATE_CONNECTING,
     BMS_STATE_IDLE,
+    BMS_STATE_BALANCING,
     BMS_STATE_CHARGING,
     BMS_STATE_TS_ACTIVE,
     BMS_STATE_FAULT
@@ -74,6 +75,7 @@ typedef struct
     bool SdcClosed;      // SdcClosed connected flag
     bool TsRequested;    // TS requested flag, true if the TS is requested to be active
     bool ChargerPresent; // Charger connected flag
+    bool BalancingEnabled; // Balancing enabled flag, true if the balancing is enabled through the user interface
 
     uint32_t CanTimestamp;            // Timestamp for the last CAN message
     uint32_t ChargerPresentTimestamp; // Timestamp for the last charger CAN message
