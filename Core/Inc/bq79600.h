@@ -61,6 +61,11 @@
 #define BQ16_FAULT_MSK1 0x0016 // Fault masking register for the stack
 #define BQ16_FAULT_MSK2 0x0016 // Fault masking register for the stack
 
+#define BQ16_BAL_CTRL1 0x32E
+#define BQ16_BAL_CTRL2 0x32F
+#define BQ16_BAL_CTRL3 0x330
+#define BQ16_BAL_STAT 0x52B
+
 typedef enum
 {
     BQ16_FAULT_MSK1_MSK_PWR = (uint8_t)(1 << 0),
@@ -101,6 +106,8 @@ typedef enum
 #define BQ16_COMM_TIMEOUT_CONF 0x0019
 #define BQ16_CONTROL2 0x030A
 #define BQ16_TSREF_HI 0x058C // TSREF pin control register high byte
+
+#define BQ16_BAL_STAT_CB_RUN 0x8
 
 typedef struct
 {
@@ -196,6 +203,8 @@ typedef struct
     BQ_FaultSummaryTypeDef BridgeFaultSummary;
     bool BridgeFaultActive;
 
+    bool BalancingActive; // Balancing active flag, true if the balancing is currently active
+
     bool TempMultiplexEnabled;     // This is true if the temperature sensors are multiplexed
     uint8_t TempMultiplexPinIndex; // This is the pin used to multiplex the temperature sensors
     uint8_t FirstTempGPIO;
@@ -238,6 +247,9 @@ BQ_StatusTypeDef BQ_ConfigureFaultMasks(BQ_HandleTypeDef *hbq, BQ16_FaultMasking
 BQ_StatusTypeDef BQ_PollFaultSummaries(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_ResetStackFaults(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_ConfigureStackFaultMask(BQ_HandleTypeDef *hbq, BQ16_Fault_Mask1TypeDef mask1, BQ16_Fault_Mask2TypeDef mask2);
+BQ_StatusTypeDef BQ_BalanceCells(BQ_HandleTypeDef *hbq);
+BQ_StatusTypeDef BQ_CheckBalancingStat(BQ_HandleTypeDef *hbq);
+BQ_StatusTypeDef BQ_StopBalancing(BQ_HandleTypeDef *hbq);
 
 BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef *hbq, uint8_t *pOut, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t readType);
 BQ_StatusTypeDef BQ_Write(BQ_HandleTypeDef *hbq, uint8_t *inData, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t writeType);

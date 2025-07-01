@@ -9,7 +9,6 @@
 #include "bms_config.h"
 #include "main.h"
 
-
 // Private helper function
 
 uint8_t reverse_bits(uint8_t b)
@@ -501,7 +500,7 @@ BQ_StatusTypeDef BQ_GetCellVoltages(BQ_HandleTypeDef *hbq)
             uint16_t rawAdc = ((uint16_t)hbq->OutputBuffer[i * totalLen + 4 + y]) << 8;
             rawAdc |= ((uint16_t)hbq->OutputBuffer[i * totalLen + 5 + y]);
             float measuredVoltage = (float)((float)rawAdc * 190.73) / 1000; // Convert the raw ADC value to millivolts
-            hbq->TotalVoltage += measuredVoltage / 1000.0;                    // Add the voltage to the total voltage
+            hbq->TotalVoltage += measuredVoltage / 1000.0;                  // Add the voltage to the total voltage
             if (hbq->HighestCellVoltage < measuredVoltage)
             {
                 hbq->HighestCellVoltage = measuredVoltage; // Update the highest cell voltage
@@ -651,7 +650,7 @@ BQ_StatusTypeDef BQ_PollFaultSummaries(BQ_HandleTypeDef *hbq)
 
     for (size_t i = 0; i < hbq->NumOfSlaves; i++)
     {
-        hbq->StackFaultSummary[i] = hbq->OutputBuffer[i * (6 + 1) + 4];                  // Store the fault summary in the faults array
+        hbq->StackFaultSummary[i] = hbq->OutputBuffer[i * (6 + 1) + 4];                    // Store the fault summary in the faults array
         hbq->StackFaultActive = hbq->StackFaultActive || (hbq->StackFaultSummary[i] != 0); // Set the stack fault active flag if there is a fault
     }
 
@@ -661,7 +660,7 @@ BQ_StatusTypeDef BQ_PollFaultSummaries(BQ_HandleTypeDef *hbq)
     {
         return status;
     }
-    hbq->BridgeFaultSummary = hbq->OutputBuffer[4];      // Store the fault summary in the bridge fault summary
+    hbq->BridgeFaultSummary = hbq->OutputBuffer[4];        // Store the fault summary in the bridge fault summary
     hbq->BridgeFaultActive = hbq->BridgeFaultSummary != 0; // Set the bridge fault active flag if there is a fault
 
     return status;
@@ -898,4 +897,36 @@ BQ_StatusTypeDef BQ_Write(BQ_HandleTypeDef *hbq, uint8_t *inData, uint8_t device
     BQ_SetMosiIdle(hbq); // Mosi always needs to be idle during end of command
 
     return BQ_STATUS_OK;
+}
+
+BQ_StatusTypeDef BQ_BalanceCells(BQ_HandleTypeDef *hbq)
+{
+    if (!hbq->BalancingActive)
+    {
+        // If the balancing is not active, we cannot balance the cells
+        
+    }
+    return BQ_STATUS_OK; // This is a placeholder, as the balancing is not implemented yet
+}
+
+// Updates the internal flag BalancingActive, which indicates if the balancing is active or not
+BQ_StatusTypeDef BQ_CheckBalancingStat(BQ_HandleTypeDef *hbq)
+{
+    // This function checks if the balancing is active
+    // It will return BQ_STATUS_OK if the balancing is active, and BQ_STATUS_ERROR if it is not
+    uint8_t data[1] = {0};
+    BQ_StatusTypeDef status = BQ_Read(hbq, data, BQ_SELF_ID, BQ16_BAL_STAT, 1, BQ_DEVICE_READ);
+    if (status != BQ_STATUS_OK)
+    {
+        return status;
+    }
+
+    hbq->BalancingActive = ((data[0] & BQ16_BAL_STAT_CB_RUN) > 0); // If the first bit is set, balancing is active
+
+    return BQ_STATUS_OK;
+}
+
+BQ_StatusTypeDef BQ_StopBalancing(BQ_HandleTypeDef *hbq)
+{
+    return BQ_STATUS_OK; // This is a placeholder, as the stopping is not implemented yet
 }

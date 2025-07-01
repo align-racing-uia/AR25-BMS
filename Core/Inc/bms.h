@@ -76,6 +76,7 @@ typedef struct
     bool TsRequested;    // TS requested flag, true if the TS is requested to be active
     bool ChargerPresent; // Charger connected flag
     bool BalancingEnabled; // Balancing enabled flag, true if the balancing is enabled through the user interface
+    bool *BalancingActive; // Balancing active flag, true if the balancing is currently active
 
     uint32_t CanTimestamp;            // Timestamp for the last CAN message
     uint32_t ChargerPresentTimestamp; // Timestamp for the last charger CAN message

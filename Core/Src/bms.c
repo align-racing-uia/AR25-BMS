@@ -64,6 +64,8 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
     hbms->PrechargeAIR = hardware_config->PrechargeAIR; // Bind the precharge AIR pin
     hbms->SdcPin = hardware_config->SdcPin;             // Bind the SdcClosed pin
     hbms->TsRequested = false;                          // Initialize the TS requested flag to false
+    hbms->BalancingEnabled = false;                     // Initialize the balancing enabled flag to false
+    hbms->BalancingActive = &hbms->BQ->BalancingActive; // Bind the balancing active flag from the BQ handle
 
     HAL_GPIO_WritePin(hbms->FaultPin.Port, hbms->FaultPin.Pin, GPIO_PIN_RESET);         // Set the fault pin low, to indicate no fault in the BMS
     HAL_GPIO_WritePin(hbms->PlusAIR.Port, hbms->PlusAIR.Pin, GPIO_PIN_RESET);           // Set the plus AIR pin low, to indicate no fault in the BMS
@@ -684,6 +686,8 @@ void BroadcastBMSState(BMS_HandleTypeDef *hbms)
     data[3] = (uint8_t)hbms->SdcClosed;                          // Set the fourth byte to the BMS state
     data[3] |= ((uint8_t)hbms->ChargerPresent) << 1;             // Set the fourth byte to the BMS state
     data[3] |= ((uint8_t)hbms->TsRequested) << 2;                // Set the fourth byte to the BMS state
+    data[3] |= ((uint8_t)hbms->BqConnected) << 3;                // Set the fourth byte to the BMS state
+    data[3] |= ((uint8_t)hbms->BalancingActive) << 4;            // Set the fourth byte to the BMS state
     data[4] = (uint8_t)(measured_current >> 8);                  // Measured current
     data[5] = (uint8_t)(measured_current);                       // Measured current
     uint16_t pack_voltage = (uint16_t)(*hbms->PackVoltage);      // Convert the pack voltage to mV * 10
