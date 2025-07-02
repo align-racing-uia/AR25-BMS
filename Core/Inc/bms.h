@@ -26,6 +26,14 @@ typedef enum
     TS_STATE_STOPPED = 3,
 } BMS_TS_StateTypeDef;
 
+typedef enum
+{
+    BMS_BALANCING_STATE_IDLE = 0, // Balancing is not active
+    BMS_BALANCING_STATE_ACTIVE,    // Balancing is active
+    BMS_BALANCING_STATE_ERROR,     // An error occurred during balancing
+    BMS_BALANCING_STATE_COMPLETE,  // Balancing is complete
+} BMS_Balancing_StateTypeDef;
+
 typedef struct
 {
     GPIO_TypeDef *Port; // GPIO port
@@ -72,20 +80,20 @@ typedef struct
     BMS_PinTypeDef SdcPin;       // Pin for the SdcClosed indicator
 
     // State variables related to the Tractive System (TS)
-    bool SdcClosed;      // SdcClosed connected flag
-    bool TsRequested;    // TS requested flag, true if the TS is requested to be active
-    bool ChargerPresent; // Charger connected flag
+    bool SdcClosed;        // SdcClosed connected flag
+    bool TsRequested;      // TS requested flag, true if the TS is requested to be active
+    bool ChargerPresent;   // Charger connected flag
     bool BalancingEnabled; // Balancing enabled flag, true if the balancing is enabled through the user interface
     bool *BalancingActive; // Balancing active flag, true if the balancing is currently active
 
     uint32_t CanTimestamp;            // Timestamp for the last CAN message
     uint32_t ChargerPresentTimestamp; // Timestamp for the last charger CAN message
     uint32_t ChargerBroadcastTimestamp;
-    uint32_t TempTimestamp;    // Timestamp for the last temperature measurement
+    uint32_t TempTimestamp;             // Timestamp for the last temperature measurement
     uint32_t TempBroadcastTimestamp;    // Timestamp for the last temperature measurement
-    uint32_t VoltageTimestamp; // Timestamp for the last voltage measurement
+    uint32_t VoltageTimestamp;          // Timestamp for the last voltage measurement
     uint32_t VoltageBroadcastTimestamp; // Timestamp for the last voltage measurement
-    uint32_t ModelTimestamp;   // Timestamp for the SOC estimation
+    uint32_t ModelTimestamp;            // Timestamp for the SOC estimation
 
     float MeasuredCurrent; // Measured current from the sensors
 
@@ -116,7 +124,7 @@ typedef struct
     uint32_t LastMeasurementTimestamp;
     uint32_t BroadcastTimestamp; // Timestamp for the last broadcast
     uint32_t PrechargeTimestamp; // Timestamp for the last precharge
-    uint32_t StartupTimestamp; // Timestamp for the startup to give everything time to initialize
+    uint32_t StartupTimestamp;   // Timestamp for the startup to give everything time to initialize
 
     bool Initialized; // Initialized flag, true if the BMS is initialized
 

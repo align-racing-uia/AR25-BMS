@@ -903,25 +903,23 @@ BQ_StatusTypeDef BQ_BalanceCells(BQ_HandleTypeDef *hbq)
 {
     if (!hbq->BalancingActive)
     {
-        // If the balancing is not active, we cannot balance the cells
-        
-    }
-    return BQ_STATUS_OK; // This is a placeholder, as the balancing is not implemented yet
-}
 
-// Updates the internal flag BalancingActive, which indicates if the balancing is active or not
-BQ_StatusTypeDef BQ_CheckBalancingStat(BQ_HandleTypeDef *hbq)
-{
-    // This function checks if the balancing is active
-    // It will return BQ_STATUS_OK if the balancing is active, and BQ_STATUS_ERROR if it is not
-    uint8_t data[1] = {0};
-    BQ_StatusTypeDef status = BQ_Read(hbq, data, BQ_SELF_ID, BQ16_BAL_STAT, 1, BQ_DEVICE_READ);
+    }
+    else
+    {
+    }
+
+    BQ_StatusTypeDef status = BQ_Read(hbq, hbq->OutputBuffer, BQ_SELF_ID, BQ16_BAL_STAT, 1, BQ_STACK_READ);
     if (status != BQ_STATUS_OK)
     {
         return status;
     }
 
-    hbq->BalancingActive = ((data[0] & BQ16_BAL_STAT_CB_RUN) > 0); // If the first bit is set, balancing is active
+    for(int i = 0; i < hbq->NumOfSlaves; i++)
+    {
+        hbq->BalancingStatus[i] = hbq->OutputBuffer[i * (6 + 1) + 4]; // Store the balance status in the balance status array
+        hbq->BalancingActive |= ((hbq->BalancingStatus[i] & BQ16_BAL_STAT_CB_RUN) > 0); // If any of the slaves are balancing, we are balancing
+    }
 
     return BQ_STATUS_OK;
 }

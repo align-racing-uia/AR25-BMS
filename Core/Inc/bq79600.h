@@ -192,6 +192,9 @@ typedef struct
     uint8_t NumOfCellsEach;
     uint8_t NumOfTempsEach;
 
+    bool CellBalancingIsComplete[BQ_MAX_AMOUNT_OF_CELLS_EACH * BQ_MAX_AMOUNT_OF_SLAVES]; // This is used to check if the cell balancing is complete for each cell
+    bool BalancingStatus[BQ_MAX_AMOUNT_OF_SLAVES]; // This is used to check if the slave is balancing or not
+
     // Fault summary for each slave chip
     // Each bit represents a fault, 0 = no fault, 1 = fault
     // The bits are defined in the BQ79616 datasheet
@@ -204,6 +207,7 @@ typedef struct
     bool BridgeFaultActive;
 
     bool BalancingActive; // Balancing active flag, true if the balancing is currently active
+    bool BalancingComplete; // Balancing active flag, true if the balancing is currently active
 
     bool TempMultiplexEnabled;     // This is true if the temperature sensors are multiplexed
     uint8_t TempMultiplexPinIndex; // This is the pin used to multiplex the temperature sensors
@@ -248,7 +252,6 @@ BQ_StatusTypeDef BQ_PollFaultSummaries(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_ResetStackFaults(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_ConfigureStackFaultMask(BQ_HandleTypeDef *hbq, BQ16_Fault_Mask1TypeDef mask1, BQ16_Fault_Mask2TypeDef mask2);
 BQ_StatusTypeDef BQ_BalanceCells(BQ_HandleTypeDef *hbq);
-BQ_StatusTypeDef BQ_CheckBalancingStat(BQ_HandleTypeDef *hbq);
 BQ_StatusTypeDef BQ_StopBalancing(BQ_HandleTypeDef *hbq);
 
 BQ_StatusTypeDef BQ_Read(BQ_HandleTypeDef *hbq, uint8_t *pOut, uint8_t deviceId, uint16_t regAddr, uint8_t dataLength, uint8_t readType);
