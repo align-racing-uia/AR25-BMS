@@ -67,6 +67,8 @@
 #define BQ16_BAL_STAT 0x52B
 
 #define BQ16_CB_CELL16_CTRL 0x318 // All other CB_CELLx_CTRL registers are increments of this
+#define BQ16_CB_COMPLETE1 0x557 // Contains cells 16 thru 9
+#define BQ16_CB_COMPLETE2 0x558 // Contains cells 8 thru 1
 
 #define BQ16_BAL_TIME 0x558
 

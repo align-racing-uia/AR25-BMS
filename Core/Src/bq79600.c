@@ -904,14 +904,27 @@ BQ_StatusTypeDef BQ_BalanceCells(BQ_HandleTypeDef *hbq)
     if (!hbq->BalancingActive)
     {
         // TODO: Activate balancing with automatic duty cycling
-    }
-    else
-    {
-        // TODO: Get balancing status from each cell
-        BQ_StatusTypeDef status = BQ_Read(hbq, hbq->OutputBuffer, BQ_SELF_ID, BQ16_BAL_STAT, 1, BQ_STACK_READ);
+        uint8_t data[hbq->NumOfCellsEach]; // Create an array to hold the data to be written
+        memset(data, 0x03, hbq->NumOfCellsEach); // Set all cells to balance for a minute at a time
+        BQ_StatusTypeDef status = BQ_Write(hbq, &data, BQ_SELF_ID, BQ16_CB_CELL16_CTRL+(16-hbq->NumOfCellsEach), hbq->NumOfCellsEach, BQ_STACK_WRITE); // Prefill cell balancing control register with 0x03, which means balance for 1 minute at a time
+
+        if (status != BQ_STATUS_OK)
+        {
+            return status;
+        }
+
+        // Activate the balancing
+        data[0] = 0x3; // select auto balancing and run go on cell balancing
+        status = BQ_Write(hbq, data, BQ_SELF_ID, BQ16_BAL_CTRL2, 1, BQ_STACK_WRITE); // Activate the balancing
+        if (status != BQ_STATUS_OK)
+        {
+            return status;
+        }
+        hbq->BalancingActive = true; // Set the balancing active flag
 
     }
 
+    // Get overall balancing status from each slave
     BQ_StatusTypeDef status = BQ_Read(hbq, hbq->OutputBuffer, BQ_SELF_ID, BQ16_BAL_STAT, 1, BQ_STACK_READ);
     if (status != BQ_STATUS_OK)
     {
@@ -930,4 +943,5 @@ BQ_StatusTypeDef BQ_BalanceCells(BQ_HandleTypeDef *hbq)
 BQ_StatusTypeDef BQ_StopBalancing(BQ_HandleTypeDef *hbq)
 {
     return BQ_STATUS_OK; // This is a placeholder, as the stopping is not implemented yet
+    // It stops whitin 1 minute, so we can probably just wait for it to stop
 }
