@@ -903,10 +903,13 @@ BQ_StatusTypeDef BQ_BalanceCells(BQ_HandleTypeDef *hbq)
 {
     if (!hbq->BalancingActive)
     {
-
+        // TODO: Activate balancing with automatic duty cycling
     }
     else
     {
+        // TODO: Get balancing status from each cell
+        BQ_StatusTypeDef status = BQ_Read(hbq, hbq->OutputBuffer, BQ_SELF_ID, BQ16_BAL_STAT, 1, BQ_STACK_READ);
+
     }
 
     BQ_StatusTypeDef status = BQ_Read(hbq, hbq->OutputBuffer, BQ_SELF_ID, BQ16_BAL_STAT, 1, BQ_STACK_READ);

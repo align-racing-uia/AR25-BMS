@@ -66,6 +66,10 @@
 #define BQ16_BAL_CTRL3 0x330
 #define BQ16_BAL_STAT 0x52B
 
+#define BQ16_CB_CELL16_CTRL 0x318 // All other CB_CELLx_CTRL registers are increments of this
+
+#define BQ16_BAL_TIME 0x558
+
 typedef enum
 {
     BQ16_FAULT_MSK1_MSK_PWR = (uint8_t)(1 << 0),
@@ -108,6 +112,7 @@ typedef enum
 #define BQ16_TSREF_HI 0x058C // TSREF pin control register high byte
 
 #define BQ16_BAL_STAT_CB_RUN 0x8
+#define BQ16_BAL_CTRL3_BAL_TIME_SEL_MASK 0x1E
 
 typedef struct
 {
