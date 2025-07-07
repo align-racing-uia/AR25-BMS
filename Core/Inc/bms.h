@@ -83,6 +83,7 @@ typedef struct
     bool SdcClosed;        // SdcClosed connected flag
     bool TsRequested;      // TS requested flag, true if the TS is requested to be active
     bool ChargerPresent;   // Charger connected flag
+    bool StartCharging;    // Start charging flag, true if the charging should be started
     bool BalancingEnabled; // Balancing enabled flag, true if the balancing is enabled through the user interface
     bool *BalancingActive; // Balancing active flag, true if the balancing is currently active
 

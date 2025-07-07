@@ -272,7 +272,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
             hbms->TSState = TS_STATE_START;    // Set the TS state to start
         }
 
-        if (hbms->ChargerPresent && hbms->SdcClosed)
+        if (hbms->ChargerPresent && hbms->SdcClosed && hbms->StartCharging )
         {
             hbms->State = BMS_STATE_CHARGING; // If the TS is requested (or we are connected to the charger) and the SDC is closed, we can activate the TS
             hbms->TSState = TS_STATE_START;   // Set the TS state to start
@@ -625,6 +625,13 @@ void ListenForCanMessages(BMS_HandleTypeDef *hbms)
                     case 0x20:
                         hbms->InverterVoltage = (rx_data[6] << 8) | rx_data[7]; // Set the inverter voltage from the received data
                         break;
+                    }
+                }
+
+                if (node_id == 14){
+                    if (packet_id == 0x1)
+                    {
+                        hbms->StartCharging = (rx_data[0] & 0x01) > 0; // Set the start charging flag based on the first byte of the received data
                     }
                 }
 
