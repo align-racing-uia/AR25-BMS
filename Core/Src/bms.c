@@ -147,10 +147,10 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     float high_current_sensor_voltage = ((float)adc2_buffer[0]) / 4096.0f * 2900.0f;
     high_current_sensor_voltage = high_current_sensor_voltage * 5.0f / 3.0f;
     low_current_sensor_voltage = low_current_sensor_voltage * 5.0f / 3.0f;
-    float low_current_sensor = (low_current_sensor_voltage - 2500.0f) / 26.7f + 0.6; // + 0.6A to fix drift
-    float high_current_sensor = (high_current_sensor_voltage - 2500.0f) / 4.0f;
+    float low_current_sensor = (low_current_sensor_voltage - 2500.0f) / 40.0f; // + 0.6A to fix drift
+    float high_current_sensor = (high_current_sensor_voltage - 2500.0f) / 10.0f;
 
-    hbms->MeasuredCurrent = fabs(low_current_sensor) <= 75.0 ? low_current_sensor : high_current_sensor; // Use the low current sensor if it is above 75A, otherwise use the high current sensor¨
+    hbms->MeasuredCurrent = fabs(low_current_sensor) <= 50.0 ? low_current_sensor : high_current_sensor; // Use the low current sensor if it is above 75A, otherwise use the high current sensor¨
     hbms->MeasuredCurrent *= 10.0f;                                                                      // Convert the current to A * 10
 
     // Derate current limits based on temperature and voltage
@@ -738,6 +738,7 @@ void BroadcastBMSVoltages(BMS_HandleTypeDef *hbms)
 void BroadcastBMSTemperatures(BMS_HandleTypeDef *hbms)
 {
     // This function transmits the cell temperatures over the CAN network
+
 
     uint8_t data[8] = {0}; // Dummy data for the broadcast packet
 

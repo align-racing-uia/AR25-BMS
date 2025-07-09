@@ -19,7 +19,7 @@ uint8_t reverse_bits(uint8_t b)
     return b;
 }
 
-// Depends on the GCC compiler
+// Depends on the GCC 
 #define NUM_OF_ONES(x) __builtin_popcount(x)
 
 void BQ_Init(BQ_HandleTypeDef *hbq)
@@ -34,7 +34,7 @@ void BQ_Init(BQ_HandleTypeDef *hbq)
 }
 
 void BQ_Configure(BQ_HandleTypeDef *hbq, BQ_ConfigTypeDef *bq_config)
-{
+{   
     if (bq_config == NULL || hbq == NULL)
     {
         // If this occurs, you have done something very wrong
