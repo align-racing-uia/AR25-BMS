@@ -97,7 +97,7 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
     hbms->LowestCellVoltage = &hbms->BQ->LowestCellVoltage;           // Bind the lowest cell voltage pointer
     hbms->HighestCellVoltage = &hbms->BQ->HighestCellVoltage;         // Bind the highest cell voltage pointer
     hbms->MeasuredCurrent = 0;                                        // Initialize the measured current to 0
-    hbms->CurrentDeltaTime = 0;
+    hbms->CurrentFilterTimestamp = 0;
 
     hbms->Initialized = true;            // Clear the initialized flag
     hbms->BroadcastVoltages = false;     // Clear the broadcast voltages flag
@@ -153,7 +153,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
 
     float new_current = fabs(low_current_sensor) <= 50.0 ? low_current_sensor : high_current_sensor;
     float rc = 1.0/(20.0*2.0*3.14);
-    float millis_since_last = HAL_GetTick() - hbms->CurrentDeltaTime; // Calculate the time since the last measurement in milliseconds
+    float millis_since_last = HAL_GetTick() - hbms->CurrentFilterTimestamp; // Calculate the time since the last measurement in milliseconds
     new_current *= 10.0f;    // Convert the current to A * 10
     if(millis_since_last > 1000)
     {
@@ -165,7 +165,7 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     
         
     }
-    hbms->CurrentDeltaTime = HAL_GetTick(); // Update the current delta time to the current time
+    hbms->CurrentFilterTimestamp = HAL_GetTick(); // Update the current delta time to the current time
 
     // Derate current limits based on temperature and voltage
     // Derate everything linearly based on the limits in the configuration

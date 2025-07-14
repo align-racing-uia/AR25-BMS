@@ -123,7 +123,7 @@ typedef struct
     bool BqConnected;    // BQ connected flag
 
     uint32_t LastMeasurementTimestamp;
-    uint32_t CurrentDeltaTime;
+    uint32_t CurrentFilterTimestamp;
     uint32_t BroadcastTimestamp; // Timestamp for the last broadcast
     uint32_t PrechargeTimestamp; // Timestamp for the last precharge
     uint32_t StartupTimestamp;   // Timestamp for the startup to give everything time to initialize
