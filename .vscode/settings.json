@@ -28,7 +28,8 @@
         "cmsis_armcc.h": "c",
         "math.h": "c",
         "arm_mve.h": "c",
-        "spi.h": "c"
+        "spi.h": "c",
+        "cmath": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true,
     "C_Cpp.errorSquiggles": "enabled"

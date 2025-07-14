@@ -97,6 +97,7 @@ void BMS_Init(BMS_HandleTypeDef *hbms, BMS_HardwareConfigTypeDef *hardware_confi
     hbms->LowestCellVoltage = &hbms->BQ->LowestCellVoltage;           // Bind the lowest cell voltage pointer
     hbms->HighestCellVoltage = &hbms->BQ->HighestCellVoltage;         // Bind the highest cell voltage pointer
     hbms->MeasuredCurrent = 0;                                        // Initialize the measured current to 0
+    hbms->CurrentDeltaTime = 0;
 
     hbms->Initialized = true;            // Clear the initialized flag
     hbms->BroadcastVoltages = false;     // Clear the broadcast voltages flag
@@ -147,11 +148,24 @@ void BMS_Update(BMS_HandleTypeDef *hbms)
     float high_current_sensor_voltage = ((float)adc2_buffer[0]) / 4096.0f * 2900.0f;
     high_current_sensor_voltage = high_current_sensor_voltage * 5.0f / 3.0f;
     low_current_sensor_voltage = low_current_sensor_voltage * 5.0f / 3.0f;
-    float low_current_sensor = (low_current_sensor_voltage - 2500.0f) / 40.0f; // + 0.6A to fix drift
-    float high_current_sensor = (high_current_sensor_voltage - 2500.0f) / 10.0f;
+    float low_current_sensor = (low_current_sensor_voltage - 2500.0f) / 26.7f + 0.6; // + 0.6A to fix drift
+    float high_current_sensor = (high_current_sensor_voltage - 2500.0f) / 6.0f;
 
-    hbms->MeasuredCurrent = fabs(low_current_sensor) <= 50.0 ? low_current_sensor : high_current_sensor; // Use the low current sensor if it is above 75A, otherwise use the high current sensor¨
-    hbms->MeasuredCurrent *= 10.0f;                                                                      // Convert the current to A * 10
+    float new_current = fabs(low_current_sensor) <= 50.0 ? low_current_sensor : high_current_sensor;
+    float rc = 1.0/(20.0*2.0*3.14);
+    float millis_since_last = HAL_GetTick() - hbms->CurrentDeltaTime; // Calculate the time since the last measurement in milliseconds
+    new_current *= 10.0f;    // Convert the current to A * 10
+    if(millis_since_last > 1000)
+    {
+        millis_since_last = 0; // Limit the time to 1 second to prevent too large delta times
+    }else{
+        float dt = ((float)millis_since_last) / 1000.0f; // Convert the delta time to seconds
+        float alpha = dt / (rc + dt); // Calculate the alpha value for the low-pass filter
+        hbms->MeasuredCurrent = hbms->MeasuredCurrent * (1-alpha) + alpha * (new_current); // Use the low current sensor if it is above 75A, otherwise use the high current sensor
+    
+        
+    }
+    hbms->CurrentDeltaTime = HAL_GetTick(); // Update the current delta time to the current time
 
     // Derate current limits based on temperature and voltage
     // Derate everything linearly based on the limits in the configuration
